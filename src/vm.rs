@@ -181,6 +181,48 @@ mod tests {
     use super::*;
 
     #[test]
+    fn instructions() {
+        use Instruction::*;
+
+        let memory_size = 40;
+        let cases = vec![
+            (vec![Push(1), Push(2), Push(3)], vec![3, 2, 1]),
+            (vec![Push(1), Push(2), Push(3), Pop, Pop], vec![1]),
+            (vec![Push(1), Push(2), Add], vec![3]),
+            (vec![Push(10), Push(2), Sub], vec![8]),
+            (vec![Push(10), Push(2), Mul], vec![20]),
+            (vec![Push(10), Push(2), Div], vec![5]),
+            (
+                vec![Push(1), Push(2), Push(3), Push(memory_size - 4 * 2), Load],
+                vec![2, 3, 2, 1],
+            ),
+            (
+                vec![
+                    Push(1),
+                    Push(2),
+                    Push(3),
+                    Push(10),
+                    Push(memory_size - 4 * 2),
+                    Store,
+                ],
+                vec![3, 10, 1],
+            ),
+        ];
+
+        for (program, expected) in cases {
+            let mut vm = Vm::new(memory_size as usize, program);
+            vm.exec();
+            assert_eq!(
+                vm.memory[(vm.sp + 4)..],
+                expected
+                    .iter()
+                    .flat_map(|&x| (x as u32).to_le_bytes().to_vec())
+                    .collect::<Vec<u8>>()
+            );
+        }
+    }
+
+    #[test]
     fn fib() {
         use Instruction::*;
 
