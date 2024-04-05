@@ -16,7 +16,7 @@ impl IrCodeGenerator {
 
     pub fn expr(&self, expr: Expr) -> Result<IrTerm, IrCodeGeneratorError> {
         match expr {
-            Expr::Ident(name) => Ok(IrTerm::Ident(name)),
+            Expr::Ident(name) => Ok(IrTerm::Load(Box::new(IrTerm::Ident(name)))),
             Expr::Lit(lit) => match lit {
                 Literal::Integer(i) => Ok(IrTerm::Integer(i)),
                 Literal::String(s) => todo!(),
@@ -145,8 +145,8 @@ mod tests {
                         value: Box::new(IrTerm::Op {
                             op: IrOp::Add,
                             args: vec![
-                                IrTerm::Ident("a".to_string()),
-                                IrTerm::Ident("b".to_string()),
+                                IrTerm::Load(Box::new(IrTerm::Ident("a".to_string()))),
+                                IrTerm::Load(Box::new(IrTerm::Ident("b".to_string()))),
                             ],
                         }),
                     },
@@ -161,7 +161,7 @@ mod tests {
             let mut parser = Parser::new(lexer.run().unwrap());
             let ir = gen.block(parser.block().unwrap()).unwrap();
 
-            assert_eq!(ir, expected);
+            assert_eq!(ir, expected, "input: {}", input);
         }
     }
 }

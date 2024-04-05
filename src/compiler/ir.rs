@@ -17,4 +17,5 @@ pub enum IrTerm {
     Op { op: IrOp, args: Vec<IrTerm> },
     Block { terms: Vec<IrTerm> },
     Return(Box<IrTerm>),
+    Load(Box<IrTerm>),
 }

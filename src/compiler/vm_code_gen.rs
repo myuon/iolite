@@ -66,6 +66,10 @@ impl VmCodeGenerator {
                 self.term(*value)?;
                 self.code.push(Instruction::Return);
             }
+            IrTerm::Load(term) => {
+                self.term(*term)?;
+                self.code.push(Instruction::Load);
+            }
         }
 
         Ok(())

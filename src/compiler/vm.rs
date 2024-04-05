@@ -128,7 +128,7 @@ impl Vm {
                 }
                 Instruction::PushLocal(index) => {
                     let addr = self.sp + 4 * index;
-                    self.push(self.load_i32(addr as u32));
+                    self.push(addr as i32);
                 }
                 Instruction::Jump => {
                     self.pc = self.pop() as usize;
