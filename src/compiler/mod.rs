@@ -46,7 +46,12 @@ mod tests {
 
     #[test]
     fn test_compile() {
-        let cases = vec![("1 + 3 * 4", 13), ("1 * 3 - 4", -1), ("4 * 3 - 2", 10)];
+        let cases = vec![
+            ("1 + 3 * 4", 13),
+            ("1 * 3 - 4", -1),
+            ("4 * 3 - 2", 10),
+            ("4 * (3 - 2)", 4),
+        ];
 
         for (input, expected) in cases {
             let actual = Compiler::run(input.to_string()).unwrap();

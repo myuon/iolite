@@ -12,6 +12,7 @@ pub struct Parser {
 #[derive(Debug, PartialEq)]
 pub enum ParseError {
     UnexpectedEos,
+    UnexpectedToken { expected: Lexeme, got: Lexeme },
 }
 
 impl Parser {
@@ -26,6 +27,18 @@ impl Parser {
         self.tokens
             .get(self.position)
             .ok_or(ParseError::UnexpectedEos)
+    }
+
+    fn expect(&mut self, lexeme: Lexeme) -> Result<(), ParseError> {
+        let token = self.peek()?;
+        if token == &lexeme {
+            Ok(())
+        } else {
+            Err(ParseError::UnexpectedToken {
+                expected: lexeme,
+                got: token.clone(),
+            })
+        }
     }
 
     pub fn expr(&mut self) -> Result<Expr, ParseError> {
@@ -146,7 +159,19 @@ impl Parser {
 
                 Ok(current)
             }
-            _ => unimplemented!(),
+            Lexeme::LParen => {
+                self.position += 1;
+
+                let current = self.expr()?;
+
+                self.expect(Lexeme::RParen)?;
+
+                Ok(current)
+            }
+            _ => Err(ParseError::UnexpectedToken {
+                expected: Lexeme::Integer(0),
+                got: self.tokens[self.position].clone(),
+            }),
         }
     }
 }
