@@ -41,6 +41,7 @@ pub enum Statement {
     Return(Expr),
     Expr(Expr),
     Assign(String, Expr),
+    While { cond: Expr, body: Block },
 }
 
 #[derive(Debug, PartialEq)]

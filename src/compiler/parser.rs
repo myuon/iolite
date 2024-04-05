@@ -60,12 +60,32 @@ impl Parser {
         }
     }
 
-    pub fn block(&mut self) -> Result<Block, ParseError> {
+    pub fn block(&mut self, end_token: Option<Lexeme>) -> Result<Block, ParseError> {
         let mut block = vec![];
 
         while self.position < self.tokens.len() {
-            block.push(self.statement()?);
-            self.expect(Lexeme::Semicolon)?;
+            if let Some(end_token) = &end_token {
+                if self.peek()? == end_token {
+                    break;
+                }
+            }
+
+            let statement = self.statement()?;
+            let needs_semilon = match &statement {
+                Statement::While { .. } => false,
+                _ => true,
+            };
+
+            block.push(statement);
+            if needs_semilon {
+                self.expect(Lexeme::Semicolon)?;
+            } else {
+                if let Ok(token) = self.peek() {
+                    if matches!(token, Lexeme::Semicolon) {
+                        self.consume()?;
+                    }
+                }
+            }
         }
 
         Ok(Block { statements: block })
@@ -90,6 +110,22 @@ impl Parser {
                 let expr = self.expr()?;
 
                 Ok(Statement::Return(expr))
+            }
+            Lexeme::While => {
+                self.consume()?;
+
+                self.expect(Lexeme::LParen)?;
+                let expr = self.expr()?;
+                self.expect(Lexeme::RParen)?;
+
+                self.expect(Lexeme::LBrace)?;
+                let block = self.block(Some(Lexeme::RBrace))?;
+                self.expect(Lexeme::RBrace)?;
+
+                Ok(Statement::While {
+                    cond: expr,
+                    body: block,
+                })
             }
             _ => {
                 let expr = self.expr()?;
@@ -362,7 +398,7 @@ impl Parser {
                 Ok(current)
             }
             _ => Err(ParseError::UnexpectedToken {
-                expected: Lexeme::Integer(0),
+                expected: Lexeme::String("".to_string()),
                 got: self.tokens[self.position].clone(),
             }),
         }
@@ -554,13 +590,27 @@ mod tests {
                     ],
                 },
             ),
+            (
+                "while (true) { let a = 1; let b = 2; }",
+                Block {
+                    statements: vec![Statement::While {
+                        cond: Expr::Lit(Literal::Bool(true)),
+                        body: Block {
+                            statements: vec![
+                                Statement::Let("a".to_string(), Expr::Lit(Literal::Integer(1))),
+                                Statement::Let("b".to_string(), Expr::Lit(Literal::Integer(2))),
+                            ],
+                        },
+                    }],
+                },
+            ),
         ];
 
         for (input, expected) in cases {
             let mut lexer = crate::compiler::lexer::Lexer::new(input.to_string());
             let tokens = lexer.run().unwrap();
             let mut parser = Parser::new(tokens);
-            let got = parser.block().unwrap();
+            let got = parser.block(None).unwrap();
 
             assert_eq!(got, expected);
         }

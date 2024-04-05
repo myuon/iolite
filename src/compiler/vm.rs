@@ -1,3 +1,10 @@
+use std::collections::HashMap;
+
+#[derive(Debug, Clone, PartialEq)]
+pub enum VmError {
+    LabelNotFound(String),
+}
+
 #[derive(Debug, Clone, PartialEq)]
 pub enum Instruction {
     Add,
@@ -22,6 +29,9 @@ pub enum Instruction {
     Gt,
     Le,
     Ge,
+    Label(String),
+    JumpTo(String),
+    JumpIfTo(String),
 }
 
 pub struct Vm {
@@ -29,6 +39,7 @@ pub struct Vm {
     sp: usize,
     pc: usize,
     program: Vec<Instruction>,
+    labels: HashMap<String, usize>,
 }
 
 impl Vm {
@@ -41,7 +52,43 @@ impl Vm {
             sp,
             pc: 0,
             program,
+            labels: HashMap::new(),
         }
+    }
+
+    fn look_for_label(&mut self, label: &str) -> Result<usize, VmError> {
+        while self.pc < self.program.len() {
+            match &self.program[self.pc] {
+                Instruction::Label(l) => {
+                    if l == label {
+                        return Ok(self.pc);
+                    } else {
+                        self.labels.insert(l.clone(), self.pc);
+                    }
+                }
+                _ => (),
+            }
+
+            self.pc += 1;
+        }
+
+        self.pc = 0;
+        while self.pc < self.program.len() {
+            match &self.program[self.pc] {
+                Instruction::Label(l) => {
+                    if l == label {
+                        return Ok(self.pc);
+                    } else {
+                        self.labels.insert(l.clone(), self.pc);
+                    }
+                }
+                _ => (),
+            }
+
+            self.pc += 1;
+        }
+
+        Err(VmError::LabelNotFound(label.to_string()))
     }
 
     fn load_i32(&self, address: u32) -> i32 {
@@ -73,7 +120,7 @@ impl Vm {
         (self.pop() as u32) & 0xFFFF_FFFC
     }
 
-    fn print_stack(&self) {
+    fn print_stack(&self, next: &Instruction) {
         print!("| ");
         let mut p = 0;
         while p < self.memory.len() {
@@ -87,14 +134,14 @@ impl Vm {
             p += 4;
         }
 
-        println!();
+        println!("  next: {:?}", next);
     }
 
-    pub fn exec(&mut self) {
+    pub fn exec(&mut self) -> Result<(), VmError> {
         while self.pc < self.program.len() {
-            self.print_stack();
+            self.print_stack(&self.program[self.pc]);
 
-            match self.program[self.pc] {
+            match self.program[self.pc].clone() {
                 Instruction::Add => {
                     let a = self.pop();
                     let b = self.pop();
@@ -172,7 +219,7 @@ impl Vm {
                 }
                 Instruction::Not => {
                     let a = self.pop();
-                    self.push(!a);
+                    self.push(if a == 0 { 1 } else { 0 });
                 }
                 Instruction::Eq => {
                     let a = self.pop();
@@ -199,10 +246,35 @@ impl Vm {
                     let b = self.pop();
                     self.push(if b >= a { 1 } else { 0 });
                 }
+                Instruction::Label(label) => {
+                    self.labels.insert(label.clone(), self.pc);
+                }
+                Instruction::JumpTo(label) => {
+                    if let Some(pc) = self.labels.get(&label) {
+                        self.pc = *pc;
+                        continue;
+                    } else {
+                        self.pc = self.look_for_label(&label)?;
+                        continue;
+                    }
+                }
+                Instruction::JumpIfTo(label) => {
+                    if self.pop() != 0 {
+                        if let Some(pc) = self.labels.get(&label) {
+                            self.pc = *pc;
+                            continue;
+                        } else {
+                            self.pc = self.look_for_label(&label)?;
+                            continue;
+                        }
+                    }
+                }
             }
 
             self.pc += 1;
         }
+
+        Ok(())
     }
 }
 

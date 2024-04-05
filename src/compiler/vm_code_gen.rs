@@ -93,6 +93,22 @@ impl VmCodeGenerator {
                 self.code.push(Instruction::Store);
                 self.locals.pop();
             }
+            IrTerm::While { cond, body } => {
+                self.code
+                    .push(Instruction::Label("while:start".to_string()));
+
+                self.term(*cond)?;
+                self.code.push(Instruction::Not);
+
+                self.code
+                    .push(Instruction::JumpIfTo("while:end".to_string()));
+
+                self.term(*body)?;
+                self.code
+                    .push(Instruction::JumpTo("while:start".to_string()));
+
+                self.code.push(Instruction::Label("while:end".to_string()));
+            }
         }
 
         Ok(())

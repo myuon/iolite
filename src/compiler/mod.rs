@@ -36,7 +36,7 @@ impl Compiler {
         let ir_code_gen = ir_code_gen::IrCodeGenerator::new();
         let mut vm_code_gen = vm_code_gen::VmCodeGenerator::new();
 
-        let expr = parser.block().unwrap();
+        let expr = parser.block(None).unwrap();
         let ir = ir_code_gen.block(expr).unwrap();
 
         vm_code_gen.term(ir).unwrap();
@@ -48,7 +48,7 @@ impl Compiler {
         let code = Self::compile_expr(input)?;
 
         let mut vm = vm::Vm::new(40, code);
-        vm.exec();
+        vm.exec().unwrap();
 
         Ok(vm.pop())
     }
@@ -57,7 +57,14 @@ impl Compiler {
         let code = Self::compile_block(input)?;
 
         let mut vm = vm::Vm::new(40, code);
-        vm.exec();
+        vm.exec().unwrap();
+
+        Ok(vm.pop())
+    }
+
+    pub fn run_vm(program: Vec<Instruction>) -> Result<i32, Box<dyn std::error::Error>> {
+        let mut vm = vm::Vm::new(40, program);
+        vm.exec().unwrap();
 
         Ok(vm.pop())
     }
@@ -99,6 +106,10 @@ mod tests {
         let cases = vec![
             ("let x = 1 + 2 * 4; let y = x + 2; y;", 11),
             ("let x = 1; x = x + 2; x;", 3),
+            (
+                "let c = 0; let n = 1; while (c < 5) { c = c + 1; n = n * 2; }; n;",
+                32,
+            ),
         ];
 
         for (input, expected) in cases {

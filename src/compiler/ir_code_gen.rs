@@ -76,6 +76,15 @@ impl IrCodeGenerator {
 
                     terms.push(IrTerm::Store(Box::new(IrTerm::Ident(var)), Box::new(term)));
                 }
+                Statement::While { cond, body } => {
+                    let cond = self.expr(cond)?;
+                    let body = self.block(body)?;
+
+                    terms.push(IrTerm::While {
+                        cond: Box::new(cond),
+                        body: Box::new(body),
+                    });
+                }
             }
         }
 
@@ -188,7 +197,7 @@ mod tests {
         for (input, expected) in cases {
             let mut lexer = Lexer::new(input.to_string());
             let mut parser = Parser::new(lexer.run().unwrap());
-            let ir = gen.block(parser.block().unwrap()).unwrap();
+            let ir = gen.block(parser.block(None).unwrap()).unwrap();
 
             assert_eq!(ir, expected, "input: {}", input);
         }

@@ -20,10 +20,22 @@ pub enum IrTerm {
     Nil,
     Integer(i32),
     Ident(String),
-    Let { name: String, value: Box<IrTerm> },
-    Op { op: IrOp, args: Vec<IrTerm> },
-    Block { terms: Vec<IrTerm> },
+    Let {
+        name: String,
+        value: Box<IrTerm>,
+    },
+    Op {
+        op: IrOp,
+        args: Vec<IrTerm>,
+    },
+    Block {
+        terms: Vec<IrTerm>,
+    },
     Return(Box<IrTerm>),
     Load(Box<IrTerm>),
     Store(Box<IrTerm>, Box<IrTerm>),
+    While {
+        cond: Box<IrTerm>,
+        body: Box<IrTerm>,
+    },
 }
