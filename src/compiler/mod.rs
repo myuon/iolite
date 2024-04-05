@@ -80,6 +80,12 @@ mod tests {
             ("1 >= 2", 0),
             ("1 == 2", 0),
             ("2 == 2", 1),
+            ("false && false", 0),
+            ("true && false", 0),
+            ("true && true", 1),
+            ("false || false", 0),
+            ("true || false", 1),
+            ("true || true", 1),
         ];
 
         for (input, expected) in cases {

@@ -1,5 +1,6 @@
 #[derive(Debug, PartialEq)]
 pub enum Literal {
+    Bool(bool),
     Integer(i32),
     String(String),
 }

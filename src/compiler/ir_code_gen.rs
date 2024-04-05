@@ -20,6 +20,7 @@ impl IrCodeGenerator {
             Expr::Lit(lit) => match lit {
                 Literal::Integer(i) => Ok(IrTerm::Integer(i)),
                 Literal::String(s) => todo!(),
+                Literal::Bool(b) => Ok(IrTerm::Integer(if b { 1 } else { 0 })),
             },
             Expr::BinOp { op, left, right } => {
                 let left = self.expr(*left)?;

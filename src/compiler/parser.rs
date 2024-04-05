@@ -299,17 +299,27 @@ impl Parser {
     fn expr_0(&mut self) -> Result<Expr, ParseError> {
         match self.tokens[self.position].clone() {
             Lexeme::Integer(i) => {
-                self.position += 1;
+                self.consume()?;
 
                 Ok(Expr::Lit(Literal::Integer(i.clone())))
             }
             Lexeme::String(s) => {
-                self.position += 1;
+                self.consume()?;
 
                 Ok(Expr::Lit(Literal::String(s.clone())))
             }
+            Lexeme::True => {
+                self.consume()?;
+
+                Ok(Expr::Lit(Literal::Bool(true)))
+            }
+            Lexeme::False => {
+                self.consume()?;
+
+                Ok(Expr::Lit(Literal::Bool(false)))
+            }
             Lexeme::Ident(i) => {
-                self.position += 1;
+                self.consume()?;
 
                 let current = Expr::Ident(i.clone());
                 if let Ok(token) = self.peek() {
