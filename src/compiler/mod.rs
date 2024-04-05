@@ -84,7 +84,10 @@ mod tests {
 
     #[test]
     fn test_compile_block() {
-        let cases = vec![("let x = 1 + 2 * 4; let y = x + 2; y;", 11)];
+        let cases = vec![
+            ("let x = 1 + 2 * 4; let y = x + 2; y;", 11),
+            ("let x = 1; x = x + 2; x;", 3),
+        ];
 
         for (input, expected) in cases {
             let actual = Compiler::run_block(input.to_string()).unwrap();

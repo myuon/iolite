@@ -116,8 +116,8 @@ impl Vm {
                     self.push(self.load_i32(addr));
                 }
                 Instruction::Store => {
-                    let addr = self.pop_address();
                     let val = self.pop();
+                    let addr = self.pop_address();
                     self.store_i32(addr, val);
                 }
                 Instruction::Pop => {
@@ -207,12 +207,13 @@ mod tests {
                     Push(1),
                     Push(2),
                     Push(3),
-                    Push(10),
                     Push(memory_size - 4 * 2),
+                    Push(10),
                     Store,
                 ],
                 vec![3, 10, 1],
             ),
+            (vec![Push(1), PushLocal(1), Push(2), Store], vec![2]),
         ];
 
         for (program, expected) in cases {
@@ -252,19 +253,19 @@ mod tests {
                 Push(memory_size - 4 * 2), // load(b)
                 Load,
                 Add,                       // t
+                Push(memory_size - 4 * 1), // store(a)
                 Push(memory_size - 4 * 2), // load(b)
                 Load,
-                Push(memory_size - 4 * 1), // store(a)
                 Store,
+                Push(memory_size - 4 * 2), // store(b)
                 Push(memory_size - 4 * 4), // load(t)
                 Load,
-                Push(memory_size - 4 * 2), // store(b)
                 Store,
+                Push(memory_size - 4 * 3), // store(c)
                 Push(1),
                 Push(memory_size - 4 * 3), // load(c)
                 Load,
-                Add,                       // c+1
-                Push(memory_size - 4 * 3), // store(c)
+                Add, // c+1
                 Store,
                 Pop,
                 Push(3), // jump *while

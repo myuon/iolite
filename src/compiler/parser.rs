@@ -93,6 +93,20 @@ impl Parser {
             }
             _ => {
                 let expr = self.expr()?;
+
+                if let Ok(token) = self.peek() {
+                    match token {
+                        Lexeme::Equal => {
+                            if let Expr::Ident(ident) = expr {
+                                self.consume()?;
+                                let right = self.expr()?;
+                                return Ok(Statement::Assign(ident, right));
+                            }
+                        }
+                        _ => (),
+                    }
+                }
+
                 Ok(Statement::Expr(expr))
             }
         }
@@ -322,6 +336,10 @@ mod tests {
                     left: Box::new(Expr::Lit(Literal::Integer(1))),
                     right: Box::new(Expr::Lit(Literal::Integer(2))),
                 }),
+            ),
+            (
+                "a = b;",
+                Statement::Assign("a".to_string(), Expr::Ident("b".to_string())),
             ),
         ];
 

@@ -57,7 +57,7 @@ impl IrCodeGenerator {
                     let ir = self.expr(expr)?;
 
                     terms.push(IrTerm::Let {
-                        name: name,
+                        name,
                         value: Box::new(ir),
                     });
                 }
@@ -70,6 +70,11 @@ impl IrCodeGenerator {
                     let ir = self.expr(expr)?;
 
                     terms.push(ir);
+                }
+                Statement::Assign(var, expr) => {
+                    let term = self.expr(expr)?;
+
+                    terms.push(IrTerm::Store(Box::new(IrTerm::Ident(var)), Box::new(term)));
                 }
             }
         }
@@ -128,31 +133,48 @@ mod tests {
 
     #[test]
     fn test_block() {
-        let cases = vec![(
-            "let a = 1; let b = 2; let c = a + b;",
-            IrTerm::Block {
-                terms: vec![
-                    IrTerm::Let {
-                        name: "a".to_string(),
-                        value: Box::new(IrTerm::Integer(1)),
-                    },
-                    IrTerm::Let {
-                        name: "b".to_string(),
-                        value: Box::new(IrTerm::Integer(2)),
-                    },
-                    IrTerm::Let {
-                        name: "c".to_string(),
-                        value: Box::new(IrTerm::Op {
-                            op: IrOp::Add,
-                            args: vec![
-                                IrTerm::Load(Box::new(IrTerm::Ident("a".to_string()))),
-                                IrTerm::Load(Box::new(IrTerm::Ident("b".to_string()))),
-                            ],
-                        }),
-                    },
-                ],
-            },
-        )];
+        let cases = vec![
+            (
+                "let a = 1; let b = 2; let c = a + b;",
+                IrTerm::Block {
+                    terms: vec![
+                        IrTerm::Let {
+                            name: "a".to_string(),
+                            value: Box::new(IrTerm::Integer(1)),
+                        },
+                        IrTerm::Let {
+                            name: "b".to_string(),
+                            value: Box::new(IrTerm::Integer(2)),
+                        },
+                        IrTerm::Let {
+                            name: "c".to_string(),
+                            value: Box::new(IrTerm::Op {
+                                op: IrOp::Add,
+                                args: vec![
+                                    IrTerm::Load(Box::new(IrTerm::Ident("a".to_string()))),
+                                    IrTerm::Load(Box::new(IrTerm::Ident("b".to_string()))),
+                                ],
+                            }),
+                        },
+                    ],
+                },
+            ),
+            (
+                "let a = 1; a = 2;",
+                IrTerm::Block {
+                    terms: vec![
+                        IrTerm::Let {
+                            name: "a".to_string(),
+                            value: Box::new(IrTerm::Integer(1)),
+                        },
+                        IrTerm::Store(
+                            Box::new(IrTerm::Ident("a".to_string())),
+                            Box::new(IrTerm::Integer(2)),
+                        ),
+                    ],
+                },
+            ),
+        ];
 
         let gen = IrCodeGenerator::new();
 

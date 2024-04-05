@@ -21,6 +21,20 @@ impl VmCodeGenerator {
         self.locals.len() - self.locals.iter().position(|s| s == name).unwrap()
     }
 
+    fn term_left_value(&mut self, ir: IrTerm) -> Result<(), VmCodeGeneratorError> {
+        match ir {
+            IrTerm::Ident(i) => {
+                let index = self.find_symbol_in_stack(&i);
+                self.code.push(Instruction::PushLocal(index));
+
+                self.locals.push(format!("{}_left_value", i));
+            }
+            _ => todo!(),
+        }
+
+        Ok(())
+    }
+
     pub fn term(&mut self, ir: IrTerm) -> Result<(), VmCodeGeneratorError> {
         match ir {
             IrTerm::Nil => {
@@ -70,6 +84,12 @@ impl VmCodeGenerator {
                 self.term(*term)?;
                 self.code.push(Instruction::Load);
             }
+            IrTerm::Store(addr, value) => {
+                self.term_left_value(*addr)?;
+                self.term(*value)?;
+                self.code.push(Instruction::Store);
+                self.locals.pop();
+            }
         }
 
         Ok(())
@@ -112,6 +132,29 @@ mod tests {
                     args: vec![IrTerm::Integer(1), IrTerm::Integer(2)],
                 },
                 vec![Instruction::Push(1), Instruction::Push(2), Instruction::Div],
+            ),
+            (
+                IrTerm::Block {
+                    terms: vec![
+                        IrTerm::Let {
+                            name: "a".to_string(),
+                            value: Box::new(IrTerm::Integer(1)),
+                        },
+                        IrTerm::Store(
+                            Box::new(IrTerm::Ident("a".to_string())),
+                            Box::new(IrTerm::Integer(2)),
+                        ),
+                        IrTerm::Load(Box::new(IrTerm::Ident("a".to_string()))),
+                    ],
+                },
+                vec![
+                    Instruction::Push(1),
+                    Instruction::PushLocal(1),
+                    Instruction::Push(2),
+                    Instruction::Store,
+                    Instruction::PushLocal(1),
+                    Instruction::Load,
+                ],
             ),
         ];
 
