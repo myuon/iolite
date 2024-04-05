@@ -15,4 +15,6 @@ pub enum IrTerm {
     Ident(String),
     Let { name: String, value: Box<IrTerm> },
     Op { op: IrOp, args: Vec<IrTerm> },
+    Block { terms: Vec<IrTerm> },
+    Return(Box<IrTerm>),
 }

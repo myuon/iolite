@@ -31,6 +31,7 @@ pub enum Expr {
 pub enum Statement {
     Let(String, Expr),
     Return(Expr),
+    Expr(Expr),
 }
 
 #[derive(Debug, PartialEq)]

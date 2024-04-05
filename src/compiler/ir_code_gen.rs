@@ -1,5 +1,5 @@
 use super::{
-    ast::{BinOp, Expr, Literal},
+    ast::{BinOp, Block, Expr, Literal, Statement},
     ir::{IrOp, IrTerm},
 };
 
@@ -47,6 +47,35 @@ impl IrCodeGenerator {
             Expr::Call { name, args } => todo!(),
         }
     }
+
+    fn block(&self, block: Block) -> Result<IrTerm, IrCodeGeneratorError> {
+        let mut terms = vec![];
+
+        for stmt in block.statements {
+            match stmt {
+                Statement::Let(name, expr) => {
+                    let ir = self.expr(expr)?;
+
+                    terms.push(IrTerm::Let {
+                        name: name,
+                        value: Box::new(ir),
+                    });
+                }
+                Statement::Return(expr) => {
+                    let ir = self.expr(expr)?;
+
+                    terms.push(IrTerm::Return(Box::new(ir)));
+                }
+                Statement::Expr(expr) => {
+                    let ir = self.expr(expr)?;
+
+                    terms.push(ir);
+                }
+            }
+        }
+
+        Ok(IrTerm::Block { terms })
+    }
 }
 
 #[cfg(test)]
@@ -92,6 +121,45 @@ mod tests {
             let mut lexer = Lexer::new(input.to_string());
             let mut parser = Parser::new(lexer.run().unwrap());
             let ir = gen.expr(parser.expr().unwrap()).unwrap();
+
+            assert_eq!(ir, expected);
+        }
+    }
+
+    #[test]
+    fn test_block() {
+        let cases = vec![(
+            "let a = 1; let b = 2; let c = a + b;",
+            IrTerm::Block {
+                terms: vec![
+                    IrTerm::Let {
+                        name: "a".to_string(),
+                        value: Box::new(IrTerm::Integer(1)),
+                    },
+                    IrTerm::Let {
+                        name: "b".to_string(),
+                        value: Box::new(IrTerm::Integer(2)),
+                    },
+                    IrTerm::Let {
+                        name: "c".to_string(),
+                        value: Box::new(IrTerm::Op {
+                            op: IrOp::Add,
+                            args: vec![
+                                IrTerm::Ident("a".to_string()),
+                                IrTerm::Ident("b".to_string()),
+                            ],
+                        }),
+                    },
+                ],
+            },
+        )];
+
+        let gen = IrCodeGenerator::new();
+
+        for (input, expected) in cases {
+            let mut lexer = Lexer::new(input.to_string());
+            let mut parser = Parser::new(lexer.run().unwrap());
+            let ir = gen.block(parser.block().unwrap()).unwrap();
 
             assert_eq!(ir, expected);
         }

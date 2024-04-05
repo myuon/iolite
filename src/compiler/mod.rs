@@ -1,12 +1,12 @@
 use self::vm::Instruction;
 
-mod ast;
-mod ir;
-mod ir_code_gen;
-mod lexer;
-mod parser;
+pub mod ast;
+pub mod ir;
+pub mod ir_code_gen;
+pub mod lexer;
+pub mod parser;
 pub mod vm;
-mod vm_code_gen;
+pub mod vm_code_gen;
 
 pub struct Compiler {
     lexer: lexer::Lexer,

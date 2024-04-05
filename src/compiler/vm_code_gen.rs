@@ -43,6 +43,15 @@ impl VmCodeGenerator {
                     }
                 }
             }
+            IrTerm::Block { terms } => {
+                for term in terms {
+                    self.term(term)?;
+                }
+            }
+            IrTerm::Return(value) => {
+                self.term(*value)?;
+                self.code.push(Instruction::Return);
+            }
         }
 
         Ok(())

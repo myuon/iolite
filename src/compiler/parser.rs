@@ -1,5 +1,5 @@
 use super::{
-    ast::{BinOp, Expr, Literal},
+    ast::{BinOp, Block, Expr, Literal, Statement},
     lexer::Lexeme,
 };
 
@@ -29,15 +29,72 @@ impl Parser {
             .ok_or(ParseError::UnexpectedEos)
     }
 
+    fn consume(&mut self) -> Result<Lexeme, ParseError> {
+        let token = self.peek()?.clone();
+        self.position += 1;
+
+        Ok(token)
+    }
+
+    fn ident(&mut self) -> Result<String, ParseError> {
+        let token = self.consume()?;
+        match token {
+            Lexeme::Ident(i) => Ok(i),
+            _ => Err(ParseError::UnexpectedToken {
+                expected: Lexeme::Ident("".to_string()),
+                got: token,
+            }),
+        }
+    }
+
     fn expect(&mut self, lexeme: Lexeme) -> Result<(), ParseError> {
         let token = self.peek()?;
         if token == &lexeme {
+            self.consume()?;
             Ok(())
         } else {
             Err(ParseError::UnexpectedToken {
                 expected: lexeme,
                 got: token.clone(),
             })
+        }
+    }
+
+    pub fn block(&mut self) -> Result<Block, ParseError> {
+        let mut block = vec![];
+
+        while self.position < self.tokens.len() {
+            block.push(self.statement()?);
+            self.expect(Lexeme::Semicolon)?;
+        }
+
+        Ok(Block { statements: block })
+    }
+
+    fn statement(&mut self) -> Result<Statement, ParseError> {
+        match self.peek()? {
+            Lexeme::Let => {
+                self.consume()?;
+
+                let ident = self.ident()?;
+
+                self.expect(Lexeme::Equal)?;
+
+                let expr = self.expr()?;
+
+                Ok(Statement::Let(ident, expr))
+            }
+            Lexeme::Return => {
+                self.consume()?;
+
+                let expr = self.expr()?;
+
+                Ok(Statement::Return(expr))
+            }
+            _ => {
+                let expr = self.expr()?;
+                Ok(Statement::Expr(expr))
+            }
         }
     }
 
@@ -51,7 +108,7 @@ impl Parser {
         while self.position < self.tokens.len() {
             match &self.tokens[self.position] {
                 Lexeme::Plus => {
-                    self.position += 1;
+                    self.consume()?;
                     let right = self.expr_2()?;
 
                     current = Expr::BinOp {
@@ -61,7 +118,7 @@ impl Parser {
                     };
                 }
                 Lexeme::Minus => {
-                    self.position += 1;
+                    self.consume()?;
                     let right = self.expr_2()?;
 
                     current = Expr::BinOp {
@@ -85,7 +142,7 @@ impl Parser {
         while self.position < self.tokens.len() {
             match &self.tokens[self.position] {
                 Lexeme::Star => {
-                    self.position += 1;
+                    self.consume()?;
                     let right = self.expr_0()?;
 
                     current = Expr::BinOp {
@@ -95,7 +152,7 @@ impl Parser {
                     };
                 }
                 Lexeme::Slash => {
-                    self.position += 1;
+                    self.consume()?;
                     let right = self.expr_0()?;
 
                     current = Expr::BinOp {
@@ -239,6 +296,103 @@ mod tests {
             let tokens = lexer.run().unwrap();
             let mut parser = Parser::new(tokens);
             let got = parser.expr().unwrap();
+
+            assert_eq!(got, expected);
+        }
+    }
+
+    #[test]
+    fn test_statement() {
+        let cases = vec![
+            (
+                "let x = 1 + 2",
+                Statement::Let(
+                    "x".to_string(),
+                    Expr::BinOp {
+                        op: BinOp::Add,
+                        left: Box::new(Expr::Lit(Literal::Integer(1))),
+                        right: Box::new(Expr::Lit(Literal::Integer(2))),
+                    },
+                ),
+            ),
+            (
+                "return 1 + 2",
+                Statement::Return(Expr::BinOp {
+                    op: BinOp::Add,
+                    left: Box::new(Expr::Lit(Literal::Integer(1))),
+                    right: Box::new(Expr::Lit(Literal::Integer(2))),
+                }),
+            ),
+        ];
+
+        for (input, expected) in cases {
+            let mut lexer = crate::compiler::lexer::Lexer::new(input.to_string());
+            let tokens = lexer.run().unwrap();
+            let mut parser = Parser::new(tokens);
+            let got = parser.statement().unwrap();
+
+            assert_eq!(got, expected);
+        }
+    }
+
+    #[test]
+    fn test_block() {
+        let cases = vec![
+            (
+                "let x = 1 + 2; let y = 3 * 4; let z = x + y;",
+                Block {
+                    statements: vec![
+                        Statement::Let(
+                            "x".to_string(),
+                            Expr::BinOp {
+                                op: BinOp::Add,
+                                left: Box::new(Expr::Lit(Literal::Integer(1))),
+                                right: Box::new(Expr::Lit(Literal::Integer(2))),
+                            },
+                        ),
+                        Statement::Let(
+                            "y".to_string(),
+                            Expr::BinOp {
+                                op: BinOp::Mul,
+                                left: Box::new(Expr::Lit(Literal::Integer(3))),
+                                right: Box::new(Expr::Lit(Literal::Integer(4))),
+                            },
+                        ),
+                        Statement::Let(
+                            "z".to_string(),
+                            Expr::BinOp {
+                                op: BinOp::Add,
+                                left: Box::new(Expr::Ident("x".to_string())),
+                                right: Box::new(Expr::Ident("y".to_string())),
+                            },
+                        ),
+                    ],
+                },
+            ),
+            (
+                "return 1 + 2; return 3 * 4;",
+                Block {
+                    statements: vec![
+                        Statement::Return(Expr::BinOp {
+                            op: BinOp::Add,
+                            left: Box::new(Expr::Lit(Literal::Integer(1))),
+                            right: Box::new(Expr::Lit(Literal::Integer(2))),
+                        }),
+                        Statement::Return(Expr::BinOp {
+                            op: BinOp::Mul,
+                            left: Box::new(Expr::Lit(Literal::Integer(3))),
+                            right: Box::new(Expr::Lit(Literal::Integer(4))),
+                        }),
+                    ],
+                },
+            ),
+        ];
+
+        for (input, expected) in cases {
+            let mut lexer = crate::compiler::lexer::Lexer::new(input.to_string());
+            let tokens = lexer.run().unwrap();
+            let mut parser = Parser::new(tokens);
+            let got = parser.block().unwrap();
 
             assert_eq!(got, expected);
         }
