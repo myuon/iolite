@@ -7,6 +7,7 @@ pub enum Instruction {
     Load,
     Store,
     Push(i32),
+    PushLocal(usize),
     Pop,
     Jump,
     JumpIf,
@@ -124,6 +125,10 @@ impl Vm {
                 }
                 Instruction::Push(val) => {
                     self.push(val);
+                }
+                Instruction::PushLocal(index) => {
+                    let addr = self.sp + 4 * index;
+                    self.push(self.load_i32(addr as u32));
                 }
                 Instruction::Jump => {
                     self.pc = self.pop() as usize;

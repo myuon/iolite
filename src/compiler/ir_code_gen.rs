@@ -48,7 +48,7 @@ impl IrCodeGenerator {
         }
     }
 
-    fn block(&self, block: Block) -> Result<IrTerm, IrCodeGeneratorError> {
+    pub fn block(&self, block: Block) -> Result<IrTerm, IrCodeGeneratorError> {
         let mut terms = vec![];
 
         for stmt in block.statements {

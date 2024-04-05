@@ -5,12 +5,20 @@ pub enum VmCodeGeneratorError {}
 
 #[derive(Debug)]
 pub struct VmCodeGenerator {
+    locals: Vec<String>,
     pub code: Vec<Instruction>,
 }
 
 impl VmCodeGenerator {
     pub fn new() -> Self {
-        Self { code: vec![] }
+        Self {
+            locals: vec![],
+            code: vec![],
+        }
+    }
+
+    fn find_symbol_in_stack(&self, name: &str) -> usize {
+        self.locals.len() - self.locals.iter().position(|s| s == name).unwrap()
     }
 
     pub fn term(&mut self, ir: IrTerm) -> Result<(), VmCodeGeneratorError> {
@@ -21,8 +29,14 @@ impl VmCodeGenerator {
             IrTerm::Integer(n) => {
                 self.code.push(Instruction::Push(n));
             }
-            IrTerm::Ident(i) => todo!(),
-            IrTerm::Let { name, value } => todo!(),
+            IrTerm::Ident(i) => {
+                let index = self.find_symbol_in_stack(&i);
+                self.code.push(Instruction::PushLocal(index));
+            }
+            IrTerm::Let { name, value } => {
+                self.term(*value)?;
+                self.locals.push(name);
+            }
             IrTerm::Op { op, args } => {
                 for arg in args {
                     self.term(arg)?;
