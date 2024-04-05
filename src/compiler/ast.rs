@@ -14,6 +14,7 @@ pub enum BinOp {
     And,
     Or,
     Eq,
+    NotEq,
     Lt,
     Gt,
     Le,

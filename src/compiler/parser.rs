@@ -255,6 +255,16 @@ impl Parser {
                         right: Box::new(right),
                     };
                 }
+                Lexeme::NotEqual => {
+                    self.consume()?;
+                    let right = self.expr_2()?;
+
+                    current = Expr::BinOp {
+                        op: BinOp::NotEq,
+                        left: Box::new(current),
+                        right: Box::new(right),
+                    };
+                }
                 _ => {
                     break;
                 }

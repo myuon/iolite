@@ -25,6 +25,7 @@ pub enum Instruction {
     Or,
     Not,
     Eq,
+    NotEq,
     Lt,
     Gt,
     Le,
@@ -225,6 +226,11 @@ impl Vm {
                     let a = self.pop();
                     let b = self.pop();
                     self.push(if b == a { 1 } else { 0 });
+                }
+                Instruction::NotEq => {
+                    let a = self.pop();
+                    let b = self.pop();
+                    self.push(if b != a { 1 } else { 0 });
                 }
                 Instruction::Lt => {
                     let a = self.pop();

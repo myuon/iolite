@@ -37,6 +37,7 @@ impl IrCodeGenerator {
                     BinOp::Gt => IrOp::Gt,
                     BinOp::Le => IrOp::Le,
                     BinOp::Ge => IrOp::Ge,
+                    BinOp::NotEq => IrOp::NotEq,
                 };
 
                 Ok(IrTerm::Op {

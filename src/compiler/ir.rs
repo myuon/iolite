@@ -9,6 +9,7 @@ pub enum IrOp {
     And,
     Or,
     Eq,
+    NotEq,
     Lt,
     Gt,
     Le,

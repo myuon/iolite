@@ -93,6 +93,7 @@ mod tests {
             ("false || false", 0),
             ("true || false", 1),
             ("true || true", 1),
+            ("1 != 10", 1),
         ];
 
         for (input, expected) in cases {

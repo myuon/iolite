@@ -71,6 +71,7 @@ impl VmCodeGenerator {
                     IrOp::Gt => Instruction::Gt,
                     IrOp::Le => Instruction::Le,
                     IrOp::Ge => Instruction::Ge,
+                    IrOp::NotEq => Instruction::NotEq,
                 };
                 self.code.push(op);
             }
