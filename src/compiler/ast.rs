@@ -10,6 +10,13 @@ pub enum BinOp {
     Sub,
     Mul,
     Div,
+    And,
+    Or,
+    Eq,
+    Lt,
+    Gt,
+    Le,
+    Ge,
 }
 
 #[derive(Debug, PartialEq)]

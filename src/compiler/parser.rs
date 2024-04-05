@@ -113,10 +113,122 @@ impl Parser {
     }
 
     pub fn expr(&mut self) -> Result<Expr, ParseError> {
-        self.expr_2()
+        self.expr_5()
     }
 
-    pub fn expr_2(&mut self) -> Result<Expr, ParseError> {
+    fn expr_5(&mut self) -> Result<Expr, ParseError> {
+        let mut current = self.expr_4()?;
+
+        while self.position < self.tokens.len() {
+            match &self.tokens[self.position] {
+                Lexeme::DoubleOr => {
+                    self.consume()?;
+                    let right = self.expr_4()?;
+
+                    current = Expr::BinOp {
+                        op: BinOp::Or,
+                        left: Box::new(current),
+                        right: Box::new(right),
+                    };
+                }
+                _ => {
+                    break;
+                }
+            }
+        }
+
+        Ok(current)
+    }
+
+    fn expr_4(&mut self) -> Result<Expr, ParseError> {
+        let mut current = self.expr_3()?;
+
+        while self.position < self.tokens.len() {
+            match &self.tokens[self.position] {
+                Lexeme::DoubleAnd => {
+                    self.consume()?;
+                    let right = self.expr_3()?;
+
+                    current = Expr::BinOp {
+                        op: BinOp::And,
+                        left: Box::new(current),
+                        right: Box::new(right),
+                    };
+                }
+                _ => {
+                    break;
+                }
+            }
+        }
+
+        Ok(current)
+    }
+
+    fn expr_3(&mut self) -> Result<Expr, ParseError> {
+        let mut current = self.expr_2()?;
+
+        while self.position < self.tokens.len() {
+            match &self.tokens[self.position] {
+                Lexeme::Le => {
+                    self.consume()?;
+                    let right = self.expr_2()?;
+
+                    current = Expr::BinOp {
+                        op: BinOp::Le,
+                        left: Box::new(current),
+                        right: Box::new(right),
+                    };
+                }
+                Lexeme::Ge => {
+                    self.consume()?;
+                    let right = self.expr_2()?;
+
+                    current = Expr::BinOp {
+                        op: BinOp::Ge,
+                        left: Box::new(current),
+                        right: Box::new(right),
+                    };
+                }
+                Lexeme::LAngle => {
+                    self.consume()?;
+                    let right = self.expr_2()?;
+
+                    current = Expr::BinOp {
+                        op: BinOp::Lt,
+                        left: Box::new(current),
+                        right: Box::new(right),
+                    };
+                }
+                Lexeme::GAngle => {
+                    self.consume()?;
+                    let right = self.expr_2()?;
+
+                    current = Expr::BinOp {
+                        op: BinOp::Gt,
+                        left: Box::new(current),
+                        right: Box::new(right),
+                    };
+                }
+                Lexeme::DoubleEqual => {
+                    self.consume()?;
+                    let right = self.expr_2()?;
+
+                    current = Expr::BinOp {
+                        op: BinOp::Eq,
+                        left: Box::new(current),
+                        right: Box::new(right),
+                    };
+                }
+                _ => {
+                    break;
+                }
+            }
+        }
+
+        Ok(current)
+    }
+
+    fn expr_2(&mut self) -> Result<Expr, ParseError> {
         let mut current = self.expr_1()?;
 
         while self.position < self.tokens.len() {
@@ -301,6 +413,34 @@ mod tests {
                         }),
                     }),
                     right: Box::new(Expr::Lit(Literal::Integer(2))),
+                },
+            ),
+            (
+                "1 <= 2 || 3 >= 4 && 1 + 2 == 4",
+                Expr::BinOp {
+                    op: BinOp::Or,
+                    left: Box::new(Expr::BinOp {
+                        op: BinOp::Le,
+                        left: Box::new(Expr::Lit(Literal::Integer(1))),
+                        right: Box::new(Expr::Lit(Literal::Integer(2))),
+                    }),
+                    right: Box::new(Expr::BinOp {
+                        op: BinOp::And,
+                        left: Box::new(Expr::BinOp {
+                            op: BinOp::Ge,
+                            left: Box::new(Expr::Lit(Literal::Integer(3))),
+                            right: Box::new(Expr::Lit(Literal::Integer(4))),
+                        }),
+                        right: Box::new(Expr::BinOp {
+                            op: BinOp::Eq,
+                            left: Box::new(Expr::BinOp {
+                                op: BinOp::Add,
+                                left: Box::new(Expr::Lit(Literal::Integer(1))),
+                                right: Box::new(Expr::Lit(Literal::Integer(2))),
+                            }),
+                            right: Box::new(Expr::Lit(Literal::Integer(4))),
+                        }),
+                    }),
                 },
             ),
         ];

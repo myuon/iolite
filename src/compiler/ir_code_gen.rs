@@ -24,25 +24,24 @@ impl IrCodeGenerator {
             Expr::BinOp { op, left, right } => {
                 let left = self.expr(*left)?;
                 let right = self.expr(*right)?;
+                let op = match op {
+                    BinOp::Add => IrOp::Add,
+                    BinOp::Sub => IrOp::Sub,
+                    BinOp::Mul => IrOp::Mul,
+                    BinOp::Div => IrOp::Div,
+                    BinOp::And => IrOp::And,
+                    BinOp::Or => IrOp::Or,
+                    BinOp::Eq => IrOp::Eq,
+                    BinOp::Lt => IrOp::Lt,
+                    BinOp::Gt => IrOp::Gt,
+                    BinOp::Le => IrOp::Le,
+                    BinOp::Ge => IrOp::Ge,
+                };
 
-                match op {
-                    BinOp::Add => Ok(IrTerm::Op {
-                        op: IrOp::Add,
-                        args: vec![left, right],
-                    }),
-                    BinOp::Sub => Ok(IrTerm::Op {
-                        op: IrOp::Sub,
-                        args: vec![left, right],
-                    }),
-                    BinOp::Mul => Ok(IrTerm::Op {
-                        op: IrOp::Mul,
-                        args: vec![left, right],
-                    }),
-                    BinOp::Div => Ok(IrTerm::Op {
-                        op: IrOp::Div,
-                        args: vec![left, right],
-                    }),
-                }
+                Ok(IrTerm::Op {
+                    op,
+                    args: vec![left, right],
+                })
             }
             Expr::Call { name, args } => todo!(),
         }
@@ -116,6 +115,13 @@ mod tests {
                         },
                         IrTerm::Integer(4),
                     ],
+                },
+            ),
+            (
+                "1 > 2",
+                IrTerm::Op {
+                    op: IrOp::Gt,
+                    args: vec![IrTerm::Integer(1), IrTerm::Integer(2)],
                 },
             ),
         ];

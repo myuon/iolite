@@ -1,4 +1,7 @@
-use super::{ir::IrTerm, vm::Instruction};
+use super::{
+    ir::{IrOp, IrTerm},
+    vm::Instruction,
+};
 
 #[derive(Debug)]
 pub enum VmCodeGeneratorError {}
@@ -56,20 +59,20 @@ impl VmCodeGenerator {
                     self.term(arg)?;
                 }
 
-                match op {
-                    super::ir::IrOp::Add => {
-                        self.code.push(Instruction::Add);
-                    }
-                    super::ir::IrOp::Sub => {
-                        self.code.push(Instruction::Sub);
-                    }
-                    super::ir::IrOp::Mul => {
-                        self.code.push(Instruction::Mul);
-                    }
-                    super::ir::IrOp::Div => {
-                        self.code.push(Instruction::Div);
-                    }
-                }
+                let op = match op {
+                    IrOp::Add => Instruction::Add,
+                    IrOp::Sub => Instruction::Sub,
+                    IrOp::Mul => Instruction::Mul,
+                    IrOp::Div => Instruction::Div,
+                    IrOp::And => Instruction::And,
+                    IrOp::Or => Instruction::Or,
+                    IrOp::Eq => Instruction::Eq,
+                    IrOp::Lt => Instruction::Lt,
+                    IrOp::Gt => Instruction::Gt,
+                    IrOp::Le => Instruction::Le,
+                    IrOp::Ge => Instruction::Ge,
+                };
+                self.code.push(op);
             }
             IrTerm::Block { terms } => {
                 for term in terms {

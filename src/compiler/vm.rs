@@ -18,6 +18,10 @@ pub enum Instruction {
     Or,
     Not,
     Eq,
+    Lt,
+    Gt,
+    Le,
+    Ge,
 }
 
 pub struct Vm {
@@ -174,6 +178,26 @@ impl Vm {
                     let a = self.pop();
                     let b = self.pop();
                     self.push(if b == a { 1 } else { 0 });
+                }
+                Instruction::Lt => {
+                    let a = self.pop();
+                    let b = self.pop();
+                    self.push(if b < a { 1 } else { 0 });
+                }
+                Instruction::Gt => {
+                    let a = self.pop();
+                    let b = self.pop();
+                    self.push(if b > a { 1 } else { 0 });
+                }
+                Instruction::Le => {
+                    let a = self.pop();
+                    let b = self.pop();
+                    self.push(if b <= a { 1 } else { 0 });
+                }
+                Instruction::Ge => {
+                    let a = self.pop();
+                    let b = self.pop();
+                    self.push(if b >= a { 1 } else { 0 });
                 }
             }
 
