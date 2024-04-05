@@ -54,7 +54,7 @@ impl Vm {
         }
     }
 
-    fn pop(&mut self) -> i32 {
+    pub fn pop(&mut self) -> i32 {
         self.sp += 4;
         self.load_i32(self.sp as u32)
     }

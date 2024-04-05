@@ -5,7 +5,7 @@ pub enum VmCodeGeneratorError {}
 
 #[derive(Debug)]
 pub struct VmCodeGenerator {
-    code: Vec<Instruction>,
+    pub code: Vec<Instruction>,
 }
 
 impl VmCodeGenerator {
