@@ -146,11 +146,23 @@ mod tests {
                 "let a = 2; if a == 1 { let b = 10; b } else if a == 2 { let b = 20; b } else { let b = 30; b }",
                 20,
             ),
+            (
+                "let a = 2; { let a = 3; }; a",
+                2,
+            ),
+            // (
+            //     "let a = 2; { let a = 3; a = 4; }; a",
+            //     2,
+            // ),
+            // (
+            //     "let a = 2; { a = 3; a = 4; }; a",
+            //     4,
+            // ),
         ];
 
         for (input, expected) in cases {
             let actual = Compiler::run_block(input.to_string()).unwrap();
-            assert_eq!(actual, expected);
+            assert_eq!(actual, expected, "input: {}", input);
         }
     }
 }

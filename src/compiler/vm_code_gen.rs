@@ -134,14 +134,18 @@ impl VmCodeGenerator {
                 self.code.push(Instruction::JumpIfTo(label_if_else.clone()));
 
                 self.term(*then)?;
-                self.pop_until(stack_pointer);
                 self.code.push(Instruction::JumpTo(label_if_end.clone()));
+
+                self.pop_until(stack_pointer);
 
                 self.code.push(Instruction::Label(label_if_else.clone()));
 
                 self.term(*else_)?;
-                self.pop_until(stack_pointer);
                 self.code.push(Instruction::Label(label_if_end.clone()));
+            }
+            IrTerm::Pop => {
+                self.code.push(Instruction::Pop);
+                self.locals.pop();
             }
         }
 
@@ -213,9 +217,9 @@ mod tests {
 
         for (ir, expected) in cases {
             let mut gen = VmCodeGenerator::new();
-            gen.term(ir).unwrap();
+            gen.term(ir.clone()).unwrap();
 
-            assert_eq!(gen.code, expected);
+            assert_eq!(gen.code, expected, "ir: {:?}", ir);
         }
     }
 }

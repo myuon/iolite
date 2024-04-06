@@ -49,11 +49,13 @@ pub enum Statement {
     Assign(String, Expr),
     While { cond: Expr, body: Block },
     If { cond: Expr, then: Block },
+    Block(Block),
 }
 
 #[derive(Debug, PartialEq, Clone)]
 pub struct Block {
     pub statements: Vec<Statement>,
+    pub has_value: bool,
 }
 
 #[derive(Debug, PartialEq, Clone)]

@@ -64,6 +64,7 @@ impl Parser {
 
     pub fn block(&mut self, end_token: Option<Lexeme>) -> Result<Block, ParseError> {
         let mut block = vec![];
+        let mut has_value = false;
 
         while self.position < self.tokens.len() {
             if let Some(end_token) = &end_token {
@@ -87,6 +88,10 @@ impl Parser {
                     if !matches!(statement, Statement::Expr(_)) {
                         return Err(ParseError::ExpressionExpected { got: statement });
                     }
+
+                    has_value = true;
+
+                    break;
                 }
             } else {
                 if let Ok(token) = self.peek() {
@@ -97,7 +102,10 @@ impl Parser {
             }
         }
 
-        Ok(Block { statements: block })
+        Ok(Block {
+            statements: block,
+            has_value,
+        })
     }
 
     fn statement(&mut self) -> Result<Statement, ParseError> {
@@ -135,6 +143,15 @@ impl Parser {
                     cond: expr,
                     body: block,
                 })
+            }
+            Lexeme::LBrace => {
+                self.consume()?;
+
+                let block = self.block(Some(Lexeme::RBrace))?;
+
+                self.expect(Lexeme::RBrace)?;
+
+                Ok(Statement::Block(block))
             }
             _ => {
                 let expr = match self.expr() {
@@ -188,6 +205,7 @@ impl Parser {
                         then: then_block,
                         else_: Block {
                             statements: vec![Statement::Expr(next_if)],
+                            has_value: true,
                         },
                     })
                 } else {
@@ -635,6 +653,7 @@ mod tests {
                             },
                         ),
                     ],
+                    has_value: false,
                 },
             ),
             (
@@ -652,6 +671,7 @@ mod tests {
                             right: Box::new(Expr::Lit(Literal::Integer(4))),
                         }),
                     ],
+                    has_value: false,
                 },
             ),
             (
@@ -664,8 +684,30 @@ mod tests {
                                 Statement::Let("a".to_string(), Expr::Lit(Literal::Integer(1))),
                                 Statement::Let("b".to_string(), Expr::Lit(Literal::Integer(2))),
                             ],
+                            has_value: false,
                         },
                     }],
+                    has_value: false,
+                },
+            ),
+            (
+                "let a = 1; 10",
+                Block {
+                    statements: vec![
+                        Statement::Let("a".to_string(), Expr::Lit(Literal::Integer(1))),
+                        Statement::Expr(Expr::Lit(Literal::Integer(10))),
+                    ],
+                    has_value: true,
+                },
+            ),
+            (
+                "let a = 1; 10;",
+                Block {
+                    statements: vec![
+                        Statement::Let("a".to_string(), Expr::Lit(Literal::Integer(1))),
+                        Statement::Expr(Expr::Lit(Literal::Integer(10))),
+                    ],
+                    has_value: false,
                 },
             ),
         ];

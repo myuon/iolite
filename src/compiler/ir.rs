@@ -1,6 +1,4 @@
-use super::ast::BinOp;
-
-#[derive(Debug, PartialEq)]
+#[derive(Debug, PartialEq, Clone)]
 pub enum IrOp {
     Add,
     Sub,
@@ -16,7 +14,7 @@ pub enum IrOp {
     Ge,
 }
 
-#[derive(Debug, PartialEq)]
+#[derive(Debug, PartialEq, Clone)]
 pub enum IrTerm {
     Nil,
     Integer(i32),
@@ -44,4 +42,5 @@ pub enum IrTerm {
         then: Box<IrTerm>,
         else_: Box<IrTerm>,
     },
+    Pop,
 }

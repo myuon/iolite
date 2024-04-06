@@ -63,7 +63,10 @@ impl IrCodeGenerator {
     pub fn block(&self, block: Block) -> Result<IrTerm, IrCodeGeneratorError> {
         let mut terms = vec![];
 
-        for stmt in block.statements {
+        let n_statements = block.statements.len();
+        for (index, stmt) in block.statements.into_iter().enumerate() {
+            let is_last_statement = index == n_statements - 1;
+
             match stmt {
                 Statement::Let(name, expr) => {
                     let ir = self.expr(expr)?;
@@ -82,6 +85,10 @@ impl IrCodeGenerator {
                     let ir = self.expr(expr)?;
 
                     terms.push(ir);
+
+                    if !is_last_statement || !block.has_value {
+                        terms.push(IrTerm::Pop);
+                    }
                 }
                 Statement::Assign(var, expr) => {
                     let term = self.expr(expr)?;
@@ -106,6 +113,11 @@ impl IrCodeGenerator {
                         then: Box::new(then),
                         else_: Box::new(IrTerm::Block { terms: vec![] }),
                     });
+                }
+                Statement::Block(block) => {
+                    let ir = self.block(block)?;
+
+                    terms.push(ir);
                 }
             }
         }
