@@ -40,6 +40,13 @@ impl VmCodeGenerator {
         Ok(())
     }
 
+    fn pop_until(&mut self, size: usize) {
+        while self.locals.len() > size {
+            self.code.push(Instruction::Pop);
+            self.locals.pop();
+        }
+    }
+
     pub fn term(&mut self, ir: IrTerm) -> Result<(), VmCodeGeneratorError> {
         match ir {
             IrTerm::Nil => {
@@ -120,17 +127,20 @@ impl VmCodeGenerator {
                 let label_id = nanoid!();
                 let label_if_else = format!("if_else_{}", label_id);
                 let label_if_end = format!("if_end_{}", label_id);
+                let stack_pointer = self.locals.len();
 
                 self.term(*cond)?;
                 self.code.push(Instruction::Not);
                 self.code.push(Instruction::JumpIfTo(label_if_else.clone()));
 
                 self.term(*then)?;
+                self.pop_until(stack_pointer);
                 self.code.push(Instruction::JumpTo(label_if_end.clone()));
 
                 self.code.push(Instruction::Label(label_if_else.clone()));
-                self.term(*else_)?;
 
+                self.term(*else_)?;
+                self.pop_until(stack_pointer);
                 self.code.push(Instruction::Label(label_if_end.clone()));
             }
         }

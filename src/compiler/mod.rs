@@ -1,4 +1,4 @@
-use self::vm::Instruction;
+use self::{ast::Block, vm::Instruction};
 
 pub mod ast;
 pub mod ir;
@@ -8,14 +8,31 @@ pub mod parser;
 pub mod vm;
 pub mod vm_code_gen;
 
-pub struct Compiler {
-    lexer: lexer::Lexer,
-    parser: parser::Parser,
-    ir_code_gen: ir_code_gen::IrCodeGenerator,
-    vm_code_gen: vm_code_gen::VmCodeGenerator,
-}
+pub struct Compiler {}
 
 impl Compiler {
+    pub fn parse_block(input: String) -> Result<Block, Box<dyn std::error::Error>> {
+        let mut lexer = lexer::Lexer::new(input);
+        let mut parser = parser::Parser::new(lexer.run().unwrap());
+        let expr = parser.block(None).unwrap();
+
+        Ok(expr)
+    }
+
+    pub fn ir_code_gen(block: Block) -> Result<ir::IrTerm, Box<dyn std::error::Error>> {
+        let ir_code_gen = ir_code_gen::IrCodeGenerator::new();
+        let ir = ir_code_gen.block(block).unwrap();
+
+        Ok(ir)
+    }
+
+    pub fn vm_code_gen(ir: ir::IrTerm) -> Result<Vec<Instruction>, Box<dyn std::error::Error>> {
+        let mut vm_code_gen = vm_code_gen::VmCodeGenerator::new();
+        vm_code_gen.term(ir).unwrap();
+
+        Ok(vm_code_gen.code)
+    }
+
     pub fn compile_expr(input: String) -> Result<Vec<Instruction>, Box<dyn std::error::Error>> {
         let mut lexer = lexer::Lexer::new(input);
         let mut parser = parser::Parser::new(lexer.run().unwrap());
@@ -120,6 +137,14 @@ mod tests {
             (
                 "let a = if true { 1 } else { 2 }; if a == 1 { let b = 10; b }",
                 10,
+            ),
+            (
+                "let a = 2; if a == 1 { let b = 10; b } else { let b = 20; b }",
+                20,
+            ),
+            (
+                "let a = 2; if a == 1 { let b = 10; b } else if a == 2 { let b = 20; b } else { let b = 30; b }",
+                20,
             ),
         ];
 
