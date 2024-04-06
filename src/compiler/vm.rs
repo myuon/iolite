@@ -57,6 +57,22 @@ impl Vm {
         }
     }
 
+    pub fn memory_view_32(&self) -> Vec<u32> {
+        let mut view = vec![];
+        for i in ((self.sp + 4)..self.memory.len()).step_by(4) {
+            view.push(u32::from_le_bytes([
+                self.memory[i],
+                self.memory[i + 1],
+                self.memory[i + 2],
+                self.memory[i + 3],
+            ]));
+        }
+
+        view.reverse();
+
+        view
+    }
+
     fn look_for_label(&mut self, label: &str) -> Result<usize, VmError> {
         while self.pc < self.program.len() {
             match &self.program[self.pc] {

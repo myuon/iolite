@@ -75,7 +75,7 @@ impl Parser {
 
             let statement = self.statement()?;
             let needs_semilon = match &statement {
-                Statement::While { .. } | Statement::If { .. } => false,
+                Statement::While { .. } | Statement::If { .. } | Statement::Block(_) => false,
                 _ => true,
             };
 
@@ -708,6 +708,40 @@ mod tests {
                         Statement::Expr(Expr::Lit(Literal::Integer(10))),
                     ],
                     has_value: false,
+                },
+            ),
+            (
+                "let a = 2; { let a = 3; a = 4; }; a",
+                Block {
+                    statements: vec![
+                        Statement::Let("a".to_string(), Expr::Lit(Literal::Integer(2))),
+                        Statement::Block(Block {
+                            statements: vec![
+                                Statement::Let("a".to_string(), Expr::Lit(Literal::Integer(3))),
+                                Statement::Assign("a".to_string(), Expr::Lit(Literal::Integer(4))),
+                            ],
+                            has_value: false,
+                        }),
+                        Statement::Expr(Expr::Ident("a".to_string())),
+                    ],
+                    has_value: true,
+                },
+            ),
+            (
+                "let a = 2; { let a = 3; a = 4; } a",
+                Block {
+                    statements: vec![
+                        Statement::Let("a".to_string(), Expr::Lit(Literal::Integer(2))),
+                        Statement::Block(Block {
+                            statements: vec![
+                                Statement::Let("a".to_string(), Expr::Lit(Literal::Integer(3))),
+                                Statement::Assign("a".to_string(), Expr::Lit(Literal::Integer(4))),
+                            ],
+                            has_value: false,
+                        }),
+                        Statement::Expr(Expr::Ident("a".to_string())),
+                    ],
+                    has_value: true,
                 },
             ),
         ];

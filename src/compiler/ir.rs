@@ -42,5 +42,4 @@ pub enum IrTerm {
         then: Box<IrTerm>,
         else_: Box<IrTerm>,
     },
-    Pop,
 }

@@ -10,7 +10,8 @@ pub enum VmCodeGeneratorError {}
 
 #[derive(Debug)]
 pub struct VmCodeGenerator {
-    locals: Vec<String>,
+    locals: Vec<(String, usize)>,
+    stack_pointer: usize,
     pub code: Vec<Instruction>,
 }
 
@@ -18,21 +19,75 @@ impl VmCodeGenerator {
     pub fn new() -> Self {
         Self {
             locals: vec![],
+            stack_pointer: 0,
             code: vec![],
         }
     }
 
     fn find_symbol_in_stack(&self, name: &str) -> usize {
-        self.locals.len() - self.locals.iter().position(|s| s == name).unwrap()
+        self.stack_pointer - self.locals.iter().rev().find(|s| s.0 == name).unwrap().1 + 1
+    }
+
+    fn pop_until(&mut self, size: usize) {
+        while self.stack_pointer > size {
+            self.emit(Instruction::Pop);
+        }
+    }
+
+    fn emit(&mut self, inst: Instruction) {
+        use Instruction::*;
+
+        match inst {
+            Add | Sub | Mul | Div => {
+                self.stack_pointer -= 1;
+            }
+            Load => {}
+            Store => {
+                self.stack_pointer -= 2;
+            }
+            Push(_) | PushLocal(_) => {
+                self.stack_pointer += 1;
+            }
+            Pop => {
+                self.stack_pointer -= 1;
+            }
+            Jump => {
+                self.stack_pointer -= 1;
+            }
+            JumpIf => {
+                self.stack_pointer -= 2;
+            }
+            Instruction::Call => todo!(),
+            Instruction::Return => todo!(),
+            Xor | And | Or => {
+                self.stack_pointer -= 1;
+            }
+            Not => {}
+            Eq | NotEq | Lt | Gt | Le | Ge => {
+                self.stack_pointer -= 1;
+            }
+            Label(_) => {}
+            JumpTo(_) => {}
+            JumpIfTo(_) => {
+                self.stack_pointer -= 1;
+            }
+        }
+
+        self.code.push(inst);
+    }
+
+    fn copy_into(&mut self, index: usize) {
+        self.emit(Instruction::PushLocal(index));
+        self.emit(Instruction::PushLocal(2));
+        self.emit(Instruction::Load);
+        self.emit(Instruction::Store);
     }
 
     fn term_left_value(&mut self, ir: IrTerm) -> Result<(), VmCodeGeneratorError> {
         match ir {
             IrTerm::Ident(i) => {
                 let index = self.find_symbol_in_stack(&i);
-                self.code.push(Instruction::PushLocal(index));
-
-                self.locals.push(format!("{}_left_value", i));
+                self.emit(Instruction::PushLocal(index));
             }
             _ => todo!(),
         }
@@ -40,28 +95,21 @@ impl VmCodeGenerator {
         Ok(())
     }
 
-    fn pop_until(&mut self, size: usize) {
-        while self.locals.len() > size {
-            self.code.push(Instruction::Pop);
-            self.locals.pop();
-        }
-    }
-
     pub fn term(&mut self, ir: IrTerm) -> Result<(), VmCodeGeneratorError> {
         match ir {
             IrTerm::Nil => {
-                self.code.push(Instruction::Push(0));
+                self.emit(Instruction::Push(0));
             }
             IrTerm::Integer(n) => {
-                self.code.push(Instruction::Push(n));
+                self.emit(Instruction::Push(n));
             }
             IrTerm::Ident(i) => {
                 let index = self.find_symbol_in_stack(&i);
-                self.code.push(Instruction::PushLocal(index));
+                self.emit(Instruction::PushLocal(index));
             }
             IrTerm::Let { name, value } => {
                 self.term(*value)?;
-                self.locals.push(name);
+                self.locals.push((name, self.stack_pointer));
             }
             IrTerm::Op { op, args } => {
                 for arg in args {
@@ -82,46 +130,49 @@ impl VmCodeGenerator {
                     IrOp::Ge => Instruction::Ge,
                     IrOp::NotEq => Instruction::NotEq,
                 };
-                self.code.push(op);
+                self.emit(op);
             }
             IrTerm::Block { terms } => {
+                let stack_pointer = self.stack_pointer;
+
                 for term in terms {
                     self.term(term)?;
                 }
+
+                // NOTE: copy the result of this block to the original position
+                self.copy_into(self.stack_pointer - stack_pointer);
+                self.pop_until(stack_pointer + 1);
             }
             IrTerm::Return(value) => {
                 self.term(*value)?;
-                self.code.push(Instruction::Return);
+                self.emit(Instruction::Return);
             }
             IrTerm::Load(term) => {
                 self.term(*term)?;
-                self.code.push(Instruction::Load);
+                self.emit(Instruction::Load);
             }
             IrTerm::Store(addr, value) => {
                 self.term_left_value(*addr)?;
                 self.term(*value)?;
-                self.code.push(Instruction::Store);
-                self.locals.pop();
+                self.emit(Instruction::Store);
             }
             IrTerm::While { cond, body } => {
                 let label_id = nanoid!();
                 let label_while_start = format!("while_start_{}", label_id);
                 let label_while_end = format!("while_end_{}", label_id);
 
-                self.code
-                    .push(Instruction::Label(label_while_start.clone()));
+                self.emit(Instruction::Label(label_while_start.clone()));
 
                 self.term(*cond)?;
-                self.code.push(Instruction::Not);
+                self.emit(Instruction::Not);
 
-                self.code
-                    .push(Instruction::JumpIfTo(label_while_end.clone()));
+                self.emit(Instruction::JumpIfTo(label_while_end.clone()));
 
                 self.term(*body)?;
-                self.code
-                    .push(Instruction::JumpTo(label_while_start.clone()));
 
-                self.code.push(Instruction::Label(label_while_end.clone()));
+                self.emit(Instruction::JumpTo(label_while_start.clone()));
+
+                self.emit(Instruction::Label(label_while_end.clone()));
             }
             IrTerm::If { cond, then, else_ } => {
                 let label_id = nanoid!();
@@ -130,22 +181,18 @@ impl VmCodeGenerator {
                 let stack_pointer = self.locals.len();
 
                 self.term(*cond)?;
-                self.code.push(Instruction::Not);
-                self.code.push(Instruction::JumpIfTo(label_if_else.clone()));
+                self.emit(Instruction::Not);
+                self.emit(Instruction::JumpIfTo(label_if_else.clone()));
 
                 self.term(*then)?;
-                self.code.push(Instruction::JumpTo(label_if_end.clone()));
+                self.emit(Instruction::JumpTo(label_if_end.clone()));
 
                 self.pop_until(stack_pointer);
 
-                self.code.push(Instruction::Label(label_if_else.clone()));
+                self.emit(Instruction::Label(label_if_else.clone()));
 
                 self.term(*else_)?;
-                self.code.push(Instruction::Label(label_if_end.clone()));
-            }
-            IrTerm::Pop => {
-                self.code.push(Instruction::Pop);
-                self.locals.pop();
+                self.emit(Instruction::Label(label_if_end.clone()));
             }
         }
 
@@ -155,7 +202,7 @@ impl VmCodeGenerator {
 
 #[cfg(test)]
 mod tests {
-    use crate::compiler::ir::IrOp;
+    use crate::compiler::{ir::IrOp, vm::Vm};
 
     use super::*;
 
@@ -211,6 +258,11 @@ mod tests {
                     Instruction::Store,
                     Instruction::PushLocal(1),
                     Instruction::Load,
+                    Instruction::PushLocal(2),
+                    Instruction::PushLocal(2),
+                    Instruction::Load,
+                    Instruction::Store,
+                    Instruction::Pop,
                 ],
             ),
         ];
@@ -221,5 +273,20 @@ mod tests {
 
             assert_eq!(gen.code, expected, "ir: {:?}", ir);
         }
+    }
+
+    #[test]
+    fn test_insert_at() {
+        let mut gen = VmCodeGenerator::new();
+        gen.emit(Instruction::Push(1));
+        gen.emit(Instruction::Push(2));
+        gen.emit(Instruction::Push(3));
+        gen.emit(Instruction::Push(10));
+        gen.copy_into(3);
+
+        let mut vm = Vm::new(1000, gen.code);
+        vm.exec().unwrap();
+
+        assert_eq!(vm.memory_view_32(), vec![1, 10, 3, 10]);
     }
 }

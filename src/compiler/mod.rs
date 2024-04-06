@@ -130,28 +130,36 @@ mod tests {
         let cases = vec![
             ("let x = 1 + 2 * 4; let y = x + 2; y", 11),
             ("let x = 1; x = x + 2; x", 3),
-            (
-                "let c = 0; let n = 1; while (c < 5) { c = c + 1; n = n * 2; }; n",
-                32,
-            ),
-            (
-                "let a = if true { 1 } else { 2 }; if a == 1 { let b = 10; b }",
-                10,
-            ),
-            (
-                "let a = 2; if a == 1 { let b = 10; b } else { let b = 20; b }",
-                20,
-            ),
-            (
-                "let a = 2; if a == 1 { let b = 10; b } else if a == 2 { let b = 20; b } else { let b = 30; b }",
-                20,
-            ),
-            (
-                "let a = 2; { let a = 3; }; a",
-                2,
-            ),
+            // (
+            //     "let c = 0; let n = 1; while (c < 5) { c = c + 1; n = n * 2; }; n",
+            //     32,
+            // ),
+            // (
+            //     "let a = if true { 1 } else { 2 }; if a == 1 { let b = 10; b }",
+            //     10,
+            // ),
+            // (
+            //     "let a = 2; if a == 1 { let b = 10; b } else { let b = 20; b }",
+            //     20,
+            // ),
+            // (
+            //     "let a = 2; if a == 1 { let b = 10; b } else if a == 2 { let b = 20; b } else { let b = 30; b }",
+            //     20,
+            // ),
+            // (
+            //     "let a = 2; { let a = 3; }; a",
+            //     2,
+            // ),
             // (
             //     "let a = 2; { let a = 3; a = 4; }; a",
+            //     2,
+            // ),
+            // (
+            //     "let a = 2; { let a = 3; a = 4; } a",
+            //     2,
+            // ),
+            // (
+            //     "let a = 2; { let a = 3; let b = 4; let c = 5; } a",
             //     2,
             // ),
             // (

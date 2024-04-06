@@ -63,10 +63,8 @@ impl IrCodeGenerator {
     pub fn block(&self, block: Block) -> Result<IrTerm, IrCodeGeneratorError> {
         let mut terms = vec![];
 
-        let n_statements = block.statements.len();
-        for (index, stmt) in block.statements.into_iter().enumerate() {
-            let is_last_statement = index == n_statements - 1;
-
+        let is_last_stamenet_expr = matches!(block.statements.last(), Some(Statement::Expr(_)));
+        for stmt in block.statements {
             match stmt {
                 Statement::Let(name, expr) => {
                     let ir = self.expr(expr)?;
@@ -85,10 +83,6 @@ impl IrCodeGenerator {
                     let ir = self.expr(expr)?;
 
                     terms.push(ir);
-
-                    if !is_last_statement || !block.has_value {
-                        terms.push(IrTerm::Pop);
-                    }
                 }
                 Statement::Assign(var, expr) => {
                     let term = self.expr(expr)?;
@@ -115,11 +109,13 @@ impl IrCodeGenerator {
                     });
                 }
                 Statement::Block(block) => {
-                    let ir = self.block(block)?;
-
-                    terms.push(ir);
+                    terms.push(self.block(block)?);
                 }
             }
+        }
+
+        if !is_last_stamenet_expr {
+            terms.push(IrTerm::Nil);
         }
 
         Ok(IrTerm::Block { terms })
@@ -206,6 +202,7 @@ mod tests {
                                 ],
                             }),
                         },
+                        IrTerm::Nil,
                     ],
                 },
             ),
@@ -221,6 +218,32 @@ mod tests {
                             Box::new(IrTerm::Ident("a".to_string())),
                             Box::new(IrTerm::Integer(2)),
                         ),
+                        IrTerm::Nil,
+                    ],
+                },
+            ),
+            (
+                "let a = 2; { let a = 3; a = 4; }; a",
+                IrTerm::Block {
+                    terms: vec![
+                        IrTerm::Let {
+                            name: "a".to_string(),
+                            value: Box::new(IrTerm::Integer(2)),
+                        },
+                        IrTerm::Block {
+                            terms: vec![
+                                IrTerm::Let {
+                                    name: "a".to_string(),
+                                    value: Box::new(IrTerm::Integer(3)),
+                                },
+                                IrTerm::Store(
+                                    Box::new(IrTerm::Ident("a".to_string())),
+                                    Box::new(IrTerm::Integer(4)),
+                                ),
+                                IrTerm::Nil,
+                            ],
+                        },
+                        IrTerm::Load(Box::new(IrTerm::Ident("a".to_string()))),
                     ],
                 },
             ),
