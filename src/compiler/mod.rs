@@ -96,6 +96,10 @@ mod tests {
             ("1 != 10", 1),
             ("if true { 2 } else { 5 }", 2),
             ("if false { 2 } else { 5 }", 5),
+            ("if false { 2 } else if true { 3 } else { 4 }", 3),
+            ("if false { 2 } else if false { 3 } else { 4 }", 4),
+            ("if false { 2 } else if false { 3 } else if false { 4 } else if true { 5 } else { 6 }", 5),
+            ("if false { 2 } else if false { 3 } else if false { 4 } else if false { 5 } else { 6 }", 6),
         ];
 
         for (input, expected) in cases {

@@ -80,7 +80,7 @@ impl Parser {
 
             block.push(statement.clone());
             if needs_semilon {
-                // NOTE: eos is not an error
+                // NOTE: allows eos here
                 if matches!(self.peek(), Ok(Lexeme::Semicolon)) {
                     self.consume()?;
                 } else {
@@ -180,15 +180,27 @@ impl Parser {
                         then: then_block.clone(),
                     })?;
 
-                self.expect(Lexeme::LBrace)?;
-                let else_block = self.block(Some(Lexeme::RBrace))?;
-                self.expect(Lexeme::RBrace)?;
+                if matches!(self.peek(), Ok(Lexeme::If)) {
+                    let next_if = self.expr()?;
 
-                Ok(Expr::If {
-                    cond: Box::new(cond),
-                    then: then_block,
-                    else_: else_block,
-                })
+                    Ok(Expr::If {
+                        cond: Box::new(cond),
+                        then: then_block,
+                        else_: Block {
+                            statements: vec![Statement::Expr(next_if)],
+                        },
+                    })
+                } else {
+                    self.expect(Lexeme::LBrace)?;
+                    let else_block = self.block(Some(Lexeme::RBrace))?;
+                    self.expect(Lexeme::RBrace)?;
+
+                    Ok(Expr::If {
+                        cond: Box::new(cond),
+                        then: then_block,
+                        else_: else_block,
+                    })
+                }
             }
             _ => self.expr_5(),
         }
