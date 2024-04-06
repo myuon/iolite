@@ -9,8 +9,14 @@ use super::{
 pub enum VmCodeGeneratorError {}
 
 #[derive(Debug)]
-pub struct VmCodeGenerator {
+struct Scope {
     locals: Vec<(String, usize)>,
+    stack_pointer: usize,
+}
+
+#[derive(Debug)]
+pub struct VmCodeGenerator {
+    locals: Vec<Scope>,
     stack_pointer: usize,
     pub code: Vec<Instruction>,
 }
@@ -25,7 +31,30 @@ impl VmCodeGenerator {
     }
 
     fn find_symbol_in_stack(&self, name: &str) -> usize {
-        self.stack_pointer - self.locals.iter().rev().find(|s| s.0 == name).unwrap().1 + 1
+        for scope in self.locals.iter().rev() {
+            if let Some((_, index)) = scope.locals.iter().rev().find(|s| s.0 == name) {
+                return self.stack_pointer + 1 - index;
+            }
+        }
+
+        panic!("Symbol not found in stack: {}", name);
+    }
+
+    fn new_scope(&mut self) {
+        self.locals.push(Scope {
+            locals: vec![],
+            stack_pointer: self.stack_pointer,
+        });
+    }
+
+    fn rewind_scope(&mut self) {
+        let scope = self.locals.pop().unwrap();
+
+        self.copy_into(self.stack_pointer - scope.stack_pointer);
+        // NOTE: block returns a value, so we need to keep the stack pointer
+        self.pop_until(scope.stack_pointer + 1);
+
+        dbg!(self.stack_pointer, scope);
     }
 
     fn pop_until(&mut self, size: usize) {
@@ -105,11 +134,22 @@ impl VmCodeGenerator {
             }
             IrTerm::Ident(i) => {
                 let index = self.find_symbol_in_stack(&i);
+                assert!(
+                    index > 0,
+                    "Index must be greater than 0: index={}, ident={}",
+                    index,
+                    i
+                );
+
                 self.emit(Instruction::PushLocal(index));
             }
             IrTerm::Let { name, value } => {
                 self.term(*value)?;
-                self.locals.push((name, self.stack_pointer));
+                self.locals
+                    .last_mut()
+                    .unwrap()
+                    .locals
+                    .push((name, self.stack_pointer));
             }
             IrTerm::Op { op, args } => {
                 for arg in args {
@@ -133,15 +173,16 @@ impl VmCodeGenerator {
                 self.emit(op);
             }
             IrTerm::Block { terms } => {
-                let stack_pointer = self.stack_pointer;
+                self.new_scope();
 
                 for term in terms {
                     self.term(term)?;
                 }
 
-                // NOTE: copy the result of this block to the original position
-                self.copy_into(self.stack_pointer - stack_pointer);
-                self.pop_until(stack_pointer + 1);
+                // // NOTE: copy the result of this block to the original position
+                // self.copy_into(self.stack_pointer - stack_pointer);
+                // self.pop_until(stack_pointer + 1);
+                self.rewind_scope();
             }
             IrTerm::Return(value) => {
                 self.term(*value)?;
@@ -160,7 +201,6 @@ impl VmCodeGenerator {
                 let label_id = nanoid!();
                 let label_while_start = format!("while_start_{}", label_id);
                 let label_while_end = format!("while_end_{}", label_id);
-                let stack_pointer = self.locals.len();
 
                 self.emit(Instruction::Label(label_while_start.clone()));
 
@@ -170,7 +210,8 @@ impl VmCodeGenerator {
                 self.emit(Instruction::JumpIfTo(label_while_end.clone()));
 
                 self.term(*body)?;
-                self.pop_until(stack_pointer);
+                // discard the result of the block
+                self.emit(Instruction::Pop);
 
                 self.emit(Instruction::JumpTo(label_while_start.clone()));
 
@@ -180,7 +221,7 @@ impl VmCodeGenerator {
                 let label_id = nanoid!();
                 let label_if_else = format!("if_else_{}", label_id);
                 let label_if_end = format!("if_end_{}", label_id);
-                let stack_pointer = self.locals.len();
+                let stack_pointer = self.stack_pointer;
 
                 self.term(*cond)?;
                 self.emit(Instruction::Not);
@@ -189,8 +230,7 @@ impl VmCodeGenerator {
                 self.term(*then)?;
                 self.emit(Instruction::JumpTo(label_if_end.clone()));
 
-                self.pop_until(stack_pointer);
-
+                self.stack_pointer = stack_pointer;
                 self.emit(Instruction::Label(label_if_else.clone()));
 
                 self.term(*else_)?;
