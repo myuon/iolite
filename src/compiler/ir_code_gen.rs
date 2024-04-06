@@ -97,6 +97,16 @@ impl IrCodeGenerator {
                         body: Box::new(body),
                     });
                 }
+                Statement::If { cond, then } => {
+                    let cond = self.expr(cond)?;
+                    let then = self.block(then)?;
+
+                    terms.push(IrTerm::If {
+                        cond: Box::new(cond),
+                        then: Box::new(then),
+                        else_: Box::new(IrTerm::Block { terms: vec![] }),
+                    });
+                }
             }
         }
 

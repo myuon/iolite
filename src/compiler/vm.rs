@@ -123,7 +123,7 @@ impl Vm {
 
     fn print_stack(&self, next: &Instruction) {
         print!("| ");
-        let mut p = 0;
+        let mut p = self.sp;
         while p < self.memory.len() {
             let val = self.load_i32(p as u32);
 

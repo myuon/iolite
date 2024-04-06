@@ -14,6 +14,7 @@ pub enum ParseError {
     UnexpectedEos,
     UnexpectedToken { expected: Lexeme, got: Lexeme },
     ExpressionExpected { got: Statement },
+    ElseExpected { cond: Expr, then: Block },
 }
 
 impl Parser {
@@ -73,13 +74,14 @@ impl Parser {
 
             let statement = self.statement()?;
             let needs_semilon = match &statement {
-                Statement::While { .. } => false,
+                Statement::While { .. } | Statement::If { .. } => false,
                 _ => true,
             };
 
             block.push(statement.clone());
             if needs_semilon {
-                if matches!(self.peek()?, Lexeme::Semicolon) {
+                // NOTE: eos is not an error
+                if matches!(self.peek(), Ok(Lexeme::Semicolon)) {
                     self.consume()?;
                 } else {
                     if !matches!(statement, Statement::Expr(_)) {
@@ -135,7 +137,13 @@ impl Parser {
                 })
             }
             _ => {
-                let expr = self.expr()?;
+                let expr = match self.expr() {
+                    Ok(expr) => expr,
+                    Err(ParseError::ElseExpected { cond, then }) => {
+                        return Ok(Statement::If { cond, then });
+                    }
+                    Err(e) => return Err(e),
+                };
 
                 if let Ok(token) = self.peek() {
                     match token {
@@ -166,7 +174,12 @@ impl Parser {
                 let then_block = self.block(Some(Lexeme::RBrace))?;
                 self.expect(Lexeme::RBrace)?;
 
-                self.expect(Lexeme::Else)?;
+                self.expect(Lexeme::Else)
+                    .map_err(|_| ParseError::ElseExpected {
+                        cond: cond.clone(),
+                        then: then_block.clone(),
+                    })?;
+
                 self.expect(Lexeme::LBrace)?;
                 let else_block = self.block(Some(Lexeme::RBrace))?;
                 self.expect(Lexeme::RBrace)?;

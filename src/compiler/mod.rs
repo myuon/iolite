@@ -56,14 +56,14 @@ impl Compiler {
     pub fn run_block(input: String) -> Result<i32, Box<dyn std::error::Error>> {
         let code = Self::compile_block(input)?;
 
-        let mut vm = vm::Vm::new(40, code);
+        let mut vm = vm::Vm::new(1024, code);
         vm.exec().unwrap();
 
         Ok(vm.pop())
     }
 
     pub fn run_vm(program: Vec<Instruction>) -> Result<i32, Box<dyn std::error::Error>> {
-        let mut vm = vm::Vm::new(40, program);
+        let mut vm = vm::Vm::new(1024, program);
         vm.exec().unwrap();
 
         Ok(vm.pop())
@@ -107,11 +107,15 @@ mod tests {
     #[test]
     fn test_compile_block() {
         let cases = vec![
-            ("let x = 1 + 2 * 4; let y = x + 2; y;", 11),
-            ("let x = 1; x = x + 2; x;", 3),
+            ("let x = 1 + 2 * 4; let y = x + 2; y", 11),
+            ("let x = 1; x = x + 2; x", 3),
             (
-                "let c = 0; let n = 1; while (c < 5) { c = c + 1; n = n * 2; }; n;",
+                "let c = 0; let n = 1; while (c < 5) { c = c + 1; n = n * 2; }; n",
                 32,
+            ),
+            (
+                "let a = if true { 1 } else { 2 }; if a == 1 { let b = 10; b }",
+                10,
             ),
         ];
 

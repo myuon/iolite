@@ -1,3 +1,5 @@
+use nanoid::nanoid;
+
 use super::{
     ir::{IrOp, IrTerm},
     vm::Instruction,
@@ -95,33 +97,41 @@ impl VmCodeGenerator {
                 self.locals.pop();
             }
             IrTerm::While { cond, body } => {
+                let label_id = nanoid!();
+                let label_while_start = format!("while_start_{}", label_id);
+                let label_while_end = format!("while_end_{}", label_id);
+
                 self.code
-                    .push(Instruction::Label("while:start".to_string()));
+                    .push(Instruction::Label(label_while_start.clone()));
 
                 self.term(*cond)?;
                 self.code.push(Instruction::Not);
 
                 self.code
-                    .push(Instruction::JumpIfTo("while:end".to_string()));
+                    .push(Instruction::JumpIfTo(label_while_end.clone()));
 
                 self.term(*body)?;
                 self.code
-                    .push(Instruction::JumpTo("while:start".to_string()));
+                    .push(Instruction::JumpTo(label_while_start.clone()));
 
-                self.code.push(Instruction::Label("while:end".to_string()));
+                self.code.push(Instruction::Label(label_while_end.clone()));
             }
             IrTerm::If { cond, then, else_ } => {
+                let label_id = nanoid!();
+                let label_if_else = format!("if_else_{}", label_id);
+                let label_if_end = format!("if_end_{}", label_id);
+
                 self.term(*cond)?;
                 self.code.push(Instruction::Not);
-                self.code.push(Instruction::JumpIfTo("if:else".to_string()));
+                self.code.push(Instruction::JumpIfTo(label_if_else.clone()));
 
                 self.term(*then)?;
-                self.code.push(Instruction::JumpTo("if:end".to_string()));
+                self.code.push(Instruction::JumpTo(label_if_end.clone()));
 
-                self.code.push(Instruction::Label("if:else".to_string()));
+                self.code.push(Instruction::Label(label_if_else.clone()));
                 self.term(*else_)?;
 
-                self.code.push(Instruction::Label("if:end".to_string()));
+                self.code.push(Instruction::Label(label_if_end.clone()));
             }
         }
 
