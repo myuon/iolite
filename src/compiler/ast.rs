@@ -1,11 +1,11 @@
-#[derive(Debug, PartialEq)]
+#[derive(Debug, PartialEq, Clone)]
 pub enum Literal {
     Bool(bool),
     Integer(i32),
     String(String),
 }
 
-#[derive(Debug, PartialEq)]
+#[derive(Debug, PartialEq, Clone)]
 pub enum BinOp {
     Add,
     Sub,
@@ -21,7 +21,7 @@ pub enum BinOp {
     Ge,
 }
 
-#[derive(Debug, PartialEq)]
+#[derive(Debug, PartialEq, Clone)]
 pub enum Expr {
     Ident(String),
     Lit(Literal),
@@ -34,9 +34,14 @@ pub enum Expr {
         name: String,
         args: Vec<Expr>,
     },
+    If {
+        cond: Box<Expr>,
+        then: Block,
+        else_: Block,
+    },
 }
 
-#[derive(Debug, PartialEq)]
+#[derive(Debug, PartialEq, Clone)]
 pub enum Statement {
     Let(String, Expr),
     Return(Expr),
@@ -45,12 +50,12 @@ pub enum Statement {
     While { cond: Expr, body: Block },
 }
 
-#[derive(Debug, PartialEq)]
+#[derive(Debug, PartialEq, Clone)]
 pub struct Block {
     pub statements: Vec<Statement>,
 }
 
-#[derive(Debug, PartialEq)]
+#[derive(Debug, PartialEq, Clone)]
 pub enum Declaration {
     Function {
         name: String,

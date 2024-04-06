@@ -110,6 +110,19 @@ impl VmCodeGenerator {
 
                 self.code.push(Instruction::Label("while:end".to_string()));
             }
+            IrTerm::If { cond, then, else_ } => {
+                self.term(*cond)?;
+                self.code.push(Instruction::Not);
+                self.code.push(Instruction::JumpIfTo("if:else".to_string()));
+
+                self.term(*then)?;
+                self.code.push(Instruction::JumpTo("if:end".to_string()));
+
+                self.code.push(Instruction::Label("if:else".to_string()));
+                self.term(*else_)?;
+
+                self.code.push(Instruction::Label("if:end".to_string()));
+            }
         }
 
         Ok(())

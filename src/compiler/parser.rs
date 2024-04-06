@@ -13,6 +13,7 @@ pub struct Parser {
 pub enum ParseError {
     UnexpectedEos,
     UnexpectedToken { expected: Lexeme, got: Lexeme },
+    ExpressionExpected { got: Statement },
 }
 
 impl Parser {
@@ -76,9 +77,15 @@ impl Parser {
                 _ => true,
             };
 
-            block.push(statement);
+            block.push(statement.clone());
             if needs_semilon {
-                self.expect(Lexeme::Semicolon)?;
+                if matches!(self.peek()?, Lexeme::Semicolon) {
+                    self.consume()?;
+                } else {
+                    if !matches!(statement, Statement::Expr(_)) {
+                        return Err(ParseError::ExpressionExpected { got: statement });
+                    }
+                }
             } else {
                 if let Ok(token) = self.peek() {
                     if matches!(token, Lexeme::Semicolon) {
@@ -149,7 +156,29 @@ impl Parser {
     }
 
     pub fn expr(&mut self) -> Result<Expr, ParseError> {
-        self.expr_5()
+        let token = self.peek()?;
+        match token {
+            Lexeme::If => {
+                self.consume()?;
+                let cond = self.expr()?;
+
+                self.expect(Lexeme::LBrace)?;
+                let then_block = self.block(Some(Lexeme::RBrace))?;
+                self.expect(Lexeme::RBrace)?;
+
+                self.expect(Lexeme::Else)?;
+                self.expect(Lexeme::LBrace)?;
+                let else_block = self.block(Some(Lexeme::RBrace))?;
+                self.expect(Lexeme::RBrace)?;
+
+                Ok(Expr::If {
+                    cond: Box::new(cond),
+                    then: then_block,
+                    else_: else_block,
+                })
+            }
+            _ => self.expr_5(),
+        }
     }
 
     fn expr_5(&mut self) -> Result<Expr, ParseError> {

@@ -46,6 +46,17 @@ impl IrCodeGenerator {
                 })
             }
             Expr::Call { name, args } => todo!(),
+            Expr::If { cond, then, else_ } => {
+                let cond = self.expr(*cond)?;
+                let then = self.block(then)?;
+                let else_ = self.block(else_)?;
+
+                Ok(IrTerm::If {
+                    cond: Box::new(cond),
+                    then: Box::new(then),
+                    else_: Box::new(else_),
+                })
+            }
         }
     }
 

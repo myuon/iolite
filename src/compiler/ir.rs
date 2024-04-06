@@ -39,4 +39,9 @@ pub enum IrTerm {
         cond: Box<IrTerm>,
         body: Box<IrTerm>,
     },
+    If {
+        cond: Box<IrTerm>,
+        then: Box<IrTerm>,
+        else_: Box<IrTerm>,
+    },
 }

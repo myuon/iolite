@@ -94,6 +94,8 @@ mod tests {
             ("true || false", 1),
             ("true || true", 1),
             ("1 != 10", 1),
+            ("if true { 2 } else { 5 }", 2),
+            ("if false { 2 } else { 5 }", 5),
         ];
 
         for (input, expected) in cases {
