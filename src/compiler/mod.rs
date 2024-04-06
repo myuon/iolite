@@ -130,10 +130,10 @@ mod tests {
         let cases = vec![
             ("let x = 1 + 2 * 4; let y = x + 2; y", 11),
             ("let x = 1; x = x + 2; x", 3),
-            // (
-            //     "let c = 0; let n = 1; while (c < 5) { c = c + 1; n = n * 2; }; n",
-            //     32,
-            // ),
+            (
+                "let c = 0; let n = 1; while (c < 5) { c = c + 1; n = n * 2; }; n",
+                32,
+            ),
             // (
             //     "let a = if true { 1 } else { 2 }; if a == 1 { let b = 10; b }",
             //     10,

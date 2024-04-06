@@ -160,6 +160,7 @@ impl VmCodeGenerator {
                 let label_id = nanoid!();
                 let label_while_start = format!("while_start_{}", label_id);
                 let label_while_end = format!("while_end_{}", label_id);
+                let stack_pointer = self.locals.len();
 
                 self.emit(Instruction::Label(label_while_start.clone()));
 
@@ -169,6 +170,7 @@ impl VmCodeGenerator {
                 self.emit(Instruction::JumpIfTo(label_while_end.clone()));
 
                 self.term(*body)?;
+                self.pop_until(stack_pointer);
 
                 self.emit(Instruction::JumpTo(label_while_start.clone()));
 
