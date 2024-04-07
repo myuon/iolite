@@ -63,7 +63,6 @@ impl Parser {
 
     pub fn block(&mut self, end_token: Option<Lexeme>) -> Result<Block, ParseError> {
         let mut block = vec![];
-        let mut has_value = false;
 
         while self.position < self.tokens.len() {
             if let Some(end_token) = &end_token {
@@ -87,8 +86,6 @@ impl Parser {
                     if !matches!(statement, Statement::Expr(_)) {
                         return Err(ParseError::ExpressionExpected { got: statement });
                     }
-
-                    has_value = true;
 
                     break;
                 }
