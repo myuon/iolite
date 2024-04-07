@@ -383,7 +383,7 @@ impl VmCodeGenerator {
 
 #[cfg(test)]
 mod tests {
-    use crate::compiler::{ir::IrOp, vm::Vm};
+    use crate::compiler::{byte_code_emitter::ByteCodeEmitter, runtime::Runtime};
 
     use super::*;
 
@@ -469,7 +469,10 @@ mod tests {
         gen.emit(Instruction::Push(10));
         gen.copy_into(3);
 
-        let mut vm = Vm::new(1000, gen.code);
+        let mut emitter = ByteCodeEmitter::new();
+        emitter.exec(gen.code).unwrap();
+
+        let mut vm = Runtime::new(1000, emitter.buffer);
         vm.exec().unwrap();
 
         assert_eq!(vm.memory_view_32(), vec![1, 10, 3, 10]);

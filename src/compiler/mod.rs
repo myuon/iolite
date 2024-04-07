@@ -1,5 +1,5 @@
 use self::{
-    ast::{Block, Declaration, Module},
+    ast::{Declaration, Module},
     byte_code_emitter::ByteCodeEmitter,
     runtime::Runtime,
     vm::Instruction,
@@ -18,14 +18,6 @@ pub mod vm_code_gen;
 pub struct Compiler {}
 
 impl Compiler {
-    pub fn parse_block(input: String) -> Result<Block, Box<dyn std::error::Error>> {
-        let mut lexer = lexer::Lexer::new(input);
-        let mut parser = parser::Parser::new(lexer.run().unwrap());
-        let expr = parser.block(None).unwrap();
-
-        Ok(expr)
-    }
-
     pub fn parse(input: String) -> Result<Vec<Declaration>, Box<dyn std::error::Error>> {
         let mut lexer = lexer::Lexer::new(input);
         let mut parser = parser::Parser::new(lexer.run().unwrap());
@@ -48,92 +40,35 @@ impl Compiler {
         Ok(vm_code_gen.code)
     }
 
-    pub fn compile_expr(input: String) -> Result<Vec<Instruction>, Box<dyn std::error::Error>> {
-        let mut lexer = lexer::Lexer::new(input);
-        let mut parser = parser::Parser::new(lexer.run().unwrap());
-        let ir_code_gen = ir_code_gen::IrCodeGenerator::new();
-        let mut vm_code_gen = vm_code_gen::VmCodeGenerator::new();
-
-        let expr = parser.expr().unwrap();
-        let ir = ir_code_gen.expr(expr).unwrap();
-
-        vm_code_gen.term(ir).unwrap();
-
-        Ok(vm_code_gen.code)
-    }
-
-    pub fn compile_block(input: String) -> Result<Vec<Instruction>, Box<dyn std::error::Error>> {
-        let mut lexer = lexer::Lexer::new(input);
-        let mut parser = parser::Parser::new(lexer.run().unwrap());
-        let ir_code_gen = ir_code_gen::IrCodeGenerator::new();
-        let mut vm_code_gen = vm_code_gen::VmCodeGenerator::new();
-
-        let expr = parser.block(None).unwrap();
-        let ir = ir_code_gen.block(expr).unwrap();
-
-        vm_code_gen.term(ir).unwrap();
-
-        Ok(vm_code_gen.code)
-    }
-
-    pub fn compile(input: String) -> Result<Vec<Instruction>, Box<dyn std::error::Error>> {
-        let mut lexer = lexer::Lexer::new(input);
-        let mut parser = parser::Parser::new(lexer.run().unwrap());
-        let ir_code_gen = ir_code_gen::IrCodeGenerator::new();
-        let mut vm_code_gen = vm_code_gen::VmCodeGenerator::new();
-
-        let decls = parser.decls().unwrap();
-        let ir = ir_code_gen
-            .module(Module {
-                name: "main".to_string(),
-                declarations: decls,
-            })
-            .unwrap();
-
-        vm_code_gen.program(ir).unwrap();
-
-        Ok(vm_code_gen.code)
-    }
-
-    pub fn run_expr(input: String) -> Result<i32, Box<dyn std::error::Error>> {
+    pub fn byte_code_gen(code: Vec<Instruction>) -> Result<Vec<u8>, Box<dyn std::error::Error>> {
         let mut emitter = ByteCodeEmitter::new();
-        let code = Self::compile_expr(input)?;
         emitter.exec(code).unwrap();
 
-        let mut vm = Runtime::new(1024, emitter.buffer);
-        vm.exec().unwrap();
-
-        Ok(vm.pop())
+        Ok(emitter.buffer)
     }
 
-    pub fn run_block(input: String) -> Result<i32, Box<dyn std::error::Error>> {
-        let mut emitter = ByteCodeEmitter::new();
-        let code = Self::compile_block(input)?;
-        emitter.exec(code).unwrap();
+    pub fn compile(input: String) -> Result<Vec<u8>, Box<dyn std::error::Error>> {
+        let decls = Self::parse(input)?;
+        let ir = Self::ir_code_gen(Module {
+            name: "main".to_string(),
+            declarations: decls,
+        })?;
+        let code = Self::vm_code_gen(ir)?;
+        let binary = Self::byte_code_gen(code)?;
 
-        let mut vm = Runtime::new(1024, emitter.buffer);
-        vm.exec().unwrap();
-
-        Ok(vm.pop())
-    }
-
-    pub fn run_vm(program: Vec<Instruction>) -> Result<i32, Box<dyn std::error::Error>> {
-        let mut emitter = ByteCodeEmitter::new();
-        emitter.exec(program).unwrap();
-
-        let mut vm = Runtime::new(1024, emitter.buffer);
-        vm.exec().unwrap();
-
-        Ok(vm.pop())
+        Ok(binary)
     }
 
     pub fn run(input: String) -> Result<i32, Box<dyn std::error::Error>> {
-        let mut emitter = ByteCodeEmitter::new();
+        let program = Self::compile(input)?;
+        let mut vm = Runtime::new(1024, program);
+        vm.exec().unwrap();
 
-        let code = Self::compile(input)?;
-        emitter.exec(code).unwrap();
+        Ok(vm.pop())
+    }
 
-        let mut vm = Runtime::new(1024, emitter.buffer);
+    pub fn run_vm(program: Vec<u8>) -> Result<i32, Box<dyn std::error::Error>> {
+        let mut vm = Runtime::new(1024, program);
         vm.exec().unwrap();
 
         Ok(vm.pop())
@@ -180,37 +115,7 @@ mod tests {
 
         for (input, expected) in cases {
             println!("====== {}", input);
-            let actual = Compiler::run_expr(input.to_string()).unwrap();
-            assert_eq!(actual, expected, "input: {}", input);
-        }
-    }
-
-    #[test]
-    fn test_compile_block() {
-        let cases = vec![
-            ("let x = 1 + 2 * 4; let y = x + 2; y", 11),
-            ("let x = 1; x = x + 2; x", 3),
-            (
-                "let c = 0; let n = 1; while (c < 5) { c = c + 1; n = n * 2; }; n",
-                32,
-            ),
-            (
-                "let c = 0; let n = 1; while (c < 5) { let d = 1; c = c + 1; n = n * 2; }; n",
-                32,
-            ),
-            (
-                "let a = match true { true => 1, false => 2 }; let b = 0; if a == 1 { b = 10; }; b",
-                10,
-            ),
-            ("let a = 2; { let a = 3; }; a", 2),
-            ("let a = 2; { let a = 3; a = 4; }; a", 2),
-            ("let a = 2; { let a = 3; a = 4; } a", 2),
-            ("let a = 2; { let a = 3; let b = 4; let c = 5; } a", 2),
-            ("let a = 2; { a = 3; a = 4; }; a", 4),
-        ];
-
-        for (input, expected) in cases {
-            let actual = Compiler::run_block(input.to_string()).unwrap();
+            let actual = Compiler::run(format!("fun main() {{ return {}; }}", input)).unwrap();
             assert_eq!(actual, expected, "input: {}", input);
         }
     }
@@ -218,6 +123,32 @@ mod tests {
     #[test]
     fn test_compile_program() {
         let cases = vec![
+            (
+                "fun main() { let x = 1 + 2 * 4; let y = x + 2; return y; }",
+                11,
+            ),
+            ("fun main() { let x = 1; x = x + 2; return x; }", 3),
+            (
+                "fun main() { let c = 0; let n = 1; while (c < 5) { c = c + 1; n = n * 2; }; return n; }",
+                32,
+            ),
+            (
+                "fun main() { let c = 0; let n = 1; while (c < 5) { let d = 1; c = c + 1; n = n * 2; }; return n; }",
+                32,
+            ),
+            (
+                "fun main() { let a = match true { true => 1, false => 2 }; let b = 0; if a == 1 { b = 10; }; return b; }",
+                10,
+            ),
+            (
+                "fun main() { let a = match true { true => 1, false => 2 }; let b = 0; if a == 1 { b = 10; }; return b; }",
+                10,
+            ),
+            ("fun main() { let a = 2; { let a = 3; }; return a; }", 2),
+            ("fun main() { let a = 2; { let a = 3; a = 4; }; return a; }", 2),
+            ("fun main() { let a = 2; { let a = 3; a = 4; } return a; }", 2),
+            ("fun main() { let a = 2; { let a = 3; let b = 4; let c = 5; } return a; }", 2),
+            ("fun main() { let a = 2; { a = 3; a = 4; }; return a; }", 4),
             (
                 r#"fun main() {
                 let x = 1 + 2 * 4;
