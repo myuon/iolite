@@ -241,6 +241,19 @@ mod tests {
             }"#,
                 3,
             ),
+            (
+                r#"fun g(x, y, z) {
+                return x - y - z;
+            }
+
+            fun main() {
+                let a = 10;
+                let p = g(10, 5, 2);
+                let b = 20;
+                return b - p - a;
+            }"#,
+                7,
+            ),
         ];
 
         for (input, expected) in cases {
