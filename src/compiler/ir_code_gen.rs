@@ -46,7 +46,7 @@ impl IrCodeGenerator {
             Expr::Ident(name) => Ok(IrTerm::Load(Box::new(IrTerm::Ident(name)))),
             Expr::Lit(lit) => match lit {
                 Literal::Integer(i) => Ok(IrTerm::Integer(i)),
-                Literal::String(s) => todo!(),
+                Literal::String(_s) => todo!(),
                 Literal::Bool(b) => Ok(IrTerm::Integer(if b { 1 } else { 0 })),
             },
             Expr::BinOp { op, left, right } => {
