@@ -220,6 +220,41 @@ impl Parser {
                     })
                 }
             }
+            Lexeme::Match => {
+                self.consume()?;
+                let cond = self.expr()?;
+
+                self.expect(Lexeme::LBrace)?;
+
+                self.expect(Lexeme::True)?;
+                self.expect(Lexeme::Arrow)?;
+                let true_block = self.expr()?;
+                self.expect(Lexeme::Comma)?;
+
+                self.expect(Lexeme::False)?;
+                self.expect(Lexeme::Arrow)?;
+                let false_block = self.expr()?;
+
+                if matches!(self.peek(), Ok(Lexeme::Comma)) {
+                    self.consume()?;
+                }
+
+                self.expect(Lexeme::RBrace)?;
+
+                Ok(Expr::Match {
+                    cond: Box::new(cond),
+                    cases: vec![
+                        Block {
+                            statements: vec![Statement::Expr(true_block)],
+                            has_value: true,
+                        },
+                        Block {
+                            statements: vec![Statement::Expr(false_block)],
+                            has_value: true,
+                        },
+                    ],
+                })
+            }
             _ => self.expr_5(),
         }
     }

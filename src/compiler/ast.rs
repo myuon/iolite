@@ -39,6 +39,10 @@ pub enum Expr {
         then: Block,
         else_: Block,
     },
+    Match {
+        cond: Box<Expr>,
+        cases: Vec<Block>,
+    },
 }
 
 #[derive(Debug, PartialEq, Clone)]

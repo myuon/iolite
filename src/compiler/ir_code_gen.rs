@@ -57,6 +57,19 @@ impl IrCodeGenerator {
                     else_: Box::new(else_),
                 })
             }
+            Expr::Match { cond, cases } => {
+                // currently, cases are `true => cases[0], false => cases[1]`
+                let cond = self.expr(*cond)?;
+
+                let then = self.block(cases[0].clone())?;
+                let else_ = self.block(cases[1].clone())?;
+
+                Ok(IrTerm::If {
+                    cond: Box::new(cond),
+                    then: Box::new(then),
+                    else_: Box::new(else_),
+                })
+            }
         }
     }
 

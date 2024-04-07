@@ -117,6 +117,7 @@ mod tests {
             ("if false { 2 } else if false { 3 } else { 4 }", 4),
             ("if false { 2 } else if false { 3 } else if false { 4 } else if true { 5 } else { 6 }", 5),
             ("if false { 2 } else if false { 3 } else if false { 4 } else if false { 5 } else { 6 }", 6),
+            ("match true { true => 2, false => 5 }", 2),
         ];
 
         for (input, expected) in cases {
