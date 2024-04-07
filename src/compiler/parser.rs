@@ -14,7 +14,6 @@ pub enum ParseError {
     UnexpectedEos,
     UnexpectedToken { expected: Lexeme, got: Lexeme },
     ExpressionExpected { got: Statement },
-    ElseExpected { cond: Expr, then: Block },
 }
 
 impl Parser {
@@ -150,14 +149,48 @@ impl Parser {
 
                 Ok(Statement::Block(block))
             }
+            Lexeme::If => {
+                self.consume()?;
+                let cond = self.expr()?;
+
+                self.expect(Lexeme::LBrace)?;
+                let then_block = self.block(Some(Lexeme::RBrace))?;
+                self.expect(Lexeme::RBrace)?;
+
+                if !matches!(self.peek(), Ok(Lexeme::Else)) {
+                    return Ok(Statement::If {
+                        cond,
+                        then: then_block,
+                        else_: None,
+                    });
+                }
+
+                self.expect(Lexeme::Else)?;
+
+                if matches!(self.peek(), Ok(Lexeme::If)) {
+                    let next_if = self.statement()?;
+
+                    Ok(Statement::If {
+                        cond,
+                        then: then_block,
+                        else_: Some(Block {
+                            statements: vec![next_if],
+                        }),
+                    })
+                } else {
+                    self.expect(Lexeme::LBrace)?;
+                    let else_block = self.block(Some(Lexeme::RBrace))?;
+                    self.expect(Lexeme::RBrace)?;
+
+                    Ok(Statement::If {
+                        cond,
+                        then: then_block,
+                        else_: Some(else_block),
+                    })
+                }
+            }
             _ => {
-                let expr = match self.expr() {
-                    Ok(expr) => expr,
-                    Err(ParseError::ElseExpected { cond, then }) => {
-                        return Ok(Statement::If { cond, then });
-                    }
-                    Err(e) => return Err(e),
-                };
+                let expr = self.expr()?;
 
                 if let Ok(token) = self.peek() {
                     match token {
@@ -180,42 +213,6 @@ impl Parser {
     pub fn expr(&mut self) -> Result<Expr, ParseError> {
         let token = self.peek()?;
         match token {
-            Lexeme::If => {
-                self.consume()?;
-                let cond = self.expr()?;
-
-                self.expect(Lexeme::LBrace)?;
-                let then_block = self.block(Some(Lexeme::RBrace))?;
-                self.expect(Lexeme::RBrace)?;
-
-                self.expect(Lexeme::Else)
-                    .map_err(|_| ParseError::ElseExpected {
-                        cond: cond.clone(),
-                        then: then_block.clone(),
-                    })?;
-
-                if matches!(self.peek(), Ok(Lexeme::If)) {
-                    let next_if = self.expr()?;
-
-                    Ok(Expr::If {
-                        cond: Box::new(cond),
-                        then: then_block,
-                        else_: Block {
-                            statements: vec![Statement::Expr(next_if)],
-                        },
-                    })
-                } else {
-                    self.expect(Lexeme::LBrace)?;
-                    let else_block = self.block(Some(Lexeme::RBrace))?;
-                    self.expect(Lexeme::RBrace)?;
-
-                    Ok(Expr::If {
-                        cond: Box::new(cond),
-                        then: then_block,
-                        else_: else_block,
-                    })
-                }
-            }
             Lexeme::Match => {
                 self.consume()?;
                 let cond = self.expr()?;

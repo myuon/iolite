@@ -46,17 +46,6 @@ impl IrCodeGenerator {
                 })
             }
             Expr::Call { name, args } => todo!(),
-            Expr::If { cond, then, else_ } => {
-                let cond = self.expr(*cond)?;
-                let then = self.block(then)?;
-                let else_ = self.block(else_)?;
-
-                Ok(IrTerm::If {
-                    cond: Box::new(cond),
-                    then: Box::new(then),
-                    else_: Box::new(else_),
-                })
-            }
             Expr::Match { cond, cases } => {
                 // currently, cases are `true => cases[0], false => cases[1]`
                 let cond = self.expr(*cond)?;
@@ -111,14 +100,18 @@ impl IrCodeGenerator {
                         body: Box::new(body),
                     });
                 }
-                Statement::If { cond, then } => {
+                Statement::If { cond, then, else_ } => {
                     let cond = self.expr(cond)?;
                     let then = self.block(then)?;
+                    let else_ = match else_ {
+                        Some(block) => self.block(block)?,
+                        None => IrTerm::Block { terms: vec![] },
+                    };
 
                     terms.push(IrTerm::If {
                         cond: Box::new(cond),
                         then: Box::new(then),
-                        else_: Box::new(IrTerm::Block { terms: vec![] }),
+                        else_: Box::new(else_),
                     });
                 }
                 Statement::Block(block) => {

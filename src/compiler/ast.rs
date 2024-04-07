@@ -34,11 +34,6 @@ pub enum Expr {
         name: String,
         args: Vec<Expr>,
     },
-    If {
-        cond: Box<Expr>,
-        then: Block,
-        else_: Block,
-    },
     Match {
         cond: Box<Expr>,
         cases: Vec<Block>,
@@ -51,8 +46,15 @@ pub enum Statement {
     Return(Expr),
     Expr(Expr),
     Assign(String, Expr),
-    While { cond: Expr, body: Block },
-    If { cond: Expr, then: Block },
+    While {
+        cond: Expr,
+        body: Block,
+    },
+    If {
+        cond: Expr,
+        then: Block,
+        else_: Option<Block>,
+    },
     Block(Block),
 }
 

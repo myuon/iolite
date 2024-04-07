@@ -53,8 +53,6 @@ impl VmCodeGenerator {
         self.copy_into(self.stack_pointer - scope.stack_pointer);
         // NOTE: block returns a value, so we need to keep the stack pointer
         self.pop_until(scope.stack_pointer + 1);
-
-        dbg!(self.stack_pointer, scope);
     }
 
     fn pop_until(&mut self, size: usize) {

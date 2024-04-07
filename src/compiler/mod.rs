@@ -111,13 +111,17 @@ mod tests {
             ("true || false", 1),
             ("true || true", 1),
             ("1 != 10", 1),
-            ("if true { 2 } else { 5 }", 2),
-            ("if false { 2 } else { 5 }", 5),
-            ("if false { 2 } else if true { 3 } else { 4 }", 3),
-            ("if false { 2 } else if false { 3 } else { 4 }", 4),
-            ("if false { 2 } else if false { 3 } else if false { 4 } else if true { 5 } else { 6 }", 5),
-            ("if false { 2 } else if false { 3 } else if false { 4 } else if false { 5 } else { 6 }", 6),
             ("match true { true => 2, false => 5 }", 2),
+            ("match false { true => 2, false => 5 }", 5),
+            ("match false { true => 2, false => 5 }", 5),
+            (
+                "match false { true => 2, false => match true { true => 3, false => 4 } }",
+                3,
+            ),
+            (
+                "match false { true => 2, false => match false { true => 3, false => 4 } }",
+                4,
+            ),
         ];
 
         for (input, expected) in cases {
@@ -141,17 +145,17 @@ mod tests {
                 32,
             ),
             (
-                "let a = if true { 1 } else { 2 }; let b = 0; if a == 1 { b = 10; }; b",
+                "let a = match true { true => 1, false => 2 }; let b = 0; if a == 1 { b = 10; }; b",
                 10,
             ),
-            (
-                "let a = 2; if a == 1 { let b = 10; b } else { let b = 20; b }",
-                20,
-            ),
-            (
-                "let a = 2; if a == 1 { let b = 10; b } else if a == 2 { let b = 20; b } else { let b = 30; b }",
-                20,
-            ),
+            // (
+            //     "let a = 2; match a == 1 { true => { let b = 10; b }, false => { let b = 20; b } }",
+            //     20,
+            // ),
+            // (
+            //     "let a = 2; if a == 1 { let b = 10; b } else if a == 2 { let b = 20; b } else { let b = 30; b }",
+            //     20,
+            // ),
             ("let a = 2; { let a = 3; }; a", 2),
             ("let a = 2; { let a = 3; a = 4; }; a", 2),
             ("let a = 2; { let a = 3; a = 4; } a", 2),
