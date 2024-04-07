@@ -1,23 +1,33 @@
 use std::env;
 
-use crate::compiler::vm::Instruction;
+use crate::compiler::{ast::Module, vm::Instruction};
 
 mod compiler;
+
+fn compile(input: String) -> Vec<Instruction> {
+    let block = compiler::Compiler::parse(input).unwrap();
+
+    let ir = compiler::Compiler::ir_code_gen(Module {
+        name: "main".to_string(),
+        declarations: block,
+    })
+    .unwrap();
+    println!("= IR_CODE_GEN");
+    println!("{:#?}", ir);
+
+    let code = compiler::Compiler::vm_code_gen(ir).unwrap();
+    println!("= VM_CODE_GEN");
+
+    code
+}
 
 fn main() {
     let args = env::args().collect::<Vec<String>>();
     if args[1] == "compile" {
         let input = args[2].clone();
-        let block = compiler::Compiler::parse_block(input).unwrap();
+        let code = compile(input);
 
-        let ir = compiler::Compiler::ir_code_gen(block).unwrap();
-        println!("= IR_CODE_GEN");
-        println!("{:#?}", ir);
-
-        let code = compiler::Compiler::vm_code_gen(ir).unwrap();
-        println!("= VM_CODE_GEN");
-
-        for inst in code {
+        for inst in &code {
             match inst {
                 Instruction::Label(label) => {
                     println!("\n{}:", label);
@@ -29,8 +39,7 @@ fn main() {
         }
     } else if args[1] == "run" {
         let input = args[2].clone();
-        let code = compiler::Compiler::compile_block(input).unwrap();
-        println!("{:?}", code);
+        let code = compile(input);
 
         let result = compiler::Compiler::run_vm(code).unwrap();
         println!("result: {}", result);

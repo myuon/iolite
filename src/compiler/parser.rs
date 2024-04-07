@@ -73,6 +73,27 @@ impl Parser {
         Ok(decls)
     }
 
+    fn arity_decl(&mut self) -> Result<Vec<String>, ParseError> {
+        let mut args = vec![];
+
+        while let Ok(token) = self.peek() {
+            if matches!(token, Lexeme::RParen) {
+                break;
+            }
+
+            let arg = self.ident()?;
+            args.push(arg);
+
+            if matches!(self.peek(), Ok(Lexeme::Comma)) {
+                self.consume()?;
+            } else {
+                break;
+            }
+        }
+
+        Ok(args)
+    }
+
     pub fn decl(&mut self) -> Result<Declaration, ParseError> {
         let token = self.peek()?;
         match token {
@@ -81,6 +102,7 @@ impl Parser {
 
                 let name = self.ident()?;
                 self.expect(Lexeme::LParen)?;
+                let params = self.arity_decl()?;
                 self.expect(Lexeme::RParen)?;
 
                 self.expect(Lexeme::LBrace)?;
@@ -89,7 +111,7 @@ impl Parser {
 
                 Ok(Declaration::Function {
                     name,
-                    params: vec![],
+                    params,
                     body: block,
                 })
             }
@@ -415,7 +437,7 @@ impl Parser {
             match &self.tokens[self.position] {
                 Lexeme::Plus => {
                     self.consume()?;
-                    let right = self.expr_2()?;
+                    let right = self.expr_1()?;
 
                     current = Expr::BinOp {
                         op: BinOp::Add,
@@ -425,7 +447,7 @@ impl Parser {
                 }
                 Lexeme::Minus => {
                     self.consume()?;
-                    let right = self.expr_2()?;
+                    let right = self.expr_1()?;
 
                     current = Expr::BinOp {
                         op: BinOp::Sub,

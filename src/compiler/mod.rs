@@ -1,5 +1,5 @@
 use self::{
-    ast::{Block, Module},
+    ast::{Block, Declaration, Module},
     vm::Instruction,
 };
 
@@ -22,16 +22,24 @@ impl Compiler {
         Ok(expr)
     }
 
-    pub fn ir_code_gen(block: Block) -> Result<ir::IrTerm, Box<dyn std::error::Error>> {
+    pub fn parse(input: String) -> Result<Vec<Declaration>, Box<dyn std::error::Error>> {
+        let mut lexer = lexer::Lexer::new(input);
+        let mut parser = parser::Parser::new(lexer.run().unwrap());
+        let expr = parser.decls().unwrap();
+
+        Ok(expr)
+    }
+
+    pub fn ir_code_gen(block: Module) -> Result<ir::IrModule, Box<dyn std::error::Error>> {
         let ir_code_gen = ir_code_gen::IrCodeGenerator::new();
-        let ir = ir_code_gen.block(block).unwrap();
+        let ir = ir_code_gen.module(block).unwrap();
 
         Ok(ir)
     }
 
-    pub fn vm_code_gen(ir: ir::IrTerm) -> Result<Vec<Instruction>, Box<dyn std::error::Error>> {
+    pub fn vm_code_gen(ir: ir::IrModule) -> Result<Vec<Instruction>, Box<dyn std::error::Error>> {
         let mut vm_code_gen = vm_code_gen::VmCodeGenerator::new();
-        vm_code_gen.term(ir).unwrap();
+        vm_code_gen.program(ir).unwrap();
 
         Ok(vm_code_gen.code)
     }
@@ -129,6 +137,7 @@ mod tests {
             ("1 * 3 - 4", -1),
             ("4 * 3 - 2", 10),
             ("4 * (3 - 2)", 4),
+            ("10 - 2 - 5", 3),
             ("1 < 2", 1),
             ("1 > 2", 0),
             ("1 <= 2", 1),
@@ -221,6 +230,16 @@ mod tests {
                 return f();
             }"#,
                 10,
+            ),
+            (
+                r#"fun g(x, y, z) {
+                return x - y - z;
+            }
+
+            fun main() {
+                return g(10, 5, 2);
+            }"#,
+                3,
             ),
         ];
 

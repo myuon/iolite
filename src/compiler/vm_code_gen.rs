@@ -6,7 +6,11 @@ use super::{
 };
 
 #[derive(Debug)]
-pub enum VmCodeGeneratorError {}
+pub enum VmCodeGeneratorError {
+    ArityNotFound(String),
+    LocalNotFound(String),
+    IdentNotFound(String),
+}
 
 #[derive(Debug)]
 struct Scope {
@@ -16,6 +20,7 @@ struct Scope {
 
 #[derive(Debug)]
 pub struct VmCodeGenerator {
+    arity: Vec<String>,
     locals: Vec<Scope>,
     stack_pointer: usize,
     pub code: Vec<Instruction>,
@@ -24,20 +29,46 @@ pub struct VmCodeGenerator {
 impl VmCodeGenerator {
     pub fn new() -> Self {
         Self {
+            arity: vec![],
             locals: vec![],
             stack_pointer: 0,
             code: vec![],
         }
     }
 
-    fn find_symbol_in_stack(&self, name: &str) -> usize {
+    fn is_arity(&self, name: &str) -> bool {
+        self.arity.iter().any(|s| s == name)
+    }
+
+    fn is_local(&self, name: &str) -> bool {
+        self.locals
+            .iter()
+            .any(|s| s.locals.iter().any(|(n, _)| n == name))
+    }
+
+    fn push_arity(&mut self, name: &str) -> Result<(), VmCodeGeneratorError> {
+        let index = self
+            .arity
+            .iter()
+            .position(|s| s == name)
+            .ok_or(VmCodeGeneratorError::ArityNotFound(name.to_string()))?;
+
+        self.emit(Instruction::LoadBp);
+        // NOTE: 2 words for return address and return value
+        self.emit(Instruction::Push((2 + index as u32) * 4));
+        self.emit(Instruction::Add);
+
+        Ok(())
+    }
+
+    fn find_symbol_in_stack(&self, name: &str) -> Result<usize, VmCodeGeneratorError> {
         for scope in self.locals.iter().rev() {
             if let Some((_, index)) = scope.locals.iter().rev().find(|s| s.0 == name) {
-                return self.stack_pointer + 1 - index;
+                return Ok(self.stack_pointer + 1 - index);
             }
         }
 
-        panic!("Symbol not found in stack: {}", name);
+        Err(VmCodeGeneratorError::LocalNotFound(name.to_string()))
     }
 
     fn new_scope(&mut self) {
@@ -120,11 +151,30 @@ impl VmCodeGenerator {
         self.emit(Instruction::Store);
     }
 
+    fn ident(&mut self, name: String) -> Result<(), VmCodeGeneratorError> {
+        if self.is_arity(&name) {
+            self.push_arity(&name)?;
+        } else if self.is_local(&name) {
+            let index = self.find_symbol_in_stack(&name)?;
+            assert!(
+                index > 0,
+                "Index must be greater than 0: index={}, ident={}",
+                index,
+                name
+            );
+
+            self.emit(Instruction::PushLocal(index));
+        } else {
+            return Err(VmCodeGeneratorError::IdentNotFound(name));
+        }
+
+        Ok(())
+    }
+
     fn term_left_value(&mut self, ir: IrTerm) -> Result<(), VmCodeGeneratorError> {
         match ir {
             IrTerm::Ident(i) => {
-                let index = self.find_symbol_in_stack(&i);
-                self.emit(Instruction::PushLocal(index));
+                self.ident(i)?;
             }
             _ => todo!(),
         }
@@ -141,15 +191,7 @@ impl VmCodeGenerator {
                 self.emit(Instruction::Push(n as u32));
             }
             IrTerm::Ident(i) => {
-                let index = self.find_symbol_in_stack(&i);
-                assert!(
-                    index > 0,
-                    "Index must be greater than 0: index={}, ident={}",
-                    index,
-                    i
-                );
-
-                self.emit(Instruction::PushLocal(index));
+                self.ident(i)?;
             }
             IrTerm::Let { name, value } => {
                 self.term(*value)?;
@@ -265,7 +307,15 @@ impl VmCodeGenerator {
                 self.stack_pointer = stack_pointer + 1;
             }
             IrTerm::Call { name, args } => {
-                assert!(args.is_empty());
+                self.emit(Instruction::Push(0));
+                self.emit(Instruction::Debug(
+                    "allocated for the return value".to_string(),
+                ));
+
+                // NOTE: push args in the reverse order
+                for arg in args.into_iter().rev() {
+                    self.term(arg)?;
+                }
 
                 self.emit(Instruction::CallLabel(name));
             }
@@ -287,6 +337,8 @@ impl VmCodeGenerator {
 
                 self.emit(Instruction::Debug(format!("prologue end: {}", name)));
 
+                self.arity = args;
+
                 self.term(*body)?;
             }
         }
@@ -305,6 +357,7 @@ impl VmCodeGenerator {
     pub fn program(&mut self, module: IrModule) -> Result<(), VmCodeGeneratorError> {
         self.emit(Instruction::Push(0)); // 1 word for the return value
         self.emit(Instruction::Push(0xffffffff)); // return address
+        self.emit(Instruction::JumpTo("main".to_string()));
 
         self.module(module)?;
 

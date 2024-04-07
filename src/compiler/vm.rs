@@ -305,7 +305,7 @@ impl Vm {
                 }
                 Instruction::CallLabel(label) => {
                     let address = self.get_label_address(&label)?;
-                    self.push(self.pc as i32);
+                    self.push(self.pc as i32 + 1);
                     self.pc = address;
                     continue;
                 }
