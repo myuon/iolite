@@ -205,23 +205,23 @@ mod tests {
         let cases = vec![
             (
                 r#"fun main() {
-    let x = 1 + 2 * 4;
-    let y = x + 2;
+                let x = 1 + 2 * 4;
+                let y = x + 2;
 
-    return x + y;
-}"#,
+                return x + y;
+            }"#,
                 20,
             ),
-            //             (
-            //                 r#"fun f() {
-            //     return 10;
-            // }
+            (
+                r#"fun f() {
+                return 10;
+            }
 
-            // fun main() {
-            //     return f();
-            // }"#,
-            //                 10,
-            //             ),
+            fun main() {
+                return f();
+            }"#,
+                10,
+            ),
         ];
 
         for (input, expected) in cases {

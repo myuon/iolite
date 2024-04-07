@@ -264,6 +264,11 @@ impl VmCodeGenerator {
                 self.emit(Instruction::Label(label_if_end.clone()));
                 self.stack_pointer = stack_pointer + 1;
             }
+            IrTerm::Call { name, args } => {
+                assert!(args.is_empty());
+
+                self.emit(Instruction::CallLabel(name));
+            }
         }
 
         Ok(())

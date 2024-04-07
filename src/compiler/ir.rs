@@ -42,6 +42,10 @@ pub enum IrTerm {
         then: Box<IrTerm>,
         else_: Box<IrTerm>,
     },
+    Call {
+        name: String,
+        args: Vec<IrTerm>,
+    },
 }
 
 #[derive(Debug, PartialEq, Clone)]

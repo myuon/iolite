@@ -72,7 +72,17 @@ impl IrCodeGenerator {
                     args: vec![left, right],
                 })
             }
-            Expr::Call { name, args } => todo!(),
+            Expr::Call { name, args } => {
+                let mut ir_args = vec![];
+                for arg in args {
+                    ir_args.push(self.expr(arg)?);
+                }
+
+                Ok(IrTerm::Call {
+                    name,
+                    args: ir_args,
+                })
+            }
             Expr::Match { cond, cases } => {
                 // currently, cases are `true => cases[0], false => cases[1]`
                 let cond = self.expr(*cond)?;
