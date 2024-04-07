@@ -71,3 +71,9 @@ pub enum Declaration {
         body: Block,
     },
 }
+
+#[derive(Debug, PartialEq, Clone)]
+pub struct Module {
+    pub name: String,
+    pub declarations: Vec<Declaration>,
+}

@@ -1,6 +1,6 @@
 use super::{
-    ast::{BinOp, Block, Expr, Literal, Statement},
-    ir::{IrOp, IrTerm},
+    ast::{BinOp, Block, Declaration, Expr, Literal, Module, Statement},
+    ir::{IrDecl, IrModule, IrOp, IrTerm},
 };
 
 #[derive(Debug)]
@@ -12,6 +12,33 @@ pub struct IrCodeGenerator {}
 impl IrCodeGenerator {
     pub fn new() -> Self {
         Self {}
+    }
+
+    pub fn module(&self, module: Module) -> Result<IrModule, IrCodeGeneratorError> {
+        let mut decls = vec![];
+
+        for decl in module.declarations {
+            decls.push(self.decl(decl)?);
+        }
+
+        Ok(IrModule {
+            name: module.name,
+            decls,
+        })
+    }
+
+    fn decl(&self, decl: Declaration) -> Result<IrDecl, IrCodeGeneratorError> {
+        match decl {
+            Declaration::Function { name, params, body } => {
+                let body = self.block(body)?;
+
+                Ok(IrDecl::Fun {
+                    name,
+                    args: params,
+                    body: Box::new(body),
+                })
+            }
+        }
     }
 
     pub fn expr(&self, expr: Expr) -> Result<IrTerm, IrCodeGeneratorError> {

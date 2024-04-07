@@ -1,3 +1,4 @@
+use core::panic;
 use std::collections::HashMap;
 
 #[derive(Debug, Clone, PartialEq)]
@@ -13,7 +14,11 @@ pub enum Instruction {
     Div,
     Load,
     Store,
-    Push(i32),
+    LoadBp,
+    StoreBp,
+    LoadSp,
+    StoreSp,
+    Push(u32),
     PushLocal(usize),
     Pop,
     Jump,
@@ -33,11 +38,14 @@ pub enum Instruction {
     Label(String),
     JumpTo(String),
     JumpIfTo(String),
+    CallLabel(String),
+    Debug(String),
 }
 
 pub struct Vm {
     memory: Vec<u8>,
     sp: usize,
+    bp: usize,
     pc: usize,
     program: Vec<Instruction>,
     labels: HashMap<String, usize>,
@@ -46,11 +54,13 @@ pub struct Vm {
 impl Vm {
     pub fn new(size: usize, program: Vec<Instruction>) -> Self {
         let memory = vec![0; size];
-        let sp = memory.len() - 4;
+        let bp = memory.len();
+        let sp = bp;
 
         Self {
             memory,
             sp,
+            bp,
             pc: 0,
             program,
             labels: HashMap::new(),
@@ -59,7 +69,7 @@ impl Vm {
 
     pub fn memory_view_32(&self) -> Vec<u32> {
         let mut view = vec![];
-        for i in ((self.sp + 4)..self.memory.len()).step_by(4) {
+        for i in (self.sp..self.memory.len()).step_by(4) {
             view.push(u32::from_le_bytes([
                 self.memory[i],
                 self.memory[i + 1],
@@ -108,6 +118,14 @@ impl Vm {
         Err(VmError::LabelNotFound(label.to_string()))
     }
 
+    fn get_label_address(&mut self, label: &str) -> Result<usize, VmError> {
+        if let Some(pc) = self.labels.get(label) {
+            Ok(*pc)
+        } else {
+            self.look_for_label(label)
+        }
+    }
+
     fn load_i32(&self, address: u32) -> i32 {
         i32::from_le_bytes([
             self.memory[address as usize],
@@ -124,13 +142,14 @@ impl Vm {
     }
 
     pub fn pop(&mut self) -> i32 {
+        let val = self.load_i32(self.sp as u32);
         self.sp += 4;
-        self.load_i32(self.sp as u32)
+        val
     }
 
     fn push(&mut self, val: i32) {
-        self.store_i32(self.sp as u32, val);
         self.sp -= 4;
+        self.store_i32(self.sp as u32, val);
     }
 
     fn pop_address(&mut self) -> u32 {
@@ -138,24 +157,25 @@ impl Vm {
     }
 
     fn print_stack(&self, next: &Instruction) {
-        print!("| ");
         let mut p = self.sp;
         while p < self.memory.len() {
             let val = self.load_i32(p as u32);
 
             if p == self.sp {
-                print!("{:>4} >", val as u32);
+                print!("S {:>4} ", val as u32);
+            } else if p == self.bp {
+                print!("B {:>4} ", val as u32);
             } else {
-                print!("{:>4} |", val as u32);
+                print!("| {:>4} ", val as u32);
             }
             p += 4;
         }
 
-        println!("  next: {:?}", next);
+        println!("| next: {:?}", next);
     }
 
     pub fn exec(&mut self) -> Result<(), VmError> {
-        while self.pc < self.program.len() {
+        while self.pc < self.program.len() && self.pc < 0xffffffff {
             self.print_stack(&self.program[self.pc]);
 
             match self.program[self.pc].clone() {
@@ -192,10 +212,10 @@ impl Vm {
                     self.pop();
                 }
                 Instruction::Push(val) => {
-                    self.push(val);
+                    self.push(val as i32);
                 }
                 Instruction::PushLocal(index) => {
-                    let addr = self.sp + 4 * index;
+                    let addr = self.sp + 4 * (index - 1);
                     self.push(addr as i32);
                 }
                 Instruction::Jump => {
@@ -272,24 +292,37 @@ impl Vm {
                     self.labels.insert(label.clone(), self.pc);
                 }
                 Instruction::JumpTo(label) => {
-                    if let Some(pc) = self.labels.get(&label) {
-                        self.pc = *pc;
-                        continue;
-                    } else {
-                        self.pc = self.look_for_label(&label)?;
-                        continue;
-                    }
+                    let address = self.get_label_address(&label)?;
+                    self.pc = address;
+                    continue;
                 }
                 Instruction::JumpIfTo(label) => {
                     if self.pop() != 0 {
-                        if let Some(pc) = self.labels.get(&label) {
-                            self.pc = *pc;
-                            continue;
-                        } else {
-                            self.pc = self.look_for_label(&label)?;
-                            continue;
-                        }
+                        let address = self.get_label_address(&label)?;
+                        self.pc = address;
+                        continue;
                     }
+                }
+                Instruction::CallLabel(label) => {
+                    let address = self.get_label_address(&label)?;
+                    self.push(self.pc as i32);
+                    self.pc = address;
+                    continue;
+                }
+                Instruction::StoreBp => {
+                    self.bp = self.pop() as usize;
+                }
+                Instruction::LoadBp => {
+                    self.push(self.bp as i32);
+                }
+                Instruction::StoreSp => {
+                    self.sp = self.pop() as usize;
+                }
+                Instruction::LoadSp => {
+                    self.push(self.sp as i32);
+                }
+                Instruction::Debug(msg) => {
+                    println!("[DEBUG:{}] {}", self.pc, msg);
                 }
             }
 
@@ -310,7 +343,7 @@ mod tests {
 
         let memory_size = 40;
         let cases = vec![
-            (vec![Push(1), Push(2), Push(3)], vec![3, 2, 1]),
+            (vec![Push(1), Push(2), Push(3)], vec![1, 2, 3]),
             (vec![Push(1), Push(2), Push(3), Pop, Pop], vec![1]),
             (vec![Push(1), Push(2), Add], vec![3]),
             (vec![Push(10), Push(2), Sub], vec![8]),
@@ -318,7 +351,7 @@ mod tests {
             (vec![Push(10), Push(2), Div], vec![5]),
             (
                 vec![Push(1), Push(2), Push(3), Push(memory_size - 4 * 2), Load],
-                vec![2, 3, 2, 1],
+                vec![1, 2, 3, 2],
             ),
             (
                 vec![
@@ -329,21 +362,15 @@ mod tests {
                     Push(10),
                     Store,
                 ],
-                vec![3, 10, 1],
+                vec![1, 10, 3],
             ),
             (vec![Push(1), PushLocal(1), Push(2), Store], vec![2]),
         ];
 
         for (program, expected) in cases {
             let mut vm = Vm::new(memory_size as usize, program);
-            vm.exec();
-            assert_eq!(
-                vm.memory[(vm.sp + 4)..],
-                expected
-                    .iter()
-                    .flat_map(|&x| (x as u32).to_le_bytes().to_vec())
-                    .collect::<Vec<u8>>()
-            );
+            vm.exec().unwrap();
+            assert_eq!(expected, vm.memory_view_32());
         }
     }
 
@@ -351,7 +378,7 @@ mod tests {
     fn fib() {
         use Instruction::*;
 
-        let memory_size: i32 = 40;
+        let memory_size: u32 = 40;
         let mut vm = Vm::new(
             memory_size as usize,
             vec![

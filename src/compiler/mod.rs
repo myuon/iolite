@@ -1,4 +1,7 @@
-use self::{ast::Block, vm::Instruction};
+use self::{
+    ast::{Block, Module},
+    vm::Instruction,
+};
 
 pub mod ast;
 pub mod ir;
@@ -61,6 +64,25 @@ impl Compiler {
         Ok(vm_code_gen.code)
     }
 
+    pub fn compile(input: String) -> Result<Vec<Instruction>, Box<dyn std::error::Error>> {
+        let mut lexer = lexer::Lexer::new(input);
+        let mut parser = parser::Parser::new(lexer.run().unwrap());
+        let ir_code_gen = ir_code_gen::IrCodeGenerator::new();
+        let mut vm_code_gen = vm_code_gen::VmCodeGenerator::new();
+
+        let decls = parser.decls().unwrap();
+        let ir = ir_code_gen
+            .module(Module {
+                name: "main".to_string(),
+                declarations: decls,
+            })
+            .unwrap();
+
+        vm_code_gen.program(ir).unwrap();
+
+        Ok(vm_code_gen.code)
+    }
+
     pub fn run_expr(input: String) -> Result<i32, Box<dyn std::error::Error>> {
         let code = Self::compile_expr(input)?;
 
@@ -81,6 +103,15 @@ impl Compiler {
 
     pub fn run_vm(program: Vec<Instruction>) -> Result<i32, Box<dyn std::error::Error>> {
         let mut vm = vm::Vm::new(1024, program);
+        vm.exec().unwrap();
+
+        Ok(vm.pop())
+    }
+
+    pub fn run(input: String) -> Result<i32, Box<dyn std::error::Error>> {
+        let code = Self::compile(input)?;
+
+        let mut vm = vm::Vm::new(1024, code);
         vm.exec().unwrap();
 
         Ok(vm.pop())
@@ -165,6 +196,36 @@ mod tests {
 
         for (input, expected) in cases {
             let actual = Compiler::run_block(input.to_string()).unwrap();
+            assert_eq!(actual, expected, "input: {}", input);
+        }
+    }
+
+    #[test]
+    fn test_compile_program() {
+        let cases = vec![
+            (
+                r#"fun main() {
+    let x = 1 + 2 * 4;
+    let y = x + 2;
+
+    return x + y;
+}"#,
+                20,
+            ),
+            //             (
+            //                 r#"fun f() {
+            //     return 10;
+            // }
+
+            // fun main() {
+            //     return f();
+            // }"#,
+            //                 10,
+            //             ),
+        ];
+
+        for (input, expected) in cases {
+            let actual = Compiler::run(input.to_string()).unwrap();
             assert_eq!(actual, expected, "input: {}", input);
         }
     }

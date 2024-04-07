@@ -1,7 +1,7 @@
 use nanoid::nanoid;
 
 use super::{
-    ir::{IrOp, IrTerm},
+    ir::{IrDecl, IrModule, IrOp, IrTerm},
     vm::Instruction,
 };
 
@@ -72,6 +72,14 @@ impl VmCodeGenerator {
             Store => {
                 self.stack_pointer -= 2;
             }
+            LoadBp => {
+                self.stack_pointer += 1;
+            }
+            StoreBp => {
+                self.stack_pointer -= 1;
+            }
+            LoadSp => {}
+            StoreSp => {}
             Push(_) | PushLocal(_) => {
                 self.stack_pointer += 1;
             }
@@ -85,7 +93,7 @@ impl VmCodeGenerator {
                 self.stack_pointer -= 2;
             }
             Instruction::Call => todo!(),
-            Instruction::Return => todo!(),
+            Instruction::Return => {}
             Xor | And | Or => {
                 self.stack_pointer -= 1;
             }
@@ -95,9 +103,11 @@ impl VmCodeGenerator {
             }
             Label(_) => {}
             JumpTo(_) => {}
+            CallLabel(_) => {}
             JumpIfTo(_) => {
                 self.stack_pointer -= 1;
             }
+            Debug(_) => {}
         }
 
         self.code.push(inst);
@@ -128,7 +138,7 @@ impl VmCodeGenerator {
                 self.emit(Instruction::Push(0));
             }
             IrTerm::Integer(n) => {
-                self.emit(Instruction::Push(n));
+                self.emit(Instruction::Push(n as u32));
             }
             IrTerm::Ident(i) => {
                 let index = self.find_symbol_in_stack(&i);
@@ -184,6 +194,25 @@ impl VmCodeGenerator {
             }
             IrTerm::Return(value) => {
                 self.term(*value)?;
+
+                // copy the return value
+                self.emit(Instruction::LoadBp);
+                self.emit(Instruction::Push(4 * 2));
+                self.emit(Instruction::Add);
+                self.emit(Instruction::PushLocal(2));
+                self.emit(Instruction::Load);
+                self.emit(Instruction::Store);
+                self.emit(Instruction::Debug("copy return value".to_string()));
+
+                // %sp = %bp
+                self.emit(Instruction::LoadBp);
+                self.emit(Instruction::StoreSp);
+                self.emit(Instruction::Debug("%sp = %bp".to_string()));
+
+                // %bp = %prev_bp
+                self.emit(Instruction::StoreBp);
+                self.emit(Instruction::Debug("restore %bp".to_string()));
+
                 self.emit(Instruction::Return);
             }
             IrTerm::Load(term) => {
@@ -236,6 +265,45 @@ impl VmCodeGenerator {
                 self.stack_pointer = stack_pointer + 1;
             }
         }
+
+        Ok(())
+    }
+
+    fn decl(&mut self, decl: IrDecl) -> Result<(), VmCodeGeneratorError> {
+        match decl {
+            IrDecl::Fun { name, args, body } => {
+                self.emit(Instruction::Label(name.clone()));
+
+                // prologue
+                self.emit(Instruction::Debug(format!("prologue start: {}", name)));
+                self.emit(Instruction::LoadBp);
+                self.emit(Instruction::LoadSp);
+                self.emit(Instruction::StoreBp);
+
+                self.emit(Instruction::Debug(format!("prologue end: {}", name)));
+
+                self.term(*body)?;
+            }
+        }
+
+        Ok(())
+    }
+
+    pub fn module(&mut self, module: IrModule) -> Result<(), VmCodeGeneratorError> {
+        for decl in module.decls {
+            self.decl(decl)?;
+        }
+
+        Ok(())
+    }
+
+    pub fn program(&mut self, module: IrModule) -> Result<(), VmCodeGeneratorError> {
+        self.emit(Instruction::Push(0)); // 1 word for the return value
+        self.emit(Instruction::Push(0xffffffff)); // return address
+
+        self.module(module)?;
+
+        self.emit(Instruction::Label("exit".to_string()));
 
         Ok(())
     }

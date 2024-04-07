@@ -43,3 +43,18 @@ pub enum IrTerm {
         else_: Box<IrTerm>,
     },
 }
+
+#[derive(Debug, PartialEq, Clone)]
+pub enum IrDecl {
+    Fun {
+        name: String,
+        args: Vec<String>,
+        body: Box<IrTerm>,
+    },
+}
+
+#[derive(Debug, PartialEq, Clone)]
+pub struct IrModule {
+    pub name: String,
+    pub decls: Vec<IrDecl>,
+}
