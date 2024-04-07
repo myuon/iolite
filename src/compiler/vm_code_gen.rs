@@ -235,6 +235,7 @@ impl VmCodeGenerator {
 
                 self.term(*else_)?;
                 self.emit(Instruction::Label(label_if_end.clone()));
+                self.stack_pointer = stack_pointer + 1;
             }
         }
 
