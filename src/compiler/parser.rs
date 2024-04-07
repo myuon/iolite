@@ -102,10 +102,7 @@ impl Parser {
             }
         }
 
-        Ok(Block {
-            statements: block,
-            has_value,
-        })
+        Ok(Block { statements: block })
     }
 
     fn statement(&mut self) -> Result<Statement, ParseError> {
@@ -205,7 +202,6 @@ impl Parser {
                         then: then_block,
                         else_: Block {
                             statements: vec![Statement::Expr(next_if)],
-                            has_value: true,
                         },
                     })
                 } else {
@@ -246,11 +242,9 @@ impl Parser {
                     cases: vec![
                         Block {
                             statements: vec![Statement::Expr(true_block)],
-                            has_value: true,
                         },
                         Block {
                             statements: vec![Statement::Expr(false_block)],
-                            has_value: true,
                         },
                     ],
                 })
@@ -688,7 +682,6 @@ mod tests {
                             },
                         ),
                     ],
-                    has_value: false,
                 },
             ),
             (
@@ -706,7 +699,6 @@ mod tests {
                             right: Box::new(Expr::Lit(Literal::Integer(4))),
                         }),
                     ],
-                    has_value: false,
                 },
             ),
             (
@@ -719,10 +711,8 @@ mod tests {
                                 Statement::Let("a".to_string(), Expr::Lit(Literal::Integer(1))),
                                 Statement::Let("b".to_string(), Expr::Lit(Literal::Integer(2))),
                             ],
-                            has_value: false,
                         },
                     }],
-                    has_value: false,
                 },
             ),
             (
@@ -732,7 +722,6 @@ mod tests {
                         Statement::Let("a".to_string(), Expr::Lit(Literal::Integer(1))),
                         Statement::Expr(Expr::Lit(Literal::Integer(10))),
                     ],
-                    has_value: true,
                 },
             ),
             (
@@ -742,7 +731,6 @@ mod tests {
                         Statement::Let("a".to_string(), Expr::Lit(Literal::Integer(1))),
                         Statement::Expr(Expr::Lit(Literal::Integer(10))),
                     ],
-                    has_value: false,
                 },
             ),
             (
@@ -755,11 +743,9 @@ mod tests {
                                 Statement::Let("a".to_string(), Expr::Lit(Literal::Integer(3))),
                                 Statement::Assign("a".to_string(), Expr::Lit(Literal::Integer(4))),
                             ],
-                            has_value: false,
                         }),
                         Statement::Expr(Expr::Ident("a".to_string())),
                     ],
-                    has_value: true,
                 },
             ),
             (
@@ -772,11 +758,9 @@ mod tests {
                                 Statement::Let("a".to_string(), Expr::Lit(Literal::Integer(3))),
                                 Statement::Assign("a".to_string(), Expr::Lit(Literal::Integer(4))),
                             ],
-                            has_value: false,
                         }),
                         Statement::Expr(Expr::Ident("a".to_string())),
                     ],
-                    has_value: true,
                 },
             ),
         ];

@@ -59,7 +59,6 @@ pub enum Statement {
 #[derive(Debug, PartialEq, Clone)]
 pub struct Block {
     pub statements: Vec<Statement>,
-    pub has_value: bool,
 }
 
 #[derive(Debug, PartialEq, Clone)]
