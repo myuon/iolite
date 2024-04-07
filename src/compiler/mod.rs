@@ -202,14 +202,6 @@ mod tests {
                 "let a = match true { true => 1, false => 2 }; let b = 0; if a == 1 { b = 10; }; b",
                 10,
             ),
-            // (
-            //     "let a = 2; match a == 1 { true => { let b = 10; b }, false => { let b = 20; b } }",
-            //     20,
-            // ),
-            // (
-            //     "let a = 2; if a == 1 { let b = 10; b } else if a == 2 { let b = 20; b } else { let b = 30; b }",
-            //     20,
-            // ),
             ("let a = 2; { let a = 3; }; a", 2),
             ("let a = 2; { let a = 3; a = 4; }; a", 2),
             ("let a = 2; { let a = 3; a = 4; } a", 2),
@@ -267,6 +259,38 @@ mod tests {
                 return b - p - a;
             }"#,
                 7,
+            ),
+            (
+                r#"
+            fun f(a) {
+                return match a == 1 {
+                    true => 10,
+                    false => 20,
+                };
+            }
+
+            fun main() {
+                return f(2);
+            }"#,
+                20,
+            ),
+            (
+                r#"
+            fun main() {
+                let a = 2;
+
+                if a == 1 {
+                    let b = 10;
+                    return b;
+                } else if a == 2 {
+                    let b = 20;
+                    return b;
+                } else {
+                    let b = 30;
+                    return b;
+                }
+            }"#,
+                20,
             ),
         ];
 

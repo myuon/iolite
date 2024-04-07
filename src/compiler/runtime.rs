@@ -101,13 +101,6 @@ impl Runtime {
     pub fn exec(&mut self) -> Result<(), RuntimeError> {
         while self.pc < self.program.len() && self.pc < 0xffffffff {
             self.print_stack(&{
-                println!(
-                    "{} {} {:x?} {:x?}",
-                    self.pc,
-                    self.program[self.pc],
-                    &self.program[0..self.pc],
-                    &self.program[self.pc..],
-                );
                 let inst = Instruction::from_byte(&self.program[self.pc..]).unwrap();
 
                 match inst {
