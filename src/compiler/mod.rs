@@ -1,5 +1,7 @@
 use self::{
     ast::{Block, Declaration, Module},
+    byte_code_emitter::ByteCodeEmitter,
+    runtime::Runtime,
     vm::Instruction,
 };
 
@@ -9,6 +11,7 @@ pub mod ir;
 pub mod ir_code_gen;
 pub mod lexer;
 pub mod parser;
+pub mod runtime;
 pub mod vm;
 pub mod vm_code_gen;
 
@@ -93,34 +96,44 @@ impl Compiler {
     }
 
     pub fn run_expr(input: String) -> Result<i32, Box<dyn std::error::Error>> {
+        let mut emitter = ByteCodeEmitter::new();
         let code = Self::compile_expr(input)?;
+        emitter.exec(code).unwrap();
 
-        let mut vm = vm::Vm::new(40, code);
+        let mut vm = Runtime::new(1024, emitter.buffer);
         vm.exec().unwrap();
 
         Ok(vm.pop())
     }
 
     pub fn run_block(input: String) -> Result<i32, Box<dyn std::error::Error>> {
+        let mut emitter = ByteCodeEmitter::new();
         let code = Self::compile_block(input)?;
+        emitter.exec(code).unwrap();
 
-        let mut vm = vm::Vm::new(1024, code);
+        let mut vm = Runtime::new(1024, emitter.buffer);
         vm.exec().unwrap();
 
         Ok(vm.pop())
     }
 
     pub fn run_vm(program: Vec<Instruction>) -> Result<i32, Box<dyn std::error::Error>> {
-        let mut vm = vm::Vm::new(1024, program);
+        let mut emitter = ByteCodeEmitter::new();
+        emitter.exec(program).unwrap();
+
+        let mut vm = Runtime::new(1024, emitter.buffer);
         vm.exec().unwrap();
 
         Ok(vm.pop())
     }
 
     pub fn run(input: String) -> Result<i32, Box<dyn std::error::Error>> {
-        let code = Self::compile(input)?;
+        let mut emitter = ByteCodeEmitter::new();
 
-        let mut vm = vm::Vm::new(1024, code);
+        let code = Self::compile(input)?;
+        emitter.exec(code).unwrap();
+
+        let mut vm = Runtime::new(1024, emitter.buffer);
         vm.exec().unwrap();
 
         Ok(vm.pop())

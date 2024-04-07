@@ -7,6 +7,11 @@ pub enum VmError {
 }
 
 #[derive(Debug, Clone, PartialEq)]
+pub enum InstructionError {
+    UnknownInstruction(u8),
+}
+
+#[derive(Debug, Clone, PartialEq)]
 pub enum Instruction {
     Add,
     Sub,
@@ -78,7 +83,7 @@ impl Instruction {
             Load => vec![0x40],
             LoadBp => vec![0x41, 0x01],
             LoadSp => vec![0x41, 0x02],
-            Store => vec![0x42, 0x00],
+            Store => vec![0x42],
             StoreBp => vec![0x43, 0x01],
             StoreSp => vec![0x43, 0x02],
 
@@ -93,8 +98,8 @@ impl Instruction {
         }
     }
 
-    pub fn from_byte(bytes: Vec<u8>) -> Instruction {
-        match bytes[0] {
+    pub fn from_byte(bytes: &[u8]) -> Result<Instruction, InstructionError> {
+        Ok(match bytes[0] {
             0x01 => Instruction::Push(0),
             0x02 => Instruction::Pop,
             0x03 => Instruction::Call,
@@ -132,8 +137,8 @@ impl Instruction {
                 _ => todo!(),
             },
 
-            p => todo!("Unknown instruction: {:x}", p),
-        }
+            p => return Err(InstructionError::UnknownInstruction(p)),
+        })
     }
 }
 
@@ -178,7 +183,7 @@ proptest! {
     #[test]
     fn test_instruction_roundtrip(instruction in any::<Instruction>()) {
         let bytes = instruction.to_byte();
-        let new_instruction = Instruction::from_byte(bytes);
+        let new_instruction = Instruction::from_byte(&bytes).unwrap();
 
         prop_assert_eq!(instruction, new_instruction);
     }

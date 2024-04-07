@@ -10,7 +10,7 @@ pub enum ByteCodeEmitterError {
 
 pub struct ByteCodeEmitter {
     position: usize,
-    buffer: Vec<u8>,
+    pub buffer: Vec<u8>,
 }
 
 impl ByteCodeEmitter {
