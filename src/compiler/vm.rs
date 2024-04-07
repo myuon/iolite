@@ -19,7 +19,6 @@ pub enum Instruction {
     LoadSp,
     StoreSp,
     Push(u32),
-    PushLocal(usize),
     Pop,
     Jump,
     JumpIf,
@@ -214,10 +213,6 @@ impl Vm {
                 Instruction::Push(val) => {
                     self.push(val as i32);
                 }
-                Instruction::PushLocal(index) => {
-                    let addr = self.sp + 4 * (index - 1);
-                    self.push(addr as i32);
-                }
                 Instruction::Jump => {
                     self.pc = self.pop() as usize;
                     continue;
@@ -364,7 +359,7 @@ mod tests {
                 ],
                 vec![1, 10, 3],
             ),
-            (vec![Push(1), PushLocal(1), Push(2), Store], vec![2]),
+            (vec![Push(1), LoadSp, Push(2), Store], vec![2]),
         ];
 
         for (program, expected) in cases {

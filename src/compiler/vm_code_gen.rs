@@ -61,6 +61,15 @@ impl VmCodeGenerator {
         Ok(())
     }
 
+    fn push_local(&mut self, index: usize) {
+        assert!(index > 0, "Index must be greater than 0: index={}", index);
+        self.emit(Instruction::LoadSp);
+        if index > 1 {
+            self.emit(Instruction::Push((index - 1) as u32 * 4));
+            self.emit(Instruction::Add);
+        }
+    }
+
     fn find_symbol_in_stack(&self, name: &str) -> Result<usize, VmCodeGeneratorError> {
         for scope in self.locals.iter().rev() {
             if let Some((_, index)) = scope.locals.iter().rev().find(|s| s.0 == name) {
@@ -81,6 +90,9 @@ impl VmCodeGenerator {
     fn rewind_scope(&mut self) {
         let scope = self.locals.pop().unwrap();
 
+        if scope.stack_pointer == self.stack_pointer {
+            return;
+        }
         self.copy_into(self.stack_pointer - scope.stack_pointer);
         // NOTE: block returns a value, so we need to keep the stack pointer
         self.pop_until(scope.stack_pointer + 1);
@@ -109,9 +121,13 @@ impl VmCodeGenerator {
             StoreBp => {
                 self.stack_pointer -= 1;
             }
-            LoadSp => {}
-            StoreSp => {}
-            Push(_) | PushLocal(_) => {
+            LoadSp => {
+                self.stack_pointer += 1;
+            }
+            StoreSp => {
+                self.stack_pointer -= 1;
+            }
+            Push(_) => {
                 self.stack_pointer += 1;
             }
             Pop => {
@@ -145,8 +161,9 @@ impl VmCodeGenerator {
     }
 
     fn copy_into(&mut self, index: usize) {
-        self.emit(Instruction::PushLocal(index));
-        self.emit(Instruction::PushLocal(2));
+        assert!(index > 0, "Index must be greater than 0: index={}", index);
+        self.push_local(index);
+        self.push_local(2);
         self.emit(Instruction::Load);
         self.emit(Instruction::Store);
     }
@@ -163,7 +180,7 @@ impl VmCodeGenerator {
                 name
             );
 
-            self.emit(Instruction::PushLocal(index));
+            self.push_local(index);
         } else {
             return Err(VmCodeGeneratorError::IdentNotFound(name));
         }
@@ -229,9 +246,6 @@ impl VmCodeGenerator {
                     self.term(term)?;
                 }
 
-                // // NOTE: copy the result of this block to the original position
-                // self.copy_into(self.stack_pointer - stack_pointer);
-                // self.pop_until(stack_pointer + 1);
                 self.rewind_scope();
             }
             IrTerm::Return(value) => {
@@ -241,7 +255,7 @@ impl VmCodeGenerator {
                 self.emit(Instruction::LoadBp);
                 self.emit(Instruction::Push(4 * 2));
                 self.emit(Instruction::Add);
-                self.emit(Instruction::PushLocal(2));
+                self.push_local(2);
                 self.emit(Instruction::Load);
                 self.emit(Instruction::Store);
                 self.emit(Instruction::Debug("copy return value".to_string()));
@@ -420,13 +434,17 @@ mod tests {
                 },
                 vec![
                     Instruction::Push(1),
-                    Instruction::PushLocal(1),
+                    Instruction::LoadSp,
                     Instruction::Push(2),
                     Instruction::Store,
-                    Instruction::PushLocal(1),
+                    Instruction::LoadSp,
                     Instruction::Load,
-                    Instruction::PushLocal(2),
-                    Instruction::PushLocal(2),
+                    Instruction::LoadSp,
+                    Instruction::Push(4),
+                    Instruction::Add,
+                    Instruction::LoadSp,
+                    Instruction::Push(4),
+                    Instruction::Add,
                     Instruction::Load,
                     Instruction::Store,
                     Instruction::Pop,
