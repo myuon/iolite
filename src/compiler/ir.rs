@@ -55,6 +55,9 @@ pub enum IrDecl {
         args: Vec<String>,
         body: Box<IrTerm>,
     },
+    Let {
+        name: String,
+    },
 }
 
 #[derive(Debug, PartialEq, Clone)]

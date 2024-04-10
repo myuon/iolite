@@ -115,6 +115,17 @@ impl Parser {
                     body: block,
                 })
             }
+            Lexeme::Let => {
+                self.consume()?;
+
+                let name = self.ident()?;
+                self.expect(Lexeme::Equal)?;
+                let expr = self.expr()?;
+
+                self.expect(Lexeme::Semicolon)?;
+
+                Ok(Declaration::Let { name, value: expr })
+            }
             _ => Err(ParseError::UnexpectedToken {
                 expected: Lexeme::Fun,
                 got: token.clone(),

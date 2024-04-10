@@ -7,19 +7,35 @@ use super::{
 pub enum IrCodeGeneratorError {}
 
 #[derive(Debug)]
-pub struct IrCodeGenerator {}
+pub struct IrCodeGenerator {
+    init_function: Vec<IrTerm>,
+}
 
 impl IrCodeGenerator {
     pub fn new() -> Self {
-        Self {}
+        Self {
+            init_function: vec![],
+        }
     }
 
-    pub fn module(&self, module: Module) -> Result<IrModule, IrCodeGeneratorError> {
+    pub fn module(&mut self, module: Module) -> Result<IrModule, IrCodeGeneratorError> {
         let mut decls = vec![];
 
         for decl in module.declarations {
             decls.push(self.decl(decl)?);
         }
+
+        // NOTE: hoist initial process to the init function
+        self.init_function
+            .push(IrTerm::Return(Box::new(IrTerm::Nil)));
+
+        decls.push(IrDecl::Fun {
+            name: "init".to_string(),
+            args: vec![],
+            body: Box::new(IrTerm::Block {
+                terms: self.init_function.clone(),
+            }),
+        });
 
         Ok(IrModule {
             name: module.name,
@@ -27,16 +43,42 @@ impl IrCodeGenerator {
         })
     }
 
-    fn decl(&self, decl: Declaration) -> Result<IrDecl, IrCodeGeneratorError> {
+    fn decl(&mut self, decl: Declaration) -> Result<IrDecl, IrCodeGeneratorError> {
         match decl {
             Declaration::Function { name, params, body } => {
-                let body = self.block(body)?;
+                let body = {
+                    let term = self.block(body)?;
+
+                    if name == "main" {
+                        IrTerm::Block {
+                            terms: vec![
+                                IrTerm::Call {
+                                    name: "init".to_string(),
+                                    args: vec![],
+                                },
+                                term,
+                            ],
+                        }
+                    } else {
+                        term
+                    }
+                };
 
                 Ok(IrDecl::Fun {
                     name,
                     args: params,
                     body: Box::new(body),
                 })
+            }
+            Declaration::Let { name, value } => {
+                let value = self.expr(value)?;
+
+                self.init_function.push(IrTerm::Store(
+                    Box::new(IrTerm::Ident(name.clone())),
+                    Box::new(value.clone()),
+                ));
+
+                Ok(IrDecl::Let { name })
             }
         }
     }

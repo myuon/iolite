@@ -70,6 +70,10 @@ pub enum Declaration {
         params: Vec<String>,
         body: Block,
     },
+    Let {
+        name: String,
+        value: Expr,
+    },
 }
 
 #[derive(Debug, PartialEq, Clone)]

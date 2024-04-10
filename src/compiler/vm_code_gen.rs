@@ -22,6 +22,7 @@ struct Scope {
 pub struct VmCodeGenerator {
     arity: Vec<String>,
     locals: Vec<Scope>,
+    globals: Vec<String>,
     stack_pointer: usize,
     pub code: Vec<Instruction>,
 }
@@ -31,6 +32,7 @@ impl VmCodeGenerator {
         Self {
             arity: vec![],
             locals: vec![],
+            globals: vec![],
             stack_pointer: 0,
             code: vec![],
         }
@@ -96,6 +98,22 @@ impl VmCodeGenerator {
         self.copy_into(self.stack_pointer - scope.stack_pointer);
         // NOTE: block returns a value, so we need to keep the stack pointer
         self.pop_until(scope.stack_pointer + 1);
+    }
+
+    fn push_global(&mut self, name: String) {
+        let index = self
+            .globals
+            .iter()
+            .position(|s| s == &name)
+            .unwrap_or_else(|| {
+                self.globals.push(name.clone());
+                self.globals.len() - 1
+            });
+        self.emit(Instruction::Push(index as u32 * 4));
+    }
+
+    fn is_global(&self, name: &str) -> bool {
+        self.globals.iter().any(|s| s == name)
     }
 
     fn pop_until(&mut self, size: usize) {
@@ -181,6 +199,8 @@ impl VmCodeGenerator {
             );
 
             self.push_local(index);
+        } else if self.is_global(&name) {
+            self.push_global(name);
         } else {
             return Err(VmCodeGeneratorError::IdentNotFound(name));
         }
@@ -354,6 +374,9 @@ impl VmCodeGenerator {
                 self.arity = args;
 
                 self.term(*body)?;
+            }
+            IrDecl::Let { name } => {
+                self.globals.push(name);
             }
         }
 

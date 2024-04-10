@@ -27,7 +27,7 @@ impl Compiler {
     }
 
     pub fn ir_code_gen(block: Module) -> Result<ir::IrModule, Box<dyn std::error::Error>> {
-        let ir_code_gen = ir_code_gen::IrCodeGenerator::new();
+        let mut ir_code_gen = ir_code_gen::IrCodeGenerator::new();
         let ir = ir_code_gen.module(block).unwrap();
 
         Ok(ir)
@@ -222,6 +222,19 @@ mod tests {
                 }
             }"#,
                 20,
+            ),
+            (
+                r#"
+            let p = 10;
+
+            fun f() {
+                return p + 1;
+            }
+
+            fun main() {
+                return f() + p;
+            }"#,
+                21,
             ),
         ];
 
