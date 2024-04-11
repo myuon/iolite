@@ -87,3 +87,14 @@ pub struct Module {
     pub name: String,
     pub declarations: Vec<Declaration>,
 }
+
+#[derive(Debug, PartialEq, Clone)]
+pub enum Type {
+    Unknown,
+    Nil,
+    Bool,
+    Int,
+    Float,
+    Array(Box<Type>),
+    Fun(Vec<Type>, Box<Type>),
+}

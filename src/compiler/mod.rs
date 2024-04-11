@@ -13,6 +13,7 @@ pub mod ir_code_gen;
 pub mod lexer;
 pub mod parser;
 pub mod runtime;
+pub mod typechecker;
 pub mod vm;
 pub mod vm_code_gen;
 
@@ -76,6 +77,14 @@ impl Compiler {
         Ok(expr)
     }
 
+    fn typecheck(module: Module) -> Result<(), Box<dyn std::error::Error>> {
+        let mut typechecker = typechecker::Typechecker::new();
+        println!("{:?}", module);
+        typechecker.module(&module).unwrap();
+
+        Ok(())
+    }
+
     pub fn ir_code_gen(block: Module) -> Result<ir::IrModule, Box<dyn std::error::Error>> {
         let mut ir_code_gen = ir_code_gen::IrCodeGenerator::new();
         let ir = ir_code_gen.module(block).unwrap();
@@ -99,10 +108,13 @@ impl Compiler {
 
     pub fn compile(input: String) -> Result<Vec<u8>, Box<dyn std::error::Error>> {
         let decls = Self::parse(input)?;
-        let ir = Self::ir_code_gen(Module {
+        let module = Module {
             name: "main".to_string(),
             declarations: decls,
-        })?;
+        };
+        Self::typecheck(module.clone())?;
+
+        let ir = Self::ir_code_gen(module)?;
         let code = Self::vm_code_gen(ir)?;
         let binary = Self::byte_code_gen(code)?;
 
