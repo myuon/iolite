@@ -42,6 +42,12 @@ pub enum Lexeme {
     Integer(i32),
 }
 
+#[derive(Clone, Debug, PartialEq)]
+pub struct Token {
+    pub lexeme: Lexeme,
+    pub position: usize,
+}
+
 #[derive(Debug)]
 pub enum LexerError {
     InvalidCharacter(char),
@@ -62,7 +68,14 @@ impl Lexer {
         Self { input, position: 0 }
     }
 
-    pub fn run(&mut self) -> Result<Vec<Lexeme>, LexerError> {
+    fn new_token(&self, lexeme: Lexeme) -> Token {
+        Token {
+            lexeme,
+            position: self.position,
+        }
+    }
+
+    pub fn run(&mut self) -> Result<Vec<Token>, LexerError> {
         let mut tokens = vec![];
 
         while self.position < self.input.len() {
@@ -72,28 +85,28 @@ impl Lexer {
             }
 
             if let Some((lexeme, length)) = self.matches() {
-                tokens.push(lexeme);
+                tokens.push(self.new_token(lexeme));
                 self.position += length;
                 continue;
             }
 
             if let Some(m) = STRING.find(&self.input[self.position..]) {
                 let lexeme = Lexeme::String(m.as_str().to_string());
-                tokens.push(lexeme);
+                tokens.push(self.new_token(lexeme));
                 self.position += m.end();
                 continue;
             }
 
             if let Some(m) = INTEGER.find(&self.input[self.position..]) {
                 let lexeme = Lexeme::Integer(m.as_str().parse().unwrap());
-                tokens.push(lexeme);
+                tokens.push(self.new_token(lexeme));
                 self.position += m.end();
                 continue;
             }
 
             if let Some(m) = IDENT.find(&self.input[self.position..]) {
                 let lexeme = Lexeme::Ident(m.as_str().to_string());
-                tokens.push(lexeme);
+                tokens.push(self.new_token(lexeme));
                 self.position += m.end();
                 continue;
             }
@@ -194,7 +207,10 @@ mod tests {
         for (input, expected) in cases {
             let mut lexer = Lexer::new(input.to_string());
             let tokens = lexer.run().unwrap();
-            assert_eq!(tokens, expected);
+            assert_eq!(
+                tokens.into_iter().map(|t| t.lexeme).collect::<Vec<_>>(),
+                expected
+            );
         }
     }
 }

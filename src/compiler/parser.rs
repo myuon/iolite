@@ -1,36 +1,41 @@
 use super::{
     ast::{BinOp, Block, Declaration, Expr, Literal, Statement},
-    lexer::Lexeme,
+    lexer::{Lexeme, Token},
 };
 
 #[derive(Debug, PartialEq)]
 pub struct Parser {
-    tokens: Vec<Lexeme>,
+    tokens: Vec<Token>,
     position: usize,
 }
 
-#[derive(Debug, PartialEq)]
+#[derive(Debug, PartialEq, Clone)]
 pub enum ParseError {
     UnexpectedEos,
-    UnexpectedToken { expected: Lexeme, got: Lexeme },
-    ExpressionExpected { got: Statement },
+    UnexpectedToken {
+        expected: Option<Lexeme>,
+        got: Token,
+    },
+    ExpressionExpected {
+        got: Statement,
+    },
 }
 
 impl Parser {
-    pub fn new(tokens: Vec<Lexeme>) -> Self {
+    pub fn new(tokens: Vec<Token>) -> Self {
         Self {
             tokens,
             position: 0,
         }
     }
 
-    fn peek(&self) -> Result<&Lexeme, ParseError> {
+    fn peek(&self) -> Result<&Token, ParseError> {
         self.tokens
             .get(self.position)
             .ok_or(ParseError::UnexpectedEos)
     }
 
-    fn consume(&mut self) -> Result<Lexeme, ParseError> {
+    fn consume(&mut self) -> Result<Token, ParseError> {
         let token = self.peek()?.clone();
         self.position += 1;
 
@@ -39,10 +44,10 @@ impl Parser {
 
     fn ident(&mut self) -> Result<String, ParseError> {
         let token = self.consume()?;
-        match token {
+        match token.lexeme {
             Lexeme::Ident(i) => Ok(i),
             _ => Err(ParseError::UnexpectedToken {
-                expected: Lexeme::Ident("".to_string()),
+                expected: None,
                 got: token,
             }),
         }
@@ -50,12 +55,12 @@ impl Parser {
 
     fn expect(&mut self, lexeme: Lexeme) -> Result<(), ParseError> {
         let token = self.peek()?;
-        if token == &lexeme {
+        if token.lexeme == lexeme {
             self.consume()?;
             Ok(())
         } else {
             Err(ParseError::UnexpectedToken {
-                expected: lexeme,
+                expected: Some(lexeme),
                 got: token.clone(),
             })
         }
@@ -77,14 +82,14 @@ impl Parser {
         let mut args = vec![];
 
         while let Ok(token) = self.peek() {
-            if matches!(token, Lexeme::RParen) {
+            if matches!(token.lexeme, Lexeme::RParen) {
                 break;
             }
 
             let arg = self.ident()?;
             args.push(arg);
 
-            if matches!(self.peek(), Ok(Lexeme::Comma)) {
+            if matches!(self.peek().map(|t| &t.lexeme), Ok(&Lexeme::Comma)) {
                 self.consume()?;
             } else {
                 break;
@@ -96,7 +101,7 @@ impl Parser {
 
     pub fn decl(&mut self) -> Result<Declaration, ParseError> {
         let token = self.peek()?;
-        match token {
+        match token.lexeme {
             Lexeme::Fun => {
                 self.consume()?;
 
@@ -127,7 +132,7 @@ impl Parser {
                 Ok(Declaration::Let { name, value: expr })
             }
             _ => Err(ParseError::UnexpectedToken {
-                expected: Lexeme::Fun,
+                expected: Some(Lexeme::Fun),
                 got: token.clone(),
             }),
         }
@@ -138,7 +143,7 @@ impl Parser {
 
         while self.position < self.tokens.len() {
             if let Some(end_token) = &end_token {
-                if self.peek()? == end_token {
+                if &self.peek()?.lexeme == end_token {
                     break;
                 }
             }
@@ -152,7 +157,7 @@ impl Parser {
             block.push(statement.clone());
             if needs_semilon {
                 // NOTE: allows eos here
-                if matches!(self.peek(), Ok(Lexeme::Semicolon)) {
+                if matches!(self.peek().map(|t| &t.lexeme), Ok(Lexeme::Semicolon)) {
                     self.consume()?;
                 } else {
                     if !matches!(statement, Statement::Expr(_)) {
@@ -163,7 +168,7 @@ impl Parser {
                 }
             } else {
                 if let Ok(token) = self.peek() {
-                    if matches!(token, Lexeme::Semicolon) {
+                    if matches!(token.lexeme, Lexeme::Semicolon) {
                         self.consume()?;
                     }
                 }
@@ -174,7 +179,7 @@ impl Parser {
     }
 
     fn statement(&mut self) -> Result<Statement, ParseError> {
-        match self.peek()? {
+        match self.peek()?.lexeme {
             Lexeme::Let => {
                 self.consume()?;
 
@@ -226,7 +231,7 @@ impl Parser {
                 let then_block = self.block(Some(Lexeme::RBrace))?;
                 self.expect(Lexeme::RBrace)?;
 
-                if !matches!(self.peek(), Ok(Lexeme::Else)) {
+                if !matches!(self.peek().map(|t| &t.lexeme), Ok(Lexeme::Else)) {
                     return Ok(Statement::If {
                         cond,
                         then: then_block,
@@ -236,7 +241,7 @@ impl Parser {
 
                 self.expect(Lexeme::Else)?;
 
-                if matches!(self.peek(), Ok(Lexeme::If)) {
+                if matches!(self.peek().map(|t| &t.lexeme), Ok(Lexeme::If)) {
                     let next_if = self.statement()?;
 
                     Ok(Statement::If {
@@ -262,13 +267,11 @@ impl Parser {
                 let expr = self.expr()?;
 
                 if let Ok(token) = self.peek() {
-                    match token {
+                    match token.lexeme {
                         Lexeme::Equal => {
-                            if let Expr::Ident(ident) = expr {
-                                self.consume()?;
-                                let right = self.expr()?;
-                                return Ok(Statement::Assign(ident, right));
-                            }
+                            self.consume()?;
+                            let right = self.expr()?;
+                            return Ok(Statement::Assign(expr, right));
                         }
                         _ => (),
                     }
@@ -281,7 +284,7 @@ impl Parser {
 
     pub fn expr(&mut self) -> Result<Expr, ParseError> {
         let token = self.peek()?;
-        match token {
+        match token.lexeme {
             Lexeme::Match => {
                 self.consume()?;
                 let cond = self.expr()?;
@@ -297,7 +300,7 @@ impl Parser {
                 self.expect(Lexeme::Arrow)?;
                 let false_block = self.expr()?;
 
-                if matches!(self.peek(), Ok(Lexeme::Comma)) {
+                if matches!(self.peek().map(|t| &t.lexeme), Ok(Lexeme::Comma)) {
                     self.consume()?;
                 }
 
@@ -330,24 +333,7 @@ impl Parser {
 
                 Ok(Expr::New(Box::new(expr)))
             }
-            _ => {
-                let expr = self.expr_5()?;
-
-                if self.peek() == Ok(&Lexeme::Dot) {
-                    self.consume()?;
-
-                    self.expect(Lexeme::LParen)?;
-                    let index = self.expr()?;
-                    self.expect(Lexeme::RParen)?;
-
-                    return Ok(Expr::Index {
-                        array: Box::new(expr),
-                        index: Box::new(index),
-                    });
-                }
-
-                Ok(expr)
-            }
+            _ => Ok(self.expr_5()?),
         }
     }
 
@@ -355,7 +341,7 @@ impl Parser {
         let mut current = self.expr_4()?;
 
         while self.position < self.tokens.len() {
-            match &self.tokens[self.position] {
+            match &self.tokens[self.position].lexeme {
                 Lexeme::DoubleOr => {
                     self.consume()?;
                     let right = self.expr_4()?;
@@ -379,7 +365,7 @@ impl Parser {
         let mut current = self.expr_3()?;
 
         while self.position < self.tokens.len() {
-            match &self.tokens[self.position] {
+            match &self.tokens[self.position].lexeme {
                 Lexeme::DoubleAnd => {
                     self.consume()?;
                     let right = self.expr_3()?;
@@ -403,7 +389,7 @@ impl Parser {
         let mut current = self.expr_2()?;
 
         while self.position < self.tokens.len() {
-            match &self.tokens[self.position] {
+            match &self.tokens[self.position].lexeme {
                 Lexeme::Le => {
                     self.consume()?;
                     let right = self.expr_2()?;
@@ -477,7 +463,7 @@ impl Parser {
         let mut current = self.expr_1()?;
 
         while self.position < self.tokens.len() {
-            match &self.tokens[self.position] {
+            match &self.tokens[self.position].lexeme {
                 Lexeme::Plus => {
                     self.consume()?;
                     let right = self.expr_1()?;
@@ -511,7 +497,7 @@ impl Parser {
         let mut current = self.expr_0()?;
 
         while self.position < self.tokens.len() {
-            match &self.tokens[self.position] {
+            match &self.tokens[self.position].lexeme {
                 Lexeme::Star => {
                     self.consume()?;
                     let right = self.expr_0()?;
@@ -542,7 +528,33 @@ impl Parser {
     }
 
     fn expr_0(&mut self) -> Result<Expr, ParseError> {
-        match self.tokens[self.position].clone() {
+        let mut current = self.expr_base()?;
+
+        while self.position < self.tokens.len() {
+            match &self.tokens[self.position].lexeme {
+                Lexeme::Dot => {
+                    self.consume()?;
+
+                    self.expect(Lexeme::LParen)?;
+                    let index = self.expr()?;
+                    self.expect(Lexeme::RParen)?;
+
+                    current = Expr::Index {
+                        array: Box::new(current),
+                        index: Box::new(index),
+                    };
+                }
+                _ => {
+                    break;
+                }
+            }
+        }
+
+        Ok(current)
+    }
+
+    fn expr_base(&mut self) -> Result<Expr, ParseError> {
+        match self.tokens[self.position].clone().lexeme {
             Lexeme::Integer(i) => {
                 self.consume()?;
 
@@ -568,12 +580,12 @@ impl Parser {
 
                 let current = Expr::Ident(i.clone());
                 if let Ok(token) = self.peek() {
-                    if matches!(token, Lexeme::LParen) {
+                    if matches!(token.lexeme, Lexeme::LParen) {
                         self.position += 1;
 
                         let mut args = vec![];
                         while let Ok(token) = self.peek() {
-                            if matches!(token, Lexeme::RParen) {
+                            if matches!(token.lexeme, Lexeme::RParen) {
                                 self.position += 1;
                                 break;
                             }
@@ -582,7 +594,7 @@ impl Parser {
                             args.push(arg);
 
                             if let Ok(token) = self.peek() {
-                                if matches!(token, Lexeme::Comma) {
+                                if matches!(token.lexeme, Lexeme::Comma) {
                                     self.position += 1;
                                 }
                             }
@@ -607,7 +619,7 @@ impl Parser {
                 Ok(current)
             }
             _ => Err(ParseError::UnexpectedToken {
-                expected: Lexeme::String("".to_string()),
+                expected: None,
                 got: self.tokens[self.position].clone(),
             }),
         }
@@ -734,7 +746,7 @@ mod tests {
             ),
             (
                 "a = b;",
-                Statement::Assign("a".to_string(), Expr::Ident("b".to_string())),
+                Statement::Assign(Expr::Ident("a".to_string()), Expr::Ident("b".to_string())),
             ),
         ];
 
@@ -839,7 +851,10 @@ mod tests {
                         Statement::Block(Block {
                             statements: vec![
                                 Statement::Let("a".to_string(), Expr::Lit(Literal::Integer(3))),
-                                Statement::Assign("a".to_string(), Expr::Lit(Literal::Integer(4))),
+                                Statement::Assign(
+                                    Expr::Ident("a".to_string()),
+                                    Expr::Lit(Literal::Integer(4)),
+                                ),
                             ],
                         }),
                         Statement::Expr(Expr::Ident("a".to_string())),
@@ -854,7 +869,10 @@ mod tests {
                         Statement::Block(Block {
                             statements: vec![
                                 Statement::Let("a".to_string(), Expr::Lit(Literal::Integer(3))),
-                                Statement::Assign("a".to_string(), Expr::Lit(Literal::Integer(4))),
+                                Statement::Assign(
+                                    Expr::Ident("a".to_string()),
+                                    Expr::Lit(Literal::Integer(4)),
+                                ),
                             ],
                         }),
                         Statement::Expr(Expr::Ident("a".to_string())),

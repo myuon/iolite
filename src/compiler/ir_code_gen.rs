@@ -85,7 +85,6 @@ impl IrCodeGenerator {
 
     pub fn expr(&self, expr: Expr) -> Result<IrTerm, IrCodeGeneratorError> {
         match expr {
-            Expr::Ident(name) => Ok(IrTerm::Load(Box::new(IrTerm::Ident(name)))),
             Expr::Lit(lit) => match lit {
                 Literal::Integer(i) => Ok(IrTerm::Integer(i)),
                 Literal::String(_s) => todo!(),
@@ -146,15 +145,26 @@ impl IrCodeGenerator {
                     args: vec![expr],
                 })
             }
+            expr => Ok(IrTerm::Load(Box::new(self.expr_left_value(expr)?))),
+        }
+    }
+
+    fn expr_left_value(&self, expr: Expr) -> Result<IrTerm, IrCodeGeneratorError> {
+        match expr {
+            Expr::Ident(name) => Ok(IrTerm::Ident(name)),
             Expr::Index { array, index } => {
                 let array = self.expr(*array)?;
                 let index = self.expr(*index)?;
 
                 Ok(IrTerm::Index {
                     array: Box::new(array),
-                    index: Box::new(index),
+                    index: Box::new(IrTerm::Op {
+                        op: IrOp::Mul,
+                        args: vec![index, IrTerm::Integer(4)],
+                    }),
                 })
             }
+            _ => todo!(),
         }
     }
 
@@ -182,10 +192,11 @@ impl IrCodeGenerator {
 
                     terms.push(ir);
                 }
-                Statement::Assign(var, expr) => {
-                    let term = self.expr(expr)?;
+                Statement::Assign(lhs, rhs) => {
+                    let lhs = self.expr_left_value(lhs)?;
+                    let rhs = self.expr(rhs)?;
 
-                    terms.push(IrTerm::Store(Box::new(IrTerm::Ident(var)), Box::new(term)));
+                    terms.push(IrTerm::Store(Box::new(lhs), Box::new(rhs)));
                 }
                 Statement::While { cond, body } => {
                     let cond = self.expr(cond)?;

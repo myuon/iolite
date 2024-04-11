@@ -213,7 +213,12 @@ impl VmCodeGenerator {
             IrTerm::Ident(i) => {
                 self.ident(i)?;
             }
-            _ => todo!(),
+            IrTerm::Index { array, index } => {
+                self.term(*array)?;
+                self.term(*index)?;
+                self.emit(Instruction::Add);
+            }
+            _ => todo!("term_left_value: {:?}", ir),
         }
 
         Ok(())
@@ -354,7 +359,7 @@ impl VmCodeGenerator {
                 self.emit(Instruction::CallLabel(name));
             }
             IrTerm::Index { array, index } => {
-                self.term_left_value(*array)?;
+                self.term(*array)?;
                 self.term(*index)?;
                 self.emit(Instruction::Add);
             }

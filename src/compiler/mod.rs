@@ -1,6 +1,7 @@
 use self::{
     ast::{Declaration, Module},
     byte_code_emitter::ByteCodeEmitter,
+    parser::ParseError,
     runtime::Runtime,
     vm::Instruction,
 };
@@ -18,10 +19,59 @@ pub mod vm_code_gen;
 pub struct Compiler {}
 
 impl Compiler {
+    fn find_position(input: &str, position: usize) -> (usize, usize) {
+        let mut line = 1;
+        let mut col = 1;
+        for (i, c) in input.chars().enumerate() {
+            if i == position {
+                break;
+            }
+
+            if c == '\n' {
+                line += 1;
+                col = 1;
+            } else {
+                col += 1;
+            }
+        }
+
+        (line, col)
+    }
+
+    fn print_parse_error(input: &str, error: ParseError) {
+        match error.clone() {
+            ParseError::UnexpectedEos => {
+                eprintln!("Unexpected end of input");
+            }
+            ParseError::UnexpectedToken { got, .. } => {
+                let (line, col) = Self::find_position(input, got.position);
+
+                eprintln!(
+                    "Error at line {}, column {}: {:?}\n\n{}\n{}^",
+                    line,
+                    col,
+                    error,
+                    input.lines().collect::<Vec<_>>().join(" "),
+                    " ".repeat(got.position)
+                );
+            }
+            ParseError::ExpressionExpected { got } => {
+                eprintln!("Expected expression, got {:?}", got);
+            }
+        }
+    }
+
     pub fn parse(input: String) -> Result<Vec<Declaration>, Box<dyn std::error::Error>> {
-        let mut lexer = lexer::Lexer::new(input);
+        let mut lexer =
+            lexer::Lexer::new(format!("{}\n{}", include_str!("./std.io"), input.clone()));
         let mut parser = parser::Parser::new(lexer.run().unwrap());
-        let expr = parser.decls().unwrap();
+        let expr = match parser.decls() {
+            Ok(expr) => expr,
+            Err(err) => {
+                Self::print_parse_error(&input, err);
+                return Err("Parse error".into());
+            }
+        };
 
         Ok(expr)
     }
@@ -249,7 +299,7 @@ mod tests {
 
                 return arr.(0) + arr.(1) + arr.(2);
             }"#,
-                31,
+                60,
             ),
         ];
 

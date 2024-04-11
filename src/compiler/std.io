@@ -1,4 +1,4 @@
-let heap_ptr = 0;
+let heap_ptr = 40;
 
 fun alloc(size) {
   let ptr = heap_ptr;
