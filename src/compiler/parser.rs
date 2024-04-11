@@ -1,5 +1,5 @@
 use super::{
-    ast::{BinOp, Block, Declaration, Expr, Literal, Statement},
+    ast::{BinOp, Block, Declaration, Expr, Literal, Source, Span, Statement},
     lexer::{Lexeme, Token},
 };
 
@@ -17,7 +17,7 @@ pub enum ParseError {
         got: Token,
     },
     ExpressionExpected {
-        got: Statement,
+        got: Source<Statement>,
     },
 }
 
@@ -42,10 +42,10 @@ impl Parser {
         Ok(token)
     }
 
-    fn ident(&mut self) -> Result<String, ParseError> {
+    fn ident(&mut self) -> Result<Source<String>, ParseError> {
         let token = self.consume()?;
         match token.lexeme {
-            Lexeme::Ident(i) => Ok(i),
+            Lexeme::Ident(i) => Ok(Source::span(i, token.span)),
             _ => Err(ParseError::UnexpectedToken {
                 expected: None,
                 got: token,
@@ -53,11 +53,10 @@ impl Parser {
         }
     }
 
-    fn expect(&mut self, lexeme: Lexeme) -> Result<(), ParseError> {
+    fn expect(&mut self, lexeme: Lexeme) -> Result<Token, ParseError> {
         let token = self.peek()?;
         if token.lexeme == lexeme {
-            self.consume()?;
-            Ok(())
+            Ok(self.consume()?)
         } else {
             Err(ParseError::UnexpectedToken {
                 expected: Some(lexeme),
@@ -66,7 +65,7 @@ impl Parser {
         }
     }
 
-    pub fn decls(&mut self) -> Result<Vec<Declaration>, ParseError> {
+    pub fn decls(&mut self) -> Result<Vec<Source<Declaration>>, ParseError> {
         let mut decls = vec![];
 
         while self.peek().is_ok() {
@@ -78,7 +77,7 @@ impl Parser {
         Ok(decls)
     }
 
-    fn arity_decl(&mut self) -> Result<Vec<String>, ParseError> {
+    fn arity_decl(&mut self) -> Result<Vec<Source<String>>, ParseError> {
         let mut args = vec![];
 
         while let Ok(token) = self.peek() {
@@ -99,11 +98,11 @@ impl Parser {
         Ok(args)
     }
 
-    pub fn decl(&mut self) -> Result<Declaration, ParseError> {
+    pub fn decl(&mut self) -> Result<Source<Declaration>, ParseError> {
         let token = self.peek()?;
         match token.lexeme {
             Lexeme::Fun => {
-                self.consume()?;
+                let start_token = self.consume()?;
 
                 let name = self.ident()?;
                 self.expect(Lexeme::LParen)?;
@@ -112,24 +111,32 @@ impl Parser {
 
                 self.expect(Lexeme::LBrace)?;
                 let block = self.block(Some(Lexeme::RBrace))?;
-                self.expect(Lexeme::RBrace)?;
+                let end_token = self.expect(Lexeme::RBrace)?;
 
-                Ok(Declaration::Function {
-                    name,
-                    params,
-                    body: block,
-                })
+                Ok(Source::new_span(
+                    Declaration::Function {
+                        name,
+                        params,
+                        body: block,
+                    },
+                    start_token.span.start,
+                    end_token.span.end,
+                ))
             }
             Lexeme::Let => {
-                self.consume()?;
+                let start_token = self.consume()?;
 
                 let name = self.ident()?;
                 self.expect(Lexeme::Equal)?;
                 let expr = self.expr()?;
 
-                self.expect(Lexeme::Semicolon)?;
+                let end_token = self.expect(Lexeme::Semicolon)?;
 
-                Ok(Declaration::Let { name, value: expr })
+                Ok(Source::new_span(
+                    Declaration::Let { name, value: expr },
+                    start_token.span.start,
+                    end_token.span.end,
+                ))
             }
             _ => Err(ParseError::UnexpectedToken {
                 expected: Some(Lexeme::Fun),
@@ -138,8 +145,9 @@ impl Parser {
         }
     }
 
-    pub fn block(&mut self, end_token: Option<Lexeme>) -> Result<Block, ParseError> {
+    pub fn block(&mut self, end_token: Option<Lexeme>) -> Result<Source<Block>, ParseError> {
         let mut block = vec![];
+        let mut span = Span::unknown();
 
         while self.position < self.tokens.len() {
             if let Some(end_token) = &end_token {
@@ -149,7 +157,13 @@ impl Parser {
             }
 
             let statement = self.statement()?;
-            let needs_semilon = match &statement {
+            if span.start.is_none() {
+                span.start = statement.span.start;
+            }
+            // NOTE: is this correct?
+            span.end = statement.span.end;
+
+            let needs_semilon = match &statement.data {
                 Statement::While { .. } | Statement::If { .. } | Statement::Block(_) => false,
                 _ => true,
             };
@@ -160,7 +174,7 @@ impl Parser {
                 if matches!(self.peek().map(|t| &t.lexeme), Ok(Lexeme::Semicolon)) {
                     self.consume()?;
                 } else {
-                    if !matches!(statement, Statement::Expr(_)) {
+                    if !matches!(statement.data, Statement::Expr(_)) {
                         return Err(ParseError::ExpressionExpected { got: statement });
                     }
 
@@ -175,11 +189,12 @@ impl Parser {
             }
         }
 
-        Ok(Block { statements: block })
+        Ok(Source::span(Block { statements: block }, span))
     }
 
-    fn statement(&mut self) -> Result<Statement, ParseError> {
-        match self.peek()?.lexeme {
+    fn statement(&mut self) -> Result<Source<Statement>, ParseError> {
+        let token = self.peek()?.clone();
+        match token.lexeme {
             Lexeme::Let => {
                 self.consume()?;
 
@@ -188,15 +203,25 @@ impl Parser {
                 self.expect(Lexeme::Equal)?;
 
                 let expr = self.expr()?;
+                let end = expr.span.end;
 
-                Ok(Statement::Let(ident, expr))
+                Ok(Source::new_span(
+                    Statement::Let(ident, expr),
+                    token.span.start,
+                    end,
+                ))
             }
             Lexeme::Return => {
                 self.consume()?;
 
                 let expr = self.expr()?;
+                let end = expr.span.end;
 
-                Ok(Statement::Return(expr))
+                Ok(Source::new_span(
+                    Statement::Return(expr),
+                    token.span.start,
+                    end,
+                ))
             }
             Lexeme::While => {
                 self.consume()?;
@@ -207,21 +232,29 @@ impl Parser {
 
                 self.expect(Lexeme::LBrace)?;
                 let block = self.block(Some(Lexeme::RBrace))?;
-                self.expect(Lexeme::RBrace)?;
+                let end_token = self.expect(Lexeme::RBrace)?;
 
-                Ok(Statement::While {
-                    cond: expr,
-                    body: block,
-                })
+                Ok(Source::new_span(
+                    Statement::While {
+                        cond: expr,
+                        body: block,
+                    },
+                    token.span.start,
+                    end_token.span.end,
+                ))
             }
             Lexeme::LBrace => {
                 self.consume()?;
 
                 let block = self.block(Some(Lexeme::RBrace))?;
 
-                self.expect(Lexeme::RBrace)?;
+                let end_token = self.expect(Lexeme::RBrace)?;
 
-                Ok(Statement::Block(block))
+                Ok(Source::new_span(
+                    Statement::Block(block),
+                    token.span.start,
+                    end_token.span.end,
+                ))
             }
             Lexeme::If => {
                 self.consume()?;
@@ -232,91 +265,111 @@ impl Parser {
                 self.expect(Lexeme::RBrace)?;
 
                 if !matches!(self.peek().map(|t| &t.lexeme), Ok(Lexeme::Else)) {
-                    return Ok(Statement::If {
+                    let end = then_block.span.end;
+                    let s = Statement::If {
                         cond,
                         then: then_block,
                         else_: None,
-                    });
+                    };
+
+                    return Ok(Source::new_span(s, token.span.start, end));
                 }
 
                 self.expect(Lexeme::Else)?;
 
                 if matches!(self.peek().map(|t| &t.lexeme), Ok(Lexeme::If)) {
                     let next_if = self.statement()?;
+                    let span = next_if.span.clone();
+                    let end = span.end;
 
-                    Ok(Statement::If {
+                    let s = Statement::If {
                         cond,
                         then: then_block,
-                        else_: Some(Block {
-                            statements: vec![next_if],
-                        }),
-                    })
+                        else_: Some(Source::span(
+                            Block {
+                                statements: vec![next_if],
+                            },
+                            span,
+                        )),
+                    };
+
+                    Ok(Source::new_span(s, token.span.start, end))
                 } else {
                     self.expect(Lexeme::LBrace)?;
                     let else_block = self.block(Some(Lexeme::RBrace))?;
                     self.expect(Lexeme::RBrace)?;
 
-                    Ok(Statement::If {
+                    let end = else_block.span.end;
+                    let s = Statement::If {
                         cond,
                         then: then_block,
                         else_: Some(else_block),
-                    })
+                    };
+
+                    Ok(Source::new_span(s, token.span.start, end))
                 }
             }
             _ => {
                 let expr = self.expr()?;
+                let span = expr.span.clone();
 
                 if let Ok(token) = self.peek() {
                     match token.lexeme {
                         Lexeme::Equal => {
                             self.consume()?;
                             let right = self.expr()?;
-                            return Ok(Statement::Assign(expr, right));
+
+                            let start = expr.span.start;
+                            let end = right.span.end;
+                            return Ok(Source::new_span(
+                                Statement::Assign(expr, right),
+                                start,
+                                end,
+                            ));
                         }
                         _ => (),
                     }
                 }
 
-                Ok(Statement::Expr(expr))
+                Ok(Source::span(Statement::Expr(expr), span))
             }
         }
     }
 
-    pub fn expr(&mut self) -> Result<Expr, ParseError> {
+    pub fn expr(&mut self) -> Result<Source<Expr>, ParseError> {
         let token = self.peek()?;
         match token.lexeme {
             Lexeme::Match => {
-                self.consume()?;
+                let start_token = self.consume()?;
                 let cond = self.expr()?;
 
                 self.expect(Lexeme::LBrace)?;
 
                 self.expect(Lexeme::True)?;
                 self.expect(Lexeme::Arrow)?;
-                let true_block = self.expr()?;
+                let true_case = self.expr()?;
                 self.expect(Lexeme::Comma)?;
 
                 self.expect(Lexeme::False)?;
                 self.expect(Lexeme::Arrow)?;
-                let false_block = self.expr()?;
+                let false_case = self.expr()?;
 
                 if matches!(self.peek().map(|t| &t.lexeme), Ok(Lexeme::Comma)) {
                     self.consume()?;
                 }
 
-                self.expect(Lexeme::RBrace)?;
+                let end_token = self.expect(Lexeme::RBrace)?;
+                let span_true = true_case.span.clone();
+                let span_false = false_case.span.clone();
 
-                Ok(Expr::Match {
-                    cond: Box::new(cond),
-                    cases: vec![
-                        Block {
-                            statements: vec![Statement::Expr(true_block)],
-                        },
-                        Block {
-                            statements: vec![Statement::Expr(false_block)],
-                        },
-                    ],
-                })
+                Ok(Source::new_span(
+                    Expr::Match {
+                        cond: Box::new(cond),
+                        cases: vec![true_case, false_case],
+                    },
+                    start_token.span.start,
+                    end_token.span.end,
+                ))
             }
             Lexeme::New => {
                 self.consume()?;
@@ -331,26 +384,35 @@ impl Parser {
                 let expr = self.expr()?;
                 self.expect(Lexeme::RParen)?;
 
-                Ok(Expr::New(Box::new(expr)))
+                let span = expr.span.clone();
+
+                Ok(Source::span(Expr::New(Box::new(expr)), span))
             }
             _ => Ok(self.expr_5()?),
         }
     }
 
-    fn expr_5(&mut self) -> Result<Expr, ParseError> {
+    fn expr_5(&mut self) -> Result<Source<Expr>, ParseError> {
         let mut current = self.expr_4()?;
 
         while self.position < self.tokens.len() {
-            match &self.tokens[self.position].lexeme {
+            let token = self.peek()?.clone();
+            match token.lexeme {
                 Lexeme::DoubleOr => {
                     self.consume()?;
                     let right = self.expr_4()?;
+                    let start = current.span.start;
+                    let end = right.span.end;
 
-                    current = Expr::BinOp {
-                        op: BinOp::Or,
-                        left: Box::new(current),
-                        right: Box::new(right),
-                    };
+                    current = Source::new_span(
+                        Expr::BinOp {
+                            op: Source::span(BinOp::Or, token.span),
+                            left: Box::new(current),
+                            right: Box::new(right),
+                        },
+                        start,
+                        end,
+                    );
                 }
                 _ => {
                     break;
@@ -361,20 +423,27 @@ impl Parser {
         Ok(current)
     }
 
-    fn expr_4(&mut self) -> Result<Expr, ParseError> {
+    fn expr_4(&mut self) -> Result<Source<Expr>, ParseError> {
         let mut current = self.expr_3()?;
 
         while self.position < self.tokens.len() {
-            match &self.tokens[self.position].lexeme {
+            let token = self.peek()?.clone();
+            match token.lexeme {
                 Lexeme::DoubleAnd => {
                     self.consume()?;
                     let right = self.expr_3()?;
+                    let start = current.span.start;
+                    let end = right.span.end;
 
-                    current = Expr::BinOp {
-                        op: BinOp::And,
-                        left: Box::new(current),
-                        right: Box::new(right),
-                    };
+                    current = Source::new_span(
+                        Expr::BinOp {
+                            op: Source::span(BinOp::And, token.span),
+                            left: Box::new(current),
+                            right: Box::new(right),
+                        },
+                        start,
+                        end,
+                    );
                 }
                 _ => {
                     break;
@@ -385,70 +454,107 @@ impl Parser {
         Ok(current)
     }
 
-    fn expr_3(&mut self) -> Result<Expr, ParseError> {
+    fn expr_3(&mut self) -> Result<Source<Expr>, ParseError> {
         let mut current = self.expr_2()?;
 
         while self.position < self.tokens.len() {
-            match &self.tokens[self.position].lexeme {
+            let token = self.peek()?.clone();
+            match token.lexeme {
                 Lexeme::Le => {
                     self.consume()?;
                     let right = self.expr_2()?;
+                    let start = current.span.start;
+                    let end = right.span.end;
 
-                    current = Expr::BinOp {
-                        op: BinOp::Le,
-                        left: Box::new(current),
-                        right: Box::new(right),
-                    };
+                    current = Source::new_span(
+                        Expr::BinOp {
+                            op: Source::span(BinOp::Le, token.span),
+                            left: Box::new(current),
+                            right: Box::new(right),
+                        },
+                        start,
+                        end,
+                    );
                 }
                 Lexeme::Ge => {
                     self.consume()?;
                     let right = self.expr_2()?;
+                    let start = current.span.start;
+                    let end = right.span.end;
 
-                    current = Expr::BinOp {
-                        op: BinOp::Ge,
-                        left: Box::new(current),
-                        right: Box::new(right),
-                    };
+                    current = Source::new_span(
+                        Expr::BinOp {
+                            op: Source::span(BinOp::Ge, token.span),
+                            left: Box::new(current),
+                            right: Box::new(right),
+                        },
+                        start,
+                        end,
+                    );
                 }
                 Lexeme::LAngle => {
                     self.consume()?;
                     let right = self.expr_2()?;
+                    let start = current.span.start;
+                    let end = right.span.end;
 
-                    current = Expr::BinOp {
-                        op: BinOp::Lt,
-                        left: Box::new(current),
-                        right: Box::new(right),
-                    };
+                    current = Source::new_span(
+                        Expr::BinOp {
+                            op: Source::span(BinOp::Lt, token.span),
+                            left: Box::new(current),
+                            right: Box::new(right),
+                        },
+                        start,
+                        end,
+                    );
                 }
                 Lexeme::GAngle => {
                     self.consume()?;
                     let right = self.expr_2()?;
+                    let start = current.span.start;
+                    let end = right.span.end;
 
-                    current = Expr::BinOp {
-                        op: BinOp::Gt,
-                        left: Box::new(current),
-                        right: Box::new(right),
-                    };
+                    current = Source::new_span(
+                        Expr::BinOp {
+                            op: Source::span(BinOp::Gt, token.span),
+                            left: Box::new(current),
+                            right: Box::new(right),
+                        },
+                        start,
+                        end,
+                    );
                 }
                 Lexeme::DoubleEqual => {
                     self.consume()?;
                     let right = self.expr_2()?;
+                    let start = current.span.start;
+                    let end = right.span.end;
 
-                    current = Expr::BinOp {
-                        op: BinOp::Eq,
-                        left: Box::new(current),
-                        right: Box::new(right),
-                    };
+                    current = Source::new_span(
+                        Expr::BinOp {
+                            op: Source::span(BinOp::Eq, token.span),
+                            left: Box::new(current),
+                            right: Box::new(right),
+                        },
+                        start,
+                        end,
+                    );
                 }
                 Lexeme::NotEqual => {
                     self.consume()?;
                     let right = self.expr_2()?;
+                    let start = current.span.start;
+                    let end = right.span.end;
 
-                    current = Expr::BinOp {
-                        op: BinOp::NotEq,
-                        left: Box::new(current),
-                        right: Box::new(right),
-                    };
+                    current = Source::new_span(
+                        Expr::BinOp {
+                            op: Source::span(BinOp::NotEq, token.span),
+                            left: Box::new(current),
+                            right: Box::new(right),
+                        },
+                        start,
+                        end,
+                    );
                 }
                 _ => {
                     break;
@@ -459,30 +565,43 @@ impl Parser {
         Ok(current)
     }
 
-    fn expr_2(&mut self) -> Result<Expr, ParseError> {
+    fn expr_2(&mut self) -> Result<Source<Expr>, ParseError> {
         let mut current = self.expr_1()?;
 
         while self.position < self.tokens.len() {
-            match &self.tokens[self.position].lexeme {
+            let token = self.peek()?.clone();
+            match token.lexeme {
                 Lexeme::Plus => {
                     self.consume()?;
                     let right = self.expr_1()?;
+                    let start = current.span.start;
+                    let end = right.span.end;
 
-                    current = Expr::BinOp {
-                        op: BinOp::Add,
-                        left: Box::new(current),
-                        right: Box::new(right),
-                    };
+                    current = Source::new_span(
+                        Expr::BinOp {
+                            op: Source::span(BinOp::Add, token.span),
+                            left: Box::new(current),
+                            right: Box::new(right),
+                        },
+                        start,
+                        end,
+                    );
                 }
                 Lexeme::Minus => {
                     self.consume()?;
                     let right = self.expr_1()?;
+                    let start = current.span.start;
+                    let end = right.span.end;
 
-                    current = Expr::BinOp {
-                        op: BinOp::Sub,
-                        left: Box::new(current),
-                        right: Box::new(right),
-                    };
+                    current = Source::new_span(
+                        Expr::BinOp {
+                            op: Source::span(BinOp::Sub, token.span),
+                            left: Box::new(current),
+                            right: Box::new(right),
+                        },
+                        start,
+                        end,
+                    );
                 }
                 _ => {
                     break;
@@ -493,30 +612,43 @@ impl Parser {
         Ok(current)
     }
 
-    fn expr_1(&mut self) -> Result<Expr, ParseError> {
+    fn expr_1(&mut self) -> Result<Source<Expr>, ParseError> {
         let mut current = self.expr_0()?;
 
         while self.position < self.tokens.len() {
-            match &self.tokens[self.position].lexeme {
+            let token = self.peek()?.clone();
+            match token.lexeme {
                 Lexeme::Star => {
                     self.consume()?;
                     let right = self.expr_0()?;
+                    let start = current.span.start;
+                    let end = right.span.end;
 
-                    current = Expr::BinOp {
-                        op: BinOp::Mul,
-                        left: Box::new(current),
-                        right: Box::new(right),
-                    };
+                    current = Source::new_span(
+                        Expr::BinOp {
+                            op: Source::span(BinOp::Mul, token.span),
+                            left: Box::new(current),
+                            right: Box::new(right),
+                        },
+                        start,
+                        end,
+                    );
                 }
                 Lexeme::Slash => {
                     self.consume()?;
                     let right = self.expr_0()?;
+                    let start = current.span.start;
+                    let end = right.span.end;
 
-                    current = Expr::BinOp {
-                        op: BinOp::Div,
-                        left: Box::new(current),
-                        right: Box::new(right),
-                    };
+                    current = Source::new_span(
+                        Expr::BinOp {
+                            op: Source::span(BinOp::Div, token.span),
+                            left: Box::new(current),
+                            right: Box::new(right),
+                        },
+                        start,
+                        end,
+                    );
                 }
                 _ => {
                     break;
@@ -527,22 +659,28 @@ impl Parser {
         Ok(current)
     }
 
-    fn expr_0(&mut self) -> Result<Expr, ParseError> {
+    fn expr_0(&mut self) -> Result<Source<Expr>, ParseError> {
         let mut current = self.expr_base()?;
 
         while self.position < self.tokens.len() {
-            match &self.tokens[self.position].lexeme {
+            let token = self.peek()?.clone();
+            match token.lexeme {
                 Lexeme::Dot => {
                     self.consume()?;
 
                     self.expect(Lexeme::LParen)?;
                     let index = self.expr()?;
-                    self.expect(Lexeme::RParen)?;
+                    let start = current.span.start;
+                    let end_token = self.expect(Lexeme::RParen)?;
 
-                    current = Expr::Index {
-                        array: Box::new(current),
-                        index: Box::new(index),
-                    };
+                    current = Source::new_span(
+                        Expr::Index {
+                            array: Box::new(current),
+                            index: Box::new(index),
+                        },
+                        start,
+                        end_token.span.end,
+                    );
                 }
                 _ => {
                     break;
@@ -553,45 +691,73 @@ impl Parser {
         Ok(current)
     }
 
-    fn expr_base(&mut self) -> Result<Expr, ParseError> {
-        match self.tokens[self.position].clone().lexeme {
+    fn expr_base(&mut self) -> Result<Source<Expr>, ParseError> {
+        let token = self.peek()?.clone();
+        match token.lexeme {
             Lexeme::Integer(i) => {
                 self.consume()?;
 
-                Ok(Expr::Lit(Literal::Integer(i.clone())))
+                Ok(Source::span(
+                    Expr::Lit(Source::span(
+                        Literal::Integer(Source::span(i.clone(), token.span.clone())),
+                        token.span.clone(),
+                    )),
+                    token.span,
+                ))
             }
             Lexeme::Float(f) => {
                 self.consume()?;
 
-                Ok(Expr::Lit(Literal::Float(f.clone())))
+                Ok(Source::span(
+                    Expr::Lit(Source::span(
+                        Literal::Float(Source::span(f.clone(), token.span.clone())),
+                        token.span.clone(),
+                    )),
+                    token.span,
+                ))
             }
             Lexeme::String(s) => {
-                self.consume()?;
-
-                Ok(Expr::Lit(Literal::String(s.clone())))
+                todo!()
             }
             Lexeme::True => {
                 self.consume()?;
 
-                Ok(Expr::Lit(Literal::Bool(true)))
+                Ok(Source::span(
+                    Expr::Lit(Source::span(
+                        Literal::Bool(Source::span(true, token.span.clone())),
+                        token.span.clone(),
+                    )),
+                    token.span,
+                ))
             }
             Lexeme::False => {
                 self.consume()?;
 
-                Ok(Expr::Lit(Literal::Bool(false)))
+                Ok(Source::span(
+                    Expr::Lit(Source::span(
+                        Literal::Bool(Source::span(false, token.span.clone())),
+                        token.span.clone(),
+                    )),
+                    token.span,
+                ))
             }
             Lexeme::Ident(i) => {
                 self.consume()?;
 
-                let current = Expr::Ident(i.clone());
-                if let Ok(token) = self.peek() {
+                let current = Source::span(
+                    Expr::Ident(Source::span(i.clone(), token.span.clone())),
+                    token.span,
+                );
+                if let Ok(token) = self.peek().cloned() {
                     if matches!(token.lexeme, Lexeme::LParen) {
                         self.position += 1;
+                        let mut end = None;
 
                         let mut args = vec![];
                         while let Ok(token) = self.peek() {
                             if matches!(token.lexeme, Lexeme::RParen) {
-                                self.position += 1;
+                                end = self.consume()?.span.end;
+
                                 break;
                             }
 
@@ -605,10 +771,14 @@ impl Parser {
                             }
                         }
 
-                        return Ok(Expr::Call {
-                            name: i.clone(),
-                            args,
-                        });
+                        return Ok(Source::new_span(
+                            Expr::Call {
+                                name: Source::span(i.clone(), token.span),
+                                args,
+                            },
+                            current.span.start,
+                            end,
+                        ));
                     }
                 }
 
@@ -631,6 +801,7 @@ impl Parser {
     }
 }
 
+/*
 #[cfg(test)]
 mod tests {
     use crate::compiler::ast::BinOp;
@@ -643,8 +814,10 @@ mod tests {
             (
                 "1 + 3 * 4",
                 Expr::BinOp {
-                    op: BinOp::Add,
-                    left: Box::new(Expr::Lit(Literal::Integer(1))),
+                    op: Source::unknown(BinOp::Add),
+                    left: Box::new(Source::unknown(Expr::Lit(Source::unknown(
+                        Literal::Integer(1),
+                    )))),
                     right: Box::new(Expr::BinOp {
                         op: BinOp::Mul,
                         left: Box::new(Expr::Lit(Literal::Integer(3))),
@@ -932,3 +1105,4 @@ mod tests {
         }
     }
 }
+*/

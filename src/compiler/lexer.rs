@@ -2,6 +2,8 @@ use once_cell::sync::Lazy;
 
 use regex::Regex;
 
+use super::ast::Span;
+
 #[derive(Clone, Debug, PartialEq)]
 pub enum Lexeme {
     Let,
@@ -47,6 +49,7 @@ pub enum Lexeme {
 pub struct Token {
     pub lexeme: Lexeme,
     pub position: usize,
+    pub span: Span,
 }
 
 #[derive(Debug)]
@@ -70,10 +73,11 @@ impl Lexer {
         Self { input, position: 0 }
     }
 
-    fn new_token(&self, lexeme: Lexeme) -> Token {
+    fn new_token(&self, lexeme: Lexeme, length: usize) -> Token {
         Token {
             lexeme,
             position: self.position,
+            span: Span::span(self.position, self.position + length),
         }
     }
 
@@ -87,35 +91,35 @@ impl Lexer {
             }
 
             if let Some((lexeme, length)) = self.matches() {
-                tokens.push(self.new_token(lexeme));
+                tokens.push(self.new_token(lexeme, length));
                 self.position += length;
                 continue;
             }
 
             if let Some(m) = STRING.find(&self.input[self.position..]) {
                 let lexeme = Lexeme::String(m.as_str().to_string());
-                tokens.push(self.new_token(lexeme));
+                tokens.push(self.new_token(lexeme, m.end()));
                 self.position += m.end();
                 continue;
             }
 
             if let Some(m) = FLOAT.find(&self.input[self.position..]) {
                 let lexeme = Lexeme::Float(m.as_str().parse().unwrap());
-                tokens.push(self.new_token(lexeme));
+                tokens.push(self.new_token(lexeme, m.end()));
                 self.position += m.end();
                 continue;
             }
 
             if let Some(m) = INTEGER.find(&self.input[self.position..]) {
                 let lexeme = Lexeme::Integer(m.as_str().parse().unwrap());
-                tokens.push(self.new_token(lexeme));
+                tokens.push(self.new_token(lexeme, m.end()));
                 self.position += m.end();
                 continue;
             }
 
             if let Some(m) = IDENT.find(&self.input[self.position..]) {
                 let lexeme = Lexeme::Ident(m.as_str().to_string());
-                tokens.push(self.new_token(lexeme));
+                tokens.push(self.new_token(lexeme, m.end()));
                 self.position += m.end();
                 continue;
             }

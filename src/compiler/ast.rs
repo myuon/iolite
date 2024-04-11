@@ -1,9 +1,63 @@
 #[derive(Debug, PartialEq, Clone)]
+pub struct Span {
+    pub start: Option<usize>,
+    pub end: Option<usize>,
+}
+
+impl Span {
+    pub fn span(start: usize, end: usize) -> Self {
+        Self {
+            start: Some(start),
+            end: Some(end),
+        }
+    }
+
+    pub fn unknown() -> Self {
+        Self {
+            start: None,
+            end: None,
+        }
+    }
+}
+
+#[derive(Debug, PartialEq, Clone)]
+pub struct Source<T> {
+    pub data: T,
+    pub span: Span,
+}
+
+impl<T> Source<T> {
+    pub fn unknown(data: T) -> Self {
+        Self {
+            data,
+            span: Span::unknown(),
+        }
+    }
+
+    pub fn new_span(data: T, start: Option<usize>, end: Option<usize>) -> Self {
+        Self {
+            data,
+            span: Span { start, end },
+        }
+    }
+
+    pub fn span_new(start: Option<usize>, end: Option<usize>, data: T) -> Self {
+        Self {
+            data,
+            span: Span { start, end },
+        }
+    }
+
+    pub fn span(data: T, span: Span) -> Self {
+        Self { data, span }
+    }
+}
+
+#[derive(Debug, PartialEq, Clone)]
 pub enum Literal {
-    Bool(bool),
-    Integer(i32),
-    Float(f32),
-    String(String),
+    Bool(Source<bool>),
+    Integer(Source<i32>),
+    Float(Source<f32>),
 }
 
 #[derive(Debug, PartialEq, Clone)]
@@ -24,68 +78,68 @@ pub enum BinOp {
 
 #[derive(Debug, PartialEq, Clone)]
 pub enum Expr {
-    Ident(String),
-    Lit(Literal),
+    Ident(Source<String>),
+    Lit(Source<Literal>),
     BinOp {
-        op: BinOp,
-        left: Box<Expr>,
-        right: Box<Expr>,
+        op: Source<BinOp>,
+        left: Box<Source<Expr>>,
+        right: Box<Source<Expr>>,
     },
     Call {
-        name: String,
-        args: Vec<Expr>,
+        name: Source<String>,
+        args: Vec<Source<Expr>>,
     },
     Match {
-        cond: Box<Expr>,
-        cases: Vec<Block>,
+        cond: Box<Source<Expr>>,
+        cases: Vec<Source<Expr>>,
     },
-    New(Box<Expr>),
+    New(Box<Source<Expr>>),
     Index {
-        array: Box<Expr>,
-        index: Box<Expr>,
+        array: Box<Source<Expr>>,
+        index: Box<Source<Expr>>,
     },
 }
 
 #[derive(Debug, PartialEq, Clone)]
 pub enum Statement {
-    Let(String, Expr),
-    Return(Expr),
-    Expr(Expr),
-    Assign(Expr, Expr),
+    Let(Source<String>, Source<Expr>),
+    Return(Source<Expr>),
+    Expr(Source<Expr>),
+    Assign(Source<Expr>, Source<Expr>),
     While {
-        cond: Expr,
-        body: Block,
+        cond: Source<Expr>,
+        body: Source<Block>,
     },
     If {
-        cond: Expr,
-        then: Block,
-        else_: Option<Block>,
+        cond: Source<Expr>,
+        then: Source<Block>,
+        else_: Option<Source<Block>>,
     },
-    Block(Block),
+    Block(Source<Block>),
 }
 
 #[derive(Debug, PartialEq, Clone)]
 pub struct Block {
-    pub statements: Vec<Statement>,
+    pub statements: Vec<Source<Statement>>,
 }
 
 #[derive(Debug, PartialEq, Clone)]
 pub enum Declaration {
     Function {
-        name: String,
-        params: Vec<String>,
-        body: Block,
+        name: Source<String>,
+        params: Vec<Source<String>>,
+        body: Source<Block>,
     },
     Let {
-        name: String,
-        value: Expr,
+        name: Source<String>,
+        value: Source<Expr>,
     },
 }
 
 #[derive(Debug, PartialEq, Clone)]
 pub struct Module {
     pub name: String,
-    pub declarations: Vec<Declaration>,
+    pub declarations: Vec<Source<Declaration>>,
 }
 
 #[derive(Debug, PartialEq, Clone)]

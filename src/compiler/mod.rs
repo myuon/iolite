@@ -1,8 +1,9 @@
 use self::{
-    ast::{Declaration, Module},
+    ast::{Declaration, Module, Source},
     byte_code_emitter::ByteCodeEmitter,
     parser::ParseError,
     runtime::Runtime,
+    typechecker::TypecheckerError,
     vm::Instruction,
 };
 
@@ -62,7 +63,7 @@ impl Compiler {
         }
     }
 
-    pub fn parse(input: String) -> Result<Vec<Declaration>, Box<dyn std::error::Error>> {
+    pub fn parse(input: String) -> Result<Vec<Source<Declaration>>, Box<dyn std::error::Error>> {
         let mut lexer =
             lexer::Lexer::new(format!("{}\n{}", include_str!("./std.io"), input.clone()));
         let mut parser = parser::Parser::new(lexer.run().unwrap());
@@ -77,10 +78,34 @@ impl Compiler {
         Ok(expr)
     }
 
-    fn typecheck(module: Module) -> Result<(), Box<dyn std::error::Error>> {
+    fn typecheck(module: Module, input: &str) -> Result<(), Box<dyn std::error::Error>> {
         let mut typechecker = typechecker::Typechecker::new();
-        println!("{:?}", module);
-        typechecker.module(&module).unwrap();
+        match typechecker.module(&module) {
+            Ok(_) => {}
+            Err(err) => {
+                eprintln!("Type error: {:?}", err);
+
+                match err {
+                    TypecheckerError::TypeMismatch { span, .. } => {
+                        let (line, col) = Self::find_position(input, span.start.unwrap());
+                        eprintln!(
+                            "Error at line {}, column {} ({})",
+                            line,
+                            col,
+                            span.start.unwrap()
+                        );
+                        eprintln!(
+                            "{}\n{}^",
+                            input.lines().collect::<Vec<_>>().join("\n"),
+                            " ".repeat(col - 1)
+                        );
+
+                        return Err("Type error".into());
+                    }
+                    _ => {}
+                }
+            }
+        }
 
         Ok(())
     }
@@ -107,12 +132,12 @@ impl Compiler {
     }
 
     pub fn compile(input: String) -> Result<Vec<u8>, Box<dyn std::error::Error>> {
-        let decls = Self::parse(input)?;
+        let decls = Self::parse(input.clone())?;
         let module = Module {
             name: "main".to_string(),
             declarations: decls,
         };
-        Self::typecheck(module.clone())?;
+        Self::typecheck(module.clone(), &input)?;
 
         let ir = Self::ir_code_gen(module)?;
         let code = Self::vm_code_gen(ir)?;

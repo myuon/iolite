@@ -1,5 +1,5 @@
 use super::{
-    ast::{BinOp, Block, Declaration, Expr, Literal, Module, Statement},
+    ast::{BinOp, Block, Declaration, Expr, Literal, Module, Source, Statement},
     ir::{IrDecl, IrModule, IrOp, IrTerm},
 };
 
@@ -43,13 +43,13 @@ impl IrCodeGenerator {
         })
     }
 
-    fn decl(&mut self, decl: Declaration) -> Result<IrDecl, IrCodeGeneratorError> {
-        match decl {
+    fn decl(&mut self, decl: Source<Declaration>) -> Result<IrDecl, IrCodeGeneratorError> {
+        match decl.data {
             Declaration::Function { name, params, body } => {
                 let body = {
                     let term = self.block(body)?;
 
-                    if name == "main" {
+                    if name.data == "main" {
                         IrTerm::Block {
                             terms: vec![
                                 IrTerm::Call {
@@ -65,8 +65,8 @@ impl IrCodeGenerator {
                 };
 
                 Ok(IrDecl::Fun {
-                    name,
-                    args: params,
+                    name: name.data,
+                    args: params.into_iter().map(|p| p.data).collect(),
                     body: Box::new(body),
                 })
             }
@@ -74,27 +74,26 @@ impl IrCodeGenerator {
                 let value = self.expr(value)?;
 
                 self.init_function.push(IrTerm::Store(
-                    Box::new(IrTerm::Ident(name.clone())),
+                    Box::new(IrTerm::Ident(name.data.clone())),
                     Box::new(value.clone()),
                 ));
 
-                Ok(IrDecl::Let { name })
+                Ok(IrDecl::Let { name: name.data })
             }
         }
     }
 
-    pub fn expr(&self, expr: Expr) -> Result<IrTerm, IrCodeGeneratorError> {
-        match expr {
-            Expr::Lit(lit) => match lit {
-                Literal::Integer(i) => Ok(IrTerm::Integer(i)),
-                Literal::Float(f) => Ok(IrTerm::Float(f)),
-                Literal::String(_s) => todo!(),
-                Literal::Bool(b) => Ok(IrTerm::Integer(if b { 1 } else { 0 })),
+    pub fn expr(&self, expr: Source<Expr>) -> Result<IrTerm, IrCodeGeneratorError> {
+        match expr.data {
+            Expr::Lit(lit) => match lit.data {
+                Literal::Integer(i) => Ok(IrTerm::Integer(i.data)),
+                Literal::Float(f) => Ok(IrTerm::Float(f.data)),
+                Literal::Bool(b) => Ok(IrTerm::Integer(if b.data { 1 } else { 0 })),
             },
             Expr::BinOp { op, left, right } => {
                 let left = self.expr(*left)?;
                 let right = self.expr(*right)?;
-                let op = match op {
+                let op = match op.data {
                     BinOp::Add => IrOp::Add,
                     BinOp::Sub => IrOp::Sub,
                     BinOp::Mul => IrOp::Mul,
@@ -121,7 +120,7 @@ impl IrCodeGenerator {
                 }
 
                 Ok(IrTerm::Call {
-                    name,
+                    name: name.data,
                     args: ir_args,
                 })
             }
@@ -129,8 +128,8 @@ impl IrCodeGenerator {
                 // currently, cases are `true => cases[0], false => cases[1]`
                 let cond = self.expr(*cond)?;
 
-                let then = self.block(cases[0].clone())?;
-                let else_ = self.block(cases[1].clone())?;
+                let then = self.expr(cases[0].clone())?;
+                let else_ = self.expr(cases[1].clone())?;
 
                 Ok(IrTerm::If {
                     cond: Box::new(cond),
@@ -146,13 +145,13 @@ impl IrCodeGenerator {
                     args: vec![expr],
                 })
             }
-            expr => Ok(IrTerm::Load(Box::new(self.expr_left_value(expr)?))),
+            _ => Ok(IrTerm::Load(Box::new(self.expr_left_value(expr)?))),
         }
     }
 
-    fn expr_left_value(&self, expr: Expr) -> Result<IrTerm, IrCodeGeneratorError> {
-        match expr {
-            Expr::Ident(name) => Ok(IrTerm::Ident(name)),
+    fn expr_left_value(&self, expr: Source<Expr>) -> Result<IrTerm, IrCodeGeneratorError> {
+        match expr.data {
+            Expr::Ident(name) => Ok(IrTerm::Ident(name.data)),
             Expr::Index { array, index } => {
                 let array = self.expr(*array)?;
                 let index = self.expr(*index)?;
@@ -169,17 +168,20 @@ impl IrCodeGenerator {
         }
     }
 
-    pub fn block(&self, block: Block) -> Result<IrTerm, IrCodeGeneratorError> {
+    pub fn block(&self, block: Source<Block>) -> Result<IrTerm, IrCodeGeneratorError> {
         let mut terms = vec![];
 
-        let is_last_stamenet_expr = matches!(block.statements.last(), Some(Statement::Expr(_)));
-        for stmt in block.statements {
-            match stmt {
+        let is_last_stamenet_expr = matches!(
+            block.data.statements.last().map(|s| &s.data),
+            Some(&Statement::Expr(_))
+        );
+        for stmt in block.data.statements {
+            match stmt.data {
                 Statement::Let(name, expr) => {
                     let ir = self.expr(expr)?;
 
                     terms.push(IrTerm::Let {
-                        name,
+                        name: name.data,
                         value: Box::new(ir),
                     });
                 }
