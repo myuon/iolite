@@ -353,6 +353,11 @@ impl VmCodeGenerator {
 
                 self.emit(Instruction::CallLabel(name));
             }
+            IrTerm::Index { array, index } => {
+                self.term_left_value(*array)?;
+                self.term(*index)?;
+                self.emit(Instruction::Add);
+            }
         }
 
         Ok(())

@@ -315,7 +315,39 @@ impl Parser {
                     ],
                 })
             }
-            _ => self.expr_5(),
+            Lexeme::New => {
+                self.consume()?;
+                self.expect(Lexeme::LBracket)?;
+                self.expect(Lexeme::Ident("array".to_string()))?;
+                self.expect(Lexeme::LBracket)?;
+                self.ident()?;
+                self.expect(Lexeme::RBracket)?;
+                self.expect(Lexeme::RBracket)?;
+
+                self.expect(Lexeme::LParen)?;
+                let expr = self.expr()?;
+                self.expect(Lexeme::RParen)?;
+
+                Ok(Expr::New(Box::new(expr)))
+            }
+            _ => {
+                let expr = self.expr_5()?;
+
+                if self.peek() == Ok(&Lexeme::Dot) {
+                    self.consume()?;
+
+                    self.expect(Lexeme::LParen)?;
+                    let index = self.expr()?;
+                    self.expect(Lexeme::RParen)?;
+
+                    return Ok(Expr::Index {
+                        array: Box::new(expr),
+                        index: Box::new(index),
+                    });
+                }
+
+                Ok(expr)
+            }
         }
     }
 

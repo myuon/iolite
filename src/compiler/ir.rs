@@ -46,6 +46,10 @@ pub enum IrTerm {
         name: String,
         args: Vec<IrTerm>,
     },
+    Index {
+        array: Box<IrTerm>,
+        index: Box<IrTerm>,
+    },
 }
 
 #[derive(Debug, PartialEq, Clone)]

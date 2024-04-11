@@ -38,6 +38,11 @@ pub enum Expr {
         cond: Box<Expr>,
         cases: Vec<Block>,
     },
+    New(Box<Expr>),
+    Index {
+        array: Box<Expr>,
+        index: Box<Expr>,
+    },
 }
 
 #[derive(Debug, PartialEq, Clone)]

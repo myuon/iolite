@@ -138,6 +138,23 @@ impl IrCodeGenerator {
                     else_: Box::new(else_),
                 })
             }
+            Expr::New(expr) => {
+                let expr = self.expr(*expr)?;
+
+                Ok(IrTerm::Call {
+                    name: "alloc".to_string(),
+                    args: vec![expr],
+                })
+            }
+            Expr::Index { array, index } => {
+                let array = self.expr(*array)?;
+                let index = self.expr(*index)?;
+
+                Ok(IrTerm::Index {
+                    array: Box::new(array),
+                    index: Box::new(index),
+                })
+            }
         }
     }
 
