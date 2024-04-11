@@ -18,6 +18,7 @@ pub enum IrOp {
 pub enum IrTerm {
     Nil,
     Integer(i32),
+    Float(f32),
     Ident(String),
     Let {
         name: String,

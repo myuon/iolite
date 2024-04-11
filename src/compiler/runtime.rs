@@ -54,12 +54,27 @@ impl Runtime {
         ])
     }
 
+    fn load_f32(&self, address: u32) -> f32 {
+        f32::from_le_bytes([
+            self.memory[address as usize],
+            self.memory[address as usize + 1],
+            self.memory[address as usize + 2],
+            self.memory[address as usize + 3],
+        ])
+    }
+
     fn store_i32(&mut self, address: u32, value: i32) {
         self.memory[address as usize..(address as usize + 4)].copy_from_slice(&value.to_le_bytes());
     }
 
-    pub fn pop(&mut self) -> i32 {
+    pub fn pop_i32(&mut self) -> i32 {
         let val = self.load_i32(self.sp as u32);
+        self.sp += 4;
+        val
+    }
+
+    pub fn pop_f32(&mut self) -> f32 {
+        let val = self.load_f32(self.sp as u32);
         self.sp += 4;
         val
     }
@@ -70,7 +85,7 @@ impl Runtime {
     }
 
     fn pop_address(&mut self) -> u32 {
-        self.pop() as u32
+        self.pop_i32() as u32
     }
 
     fn print_stack(&self, next: &Instruction) {
@@ -127,7 +142,7 @@ impl Runtime {
                 }
                 // pop
                 0x02 => {
-                    self.pop();
+                    self.pop_i32();
                 }
                 // call
                 0x03 => {
@@ -137,16 +152,16 @@ impl Runtime {
                 }
                 // return
                 0x04 => {
-                    self.pc = self.pop() as usize;
+                    self.pc = self.pop_i32() as usize;
                 }
                 // jump
                 0x05 => {
-                    self.pc = self.pop() as usize;
+                    self.pc = self.pop_i32() as usize;
                 }
                 // jump_if
                 0x06 => {
                     let address = self.pop_address();
-                    let val = self.pop();
+                    let val = self.pop_i32();
                     if val != 0 {
                         self.pc = address as usize;
                     }
@@ -154,87 +169,87 @@ impl Runtime {
 
                 // add
                 0x10 => {
-                    let a = self.pop();
-                    let b = self.pop();
+                    let a = self.pop_i32();
+                    let b = self.pop_i32();
                     self.push(b + a);
                 }
                 // sub
                 0x11 => {
-                    let a = self.pop();
-                    let b = self.pop();
+                    let a = self.pop_i32();
+                    let b = self.pop_i32();
                     self.push(b - a);
                 }
                 // mul
                 0x12 => {
-                    let a = self.pop();
-                    let b = self.pop();
+                    let a = self.pop_i32();
+                    let b = self.pop_i32();
                     self.push(b * a);
                 }
                 // div
                 0x13 => {
-                    let a = self.pop();
-                    let b = self.pop();
+                    let a = self.pop_i32();
+                    let b = self.pop_i32();
                     self.push(b / a);
                 }
 
                 // xor
                 0x20 => {
-                    let a = self.pop();
-                    let b = self.pop();
+                    let a = self.pop_i32();
+                    let b = self.pop_i32();
                     self.push(b ^ a);
                 }
                 // and
                 0x21 => {
-                    let a = self.pop();
-                    let b = self.pop();
+                    let a = self.pop_i32();
+                    let b = self.pop_i32();
                     self.push(b & a);
                 }
                 // or
                 0x22 => {
-                    let a = self.pop();
-                    let b = self.pop();
+                    let a = self.pop_i32();
+                    let b = self.pop_i32();
                     self.push(b | a);
                 }
                 // not
                 0x23 => {
-                    let a = self.pop();
+                    let a = self.pop_i32();
                     self.push(if a == 0 { 1 } else { 0 });
                 }
 
                 // eq
                 0x30 => {
-                    let a = self.pop();
-                    let b = self.pop();
+                    let a = self.pop_i32();
+                    let b = self.pop_i32();
                     self.push(if b == a { 1 } else { 0 });
                 }
                 // not_eq
                 0x31 => {
-                    let a = self.pop();
-                    let b = self.pop();
+                    let a = self.pop_i32();
+                    let b = self.pop_i32();
                     self.push(if b != a { 1 } else { 0 });
                 }
                 // lt
                 0x32 => {
-                    let a = self.pop();
-                    let b = self.pop();
+                    let a = self.pop_i32();
+                    let b = self.pop_i32();
                     self.push(if b < a { 1 } else { 0 });
                 }
                 // gt
                 0x33 => {
-                    let a = self.pop();
-                    let b = self.pop();
+                    let a = self.pop_i32();
+                    let b = self.pop_i32();
                     self.push(if b > a { 1 } else { 0 });
                 }
                 // le
                 0x34 => {
-                    let a = self.pop();
-                    let b = self.pop();
+                    let a = self.pop_i32();
+                    let b = self.pop_i32();
                     self.push(if b <= a { 1 } else { 0 });
                 }
                 // ge
                 0x35 => {
-                    let a = self.pop();
-                    let b = self.pop();
+                    let a = self.pop_i32();
+                    let b = self.pop_i32();
                     self.push(if b >= a { 1 } else { 0 });
                 }
 
@@ -254,14 +269,14 @@ impl Runtime {
                 }
                 // store
                 0x42 => {
-                    let value = self.pop();
+                    let value = self.pop_i32();
                     let address = self.pop_address();
                     self.store_i32(address, value);
                 }
                 // store into register
                 0x43 => {
                     let register = self.consume();
-                    let value = self.pop();
+                    let value = self.pop_i32();
                     match register {
                         0x01 => self.bp = value as usize,
                         0x02 => self.sp = value as usize,

@@ -232,6 +232,9 @@ impl VmCodeGenerator {
             IrTerm::Integer(n) => {
                 self.emit(Instruction::Push(n as u32));
             }
+            IrTerm::Float(f) => {
+                self.emit(Instruction::Push(f.to_bits()));
+            }
             IrTerm::Ident(i) => {
                 self.ident(i)?;
             }

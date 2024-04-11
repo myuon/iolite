@@ -2,6 +2,7 @@
 pub enum Literal {
     Bool(bool),
     Integer(i32),
+    Float(f32),
     String(String),
 }
 

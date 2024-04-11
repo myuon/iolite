@@ -40,6 +40,7 @@ pub enum Lexeme {
     Ident(String),
     String(String),
     Integer(i32),
+    Float(f32),
 }
 
 #[derive(Clone, Debug, PartialEq)]
@@ -61,6 +62,7 @@ pub struct Lexer {
 const SPACES: Lazy<Regex> = Lazy::new(|| Regex::new(r"^\s+").unwrap());
 const IDENT: Lazy<Regex> = Lazy::new(|| Regex::new(r"^[a-zA-Z_][a-zA-Z0-9_]*").unwrap());
 const STRING: Lazy<Regex> = Lazy::new(|| Regex::new(r#"^"[^"]*""#).unwrap());
+const FLOAT: Lazy<Regex> = Lazy::new(|| Regex::new(r"^[0-9]+\.[0-9]+").unwrap());
 const INTEGER: Lazy<Regex> = Lazy::new(|| Regex::new(r"^[0-9]+").unwrap());
 
 impl Lexer {
@@ -92,6 +94,13 @@ impl Lexer {
 
             if let Some(m) = STRING.find(&self.input[self.position..]) {
                 let lexeme = Lexeme::String(m.as_str().to_string());
+                tokens.push(self.new_token(lexeme));
+                self.position += m.end();
+                continue;
+            }
+
+            if let Some(m) = FLOAT.find(&self.input[self.position..]) {
+                let lexeme = Lexeme::Float(m.as_str().parse().unwrap());
                 tokens.push(self.new_token(lexeme));
                 self.position += m.end();
                 continue;

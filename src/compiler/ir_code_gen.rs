@@ -87,6 +87,7 @@ impl IrCodeGenerator {
         match expr {
             Expr::Lit(lit) => match lit {
                 Literal::Integer(i) => Ok(IrTerm::Integer(i)),
+                Literal::Float(f) => Ok(IrTerm::Float(f)),
                 Literal::String(_s) => todo!(),
                 Literal::Bool(b) => Ok(IrTerm::Integer(if b { 1 } else { 0 })),
             },

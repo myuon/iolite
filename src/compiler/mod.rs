@@ -111,17 +111,20 @@ impl Compiler {
 
     pub fn run(input: String) -> Result<i32, Box<dyn std::error::Error>> {
         let program = Self::compile(input)?;
-        let mut vm = Runtime::new(1024, program);
-        vm.exec().unwrap();
-
-        Ok(vm.pop())
+        Self::run_vm(program)
     }
 
     pub fn run_vm(program: Vec<u8>) -> Result<i32, Box<dyn std::error::Error>> {
-        let mut vm = Runtime::new(1024, program);
-        vm.exec().unwrap();
+        let mut runtime = Self::exec_vm(program)?;
 
-        Ok(vm.pop())
+        Ok(runtime.pop_i32())
+    }
+
+    fn exec_vm(program: Vec<u8>) -> Result<Runtime, Box<dyn std::error::Error>> {
+        let mut runtime = Runtime::new(1024, program);
+        runtime.exec().unwrap();
+
+        Ok(runtime)
     }
 }
 
@@ -167,6 +170,18 @@ mod tests {
             println!("====== {}", input);
             let actual = Compiler::run(format!("fun main() {{ return {}; }}", input)).unwrap();
             assert_eq!(actual, expected, "input: {}", input);
+        }
+    }
+
+    #[test]
+    fn test_compile_expr_as_float() {
+        let cases = vec![("1.5", 1.5)];
+
+        for (input, expected) in cases {
+            println!("====== {}", input);
+            let program = Compiler::compile(format!("fun main() {{ return {}; }}", input)).unwrap();
+            let mut runtime = Compiler::exec_vm(program).unwrap();
+            assert_eq!(runtime.pop_f32(), expected, "input: {}", input);
         }
     }
 

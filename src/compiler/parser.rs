@@ -560,6 +560,11 @@ impl Parser {
 
                 Ok(Expr::Lit(Literal::Integer(i.clone())))
             }
+            Lexeme::Float(f) => {
+                self.consume()?;
+
+                Ok(Expr::Lit(Literal::Float(f.clone())))
+            }
             Lexeme::String(s) => {
                 self.consume()?;
 
