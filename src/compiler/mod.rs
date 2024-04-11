@@ -232,9 +232,12 @@ mod tests {
             }
 
             fun main() {
-                return f() + p;
+                let x = f();
+                p = 20;
+
+                return x + p;
             }"#,
-                21,
+                31,
             ),
         ];
 
