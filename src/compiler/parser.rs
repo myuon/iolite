@@ -359,8 +359,6 @@ impl Parser {
                 }
 
                 let end_token = self.expect(Lexeme::RBrace)?;
-                let span_true = true_case.span.clone();
-                let span_false = false_case.span.clone();
 
                 Ok(Source::new_span(
                     Expr::Match {
@@ -716,7 +714,7 @@ impl Parser {
                     token.span,
                 ))
             }
-            Lexeme::String(s) => {
+            Lexeme::String(_) => {
                 todo!()
             }
             Lexeme::True => {
