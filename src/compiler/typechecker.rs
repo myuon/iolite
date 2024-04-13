@@ -170,7 +170,7 @@ impl Typechecker {
             Statement::Return(expr) => {
                 self.return_ty = self.expr_infer(expr, self.return_ty.clone())?;
 
-                Ok(self.return_ty.clone())
+                Ok(Type::Nil)
             }
             Statement::Expr(expr) => {
                 self.expr(expr)?;
