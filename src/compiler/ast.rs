@@ -20,13 +20,20 @@ impl Span {
     }
 }
 
-#[derive(Debug, PartialEq, Clone)]
+#[derive(Debug, Clone)]
 pub struct Source<T> {
     pub data: T,
     pub span: Span,
 }
 
+impl<T: PartialEq> PartialEq for Source<T> {
+    fn eq(&self, other: &Self) -> bool {
+        PartialEq::eq(&self.data, &other.data)
+    }
+}
+
 impl<T> Source<T> {
+    #[allow(dead_code)]
     pub fn unknown(data: T) -> Self {
         Self {
             data,
@@ -35,13 +42,6 @@ impl<T> Source<T> {
     }
 
     pub fn new_span(data: T, start: Option<usize>, end: Option<usize>) -> Self {
-        Self {
-            data,
-            span: Span { start, end },
-        }
-    }
-
-    pub fn span_new(start: Option<usize>, end: Option<usize>, data: T) -> Self {
         Self {
             data,
             span: Span { start, end },

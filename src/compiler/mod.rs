@@ -57,9 +57,6 @@ impl Compiler {
                     " ".repeat(got.position)
                 );
             }
-            ParseError::ExpressionExpected { got } => {
-                eprintln!("Expected expression, got {:?}", got);
-            }
         }
     }
 

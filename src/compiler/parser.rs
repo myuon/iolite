@@ -16,9 +16,6 @@ pub enum ParseError {
         expected: Option<Lexeme>,
         got: Token,
     },
-    ExpressionExpected {
-        got: Source<Statement>,
-    },
 }
 
 impl Parser {
@@ -816,7 +813,6 @@ impl Parser {
     }
 }
 
-/*
 #[cfg(test)]
 mod tests {
     use crate::compiler::ast::BinOp;
@@ -828,18 +824,23 @@ mod tests {
         let cases = vec![
             (
                 "1 + 3 * 4",
-                Expr::BinOp {
+                Source::unknown(Expr::BinOp {
                     op: Source::unknown(BinOp::Add),
                     left: Box::new(Source::unknown(Expr::Lit(Source::unknown(
-                        Literal::Integer(1),
+                        Literal::Integer(Source::unknown(1)),
                     )))),
-                    right: Box::new(Expr::BinOp {
-                        op: BinOp::Mul,
-                        left: Box::new(Expr::Lit(Literal::Integer(3))),
-                        right: Box::new(Expr::Lit(Literal::Integer(4))),
-                    }),
-                },
+                    right: Box::new(Source::unknown(Expr::BinOp {
+                        op: Source::unknown(BinOp::Mul),
+                        left: Box::new(Source::unknown(Expr::Lit(Source::unknown(
+                            Literal::Integer(Source::unknown(3)),
+                        )))),
+                        right: Box::new(Source::unknown(Expr::Lit(Source::unknown(
+                            Literal::Integer(Source::unknown(4)),
+                        )))),
+                    })),
+                }),
             ),
+            /*
             (
                 "1 * 3 - 4",
                 Expr::BinOp {
@@ -903,6 +904,7 @@ mod tests {
                     }),
                 },
             ),
+             */
         ];
 
         for (input, expected) in cases {
@@ -915,6 +917,7 @@ mod tests {
         }
     }
 
+    /*
     #[test]
     fn test_statement() {
         let cases = vec![
@@ -1119,5 +1122,5 @@ mod tests {
             assert_eq!(expected, got);
         }
     }
+    */
 }
-*/
