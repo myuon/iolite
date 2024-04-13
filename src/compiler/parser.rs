@@ -35,6 +35,14 @@ impl Parser {
             .ok_or(ParseError::UnexpectedEos)
     }
 
+    fn is_next_token(&self, lexeme: Lexeme) -> bool {
+        if let Ok(token) = self.peek() {
+            return token.lexeme == lexeme;
+        }
+
+        false
+    }
+
     fn consume(&mut self) -> Result<Token, ParseError> {
         let token = self.peek()?.clone();
         self.position += 1;
@@ -148,6 +156,7 @@ impl Parser {
     pub fn block(&mut self, end_token: Option<Lexeme>) -> Result<Source<Block>, ParseError> {
         let mut block = vec![];
         let mut span = Span::unknown();
+        let mut last_expr = None;
 
         while self.position < self.tokens.len() {
             if let Some(end_token) = &end_token {
@@ -163,33 +172,40 @@ impl Parser {
             // NOTE: is this correct?
             span.end = statement.span.end;
 
-            let needs_semilon = match &statement.data {
-                Statement::While { .. } | Statement::If { .. } | Statement::Block(_) => false,
-                _ => true,
-            };
-
-            block.push(statement.clone());
-            if needs_semilon {
-                // NOTE: allows eos here
-                if matches!(self.peek().map(|t| &t.lexeme), Ok(Lexeme::Semicolon)) {
-                    self.consume()?;
-                } else {
-                    if !matches!(statement.data, Statement::Expr(_)) {
-                        return Err(ParseError::ExpressionExpected { got: statement });
+            match statement.data {
+                Statement::While { .. } | Statement::If { .. } | Statement::Block(_) => {
+                    if self.is_next_token(Lexeme::Semicolon) {
+                        self.expect(Lexeme::Semicolon)?;
                     }
 
+                    block.push(statement);
+                    continue;
+                }
+                Statement::Expr(expr) => {
+                    if self.is_next_token(Lexeme::Semicolon) {
+                        self.expect(Lexeme::Semicolon)?;
+                        block.push(Source::span(Statement::Expr(expr), statement.span));
+                        continue;
+                    }
+
+                    last_expr = Some(expr);
                     break;
                 }
-            } else {
-                if let Ok(token) = self.peek() {
-                    if matches!(token.lexeme, Lexeme::Semicolon) {
-                        self.consume()?;
-                    }
+                _ => {
+                    self.expect(Lexeme::Semicolon)?;
+                    block.push(statement.clone());
+                    continue;
                 }
-            }
+            };
         }
 
-        Ok(Source::span(Block { statements: block }, span))
+        Ok(Source::span(
+            Block {
+                statements: block,
+                expr: last_expr,
+            },
+            span,
+        ))
     }
 
     fn statement(&mut self) -> Result<Source<Statement>, ParseError> {
@@ -288,6 +304,7 @@ impl Parser {
                         else_: Some(Source::span(
                             Block {
                                 statements: vec![next_if],
+                                expr: None,
                             },
                             span,
                         )),

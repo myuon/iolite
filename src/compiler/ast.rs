@@ -121,6 +121,7 @@ pub enum Statement {
 #[derive(Debug, PartialEq, Clone)]
 pub struct Block {
     pub statements: Vec<Source<Statement>>,
+    pub expr: Option<Source<Expr>>,
 }
 
 #[derive(Debug, PartialEq, Clone)]

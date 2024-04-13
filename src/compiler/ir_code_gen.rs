@@ -171,10 +171,6 @@ impl IrCodeGenerator {
     pub fn block(&self, block: Source<Block>) -> Result<IrTerm, IrCodeGeneratorError> {
         let mut terms = vec![];
 
-        let is_last_stamenet_expr = matches!(
-            block.data.statements.last().map(|s| &s.data),
-            Some(&Statement::Expr(_))
-        );
         for stmt in block.data.statements {
             match stmt.data {
                 Statement::Let(name, expr) => {
@@ -230,7 +226,9 @@ impl IrCodeGenerator {
             }
         }
 
-        if !is_last_stamenet_expr {
+        if let Some(expr) = block.data.expr {
+            terms.push(self.expr(expr)?);
+        } else {
             terms.push(IrTerm::Nil);
         }
 
