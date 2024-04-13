@@ -159,35 +159,25 @@ impl Typechecker {
         }
     }
 
-    fn statement(&mut self, stmt: &Source<Statement>) -> Result<Type, TypecheckerError> {
+    fn statement(&mut self, stmt: &Source<Statement>) -> Result<(), TypecheckerError> {
         match &stmt.data {
             Statement::Let(name, value) => {
                 let ty = self.expr(value)?;
                 self.types.insert(name.data.clone(), ty);
-
-                Ok(Type::Nil)
             }
             Statement::Return(expr) => {
                 self.return_ty = self.expr_infer(expr, self.return_ty.clone())?;
-
-                Ok(Type::Nil)
             }
             Statement::Expr(expr) => {
                 self.expr(expr)?;
-
-                Ok(Type::Nil)
             }
             Statement::Assign(left, right) => {
                 let left_ty = self.expr(left)?;
                 self.expr_infer(right, left_ty.clone())?;
-
-                Ok(Type::Nil)
             }
             Statement::While { cond, body } => {
                 self.expr_infer(cond, Type::Bool)?;
                 self.block(body)?;
-
-                Ok(Type::Nil)
             }
             Statement::If { cond, then, else_ } => {
                 self.expr_infer(cond, Type::Bool)?;
@@ -196,11 +186,13 @@ impl Typechecker {
                 if let Some(else_) = else_ {
                     self.block_infer(else_, Type::Nil)?;
                 }
-
-                Ok(Type::Nil)
             }
-            Statement::Block(block) => Ok(self.block(block)?),
+            Statement::Block(block) => {
+                self.block(block)?;
+            }
         }
+
+        Ok(())
     }
 
     fn block_infer(
@@ -214,13 +206,15 @@ impl Typechecker {
     }
 
     fn block(&mut self, block: &Source<Block>) -> Result<Type, TypecheckerError> {
-        let mut ty = Type::Unknown;
-
         for stmt in &block.data.statements {
-            ty = self.statement(stmt)?;
+            self.statement(stmt)?;
         }
 
-        Ok(ty)
+        if let Some(expr) = &block.data.expr {
+            Ok(self.expr(expr)?)
+        } else {
+            Ok(Type::Nil)
+        }
     }
 
     fn decl(&mut self, decl: &Source<Declaration>) -> Result<(), TypecheckerError> {
