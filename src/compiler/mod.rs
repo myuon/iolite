@@ -221,6 +221,7 @@ mod tests {
                 4,
             ),
             ("365.2422 as int", 365),
+            ("-200", -200),
         ];
 
         for (input, expected) in cases {
@@ -232,7 +233,12 @@ mod tests {
 
     #[test]
     fn test_compile_expr_as_float() {
-        let cases = vec![("1.5", 1.5), ("1.5 + 1.5", 3.0), ("1.5 + 1.5 * 2.0", 4.5)];
+        let cases = vec![
+            ("1.5", 1.5),
+            ("1.5 + 1.5", 3.0),
+            ("1.5 + 1.5 * 2.0", 4.5),
+            ("-365.2422", -365.2422),
+        ];
 
         for (input, expected) in cases {
             println!("====== {}", input);

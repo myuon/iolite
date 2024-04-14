@@ -255,6 +255,21 @@ impl IrCodeGenerator {
 
                 Ok(term)
             }
+            Expr::Negate { expr, ty } => {
+                let expr = self.expr(*expr)?;
+
+                match ty {
+                    Type::Int => Ok(IrTerm::Op {
+                        op: IrOp::NegateInt,
+                        args: vec![expr],
+                    }),
+                    Type::Float => Ok(IrTerm::Op {
+                        op: IrOp::NegateFloat,
+                        args: vec![expr],
+                    }),
+                    _ => todo!(),
+                }
+            }
             _ => Ok(IrTerm::Load(Box::new(self.expr_left_value(expr)?))),
         }
     }

@@ -88,6 +88,10 @@ pub enum Conversion {
 pub enum Expr {
     Ident(Source<String>),
     Lit(Source<Literal>),
+    Negate {
+        ty: Type,
+        expr: Box<Source<Expr>>,
+    },
     BinOp {
         ty: Type,
         op: Source<BinOp>,

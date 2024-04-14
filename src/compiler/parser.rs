@@ -982,6 +982,22 @@ impl Parser {
                     end_token.span.end,
                 ))
             }
+            Lexeme::Minus => {
+                self.expect(Lexeme::Minus)?;
+
+                let expr = self.expr(false)?;
+                let start = token.span.start;
+                let end = expr.span.end;
+
+                Ok(Source::new_span(
+                    Expr::Negate {
+                        ty: Type::Unknown,
+                        expr: Box::new(expr),
+                    },
+                    start,
+                    end,
+                ))
+            }
             _ => Err(ParseError::UnexpectedToken {
                 expected: None,
                 got: self.tokens[self.position].clone(),

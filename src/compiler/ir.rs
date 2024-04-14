@@ -20,6 +20,8 @@ pub enum IrOp {
     FloatToInt,
     IntToPointer,
     PointerToInt,
+    NegateInt,
+    NegateFloat,
 }
 
 #[derive(Debug, PartialEq, Clone)]

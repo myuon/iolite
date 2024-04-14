@@ -253,6 +253,14 @@ impl VmCodeGenerator {
                     IrOp::PointerToInt => {
                         // self.convert_pointer_to_int();
                     }
+                    IrOp::NegateInt => {
+                        self.emit(Instruction::Push(u32::MAX));
+                        self.emit(Instruction::MulInt);
+                    }
+                    IrOp::NegateFloat => {
+                        self.emit(Instruction::Push((-1 as f32).to_bits()));
+                        self.emit(Instruction::MulFloat);
+                    }
                     _ => {
                         let op = match op {
                             IrOp::AddInt => Instruction::AddInt,

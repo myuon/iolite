@@ -293,6 +293,20 @@ impl Typechecker {
 
                 Ok(ty.data.clone())
             }
+            Expr::Negate { expr, ty: expr_ty } => {
+                let ty = self.expr(expr)?;
+
+                match ty {
+                    Type::Int | Type::Float => {}
+                    _ => {
+                        return Err(TypecheckerError::NumericTypeExpected(ty));
+                    }
+                }
+
+                *expr_ty = ty.clone();
+
+                Ok(ty)
+            }
         }
     }
 
