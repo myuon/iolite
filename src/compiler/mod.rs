@@ -352,7 +352,7 @@ mod tests {
             (
                 r#"
             fun main() {
-                let arr = new[array[int]](10);
+                let arr = new[ptr[int]](10);
                 arr.(0) = 10;
                 arr.(1) = 20;
                 arr.(2) = 30;
@@ -379,7 +379,7 @@ mod tests {
             let p = 10;
 
             fun main() {
-                let arr = new[array[int]](10);
+                let arr = new[ptr[int]](10);
                 arr.(0) = 2;
                 arr.(1) = 3;
                 arr.(2) = 4;

@@ -13,7 +13,7 @@ pub enum TypecheckerError {
     NumericTypeExpected(Type),
     ArgumentCountMismatch(usize, usize),
     FunctionTypeExpected(Type),
-    ArrayTypeExpected(Type),
+    PointerTypeExpected(Type),
 }
 
 pub struct Typechecker {
@@ -158,13 +158,13 @@ impl Typechecker {
 
                 Ok(ty.data.clone())
             }
-            Expr::Index { array, index } => {
-                let array_ty = self.expr(array)?;
+            Expr::Index { ptr, index } => {
+                let ptr_ty = self.expr(ptr)?;
                 self.expr_infer(index, Type::Int)?;
 
-                match array_ty {
-                    Type::Array(ty) => Ok(*ty),
-                    _ => Err(TypecheckerError::ArrayTypeExpected(array_ty)),
+                match ptr_ty {
+                    Type::Ptr(ty) => Ok(*ty),
+                    _ => Err(TypecheckerError::PointerTypeExpected(ptr_ty)),
                 }
             }
             Expr::Block(block) => self.block(block),

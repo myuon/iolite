@@ -443,7 +443,7 @@ impl Parser {
             Lexeme::New => {
                 self.consume()?;
                 self.expect(Lexeme::LBracket)?;
-                self.expect(Lexeme::Ident("array".to_string()))?;
+                self.expect(Lexeme::Ident("ptr".to_string()))?;
                 self.expect(Lexeme::LBracket)?;
                 let ty = self.ty()?;
                 self.expect(Lexeme::RBracket)?;
@@ -457,7 +457,7 @@ impl Parser {
 
                 Ok(Source::span(
                     Expr::New {
-                        ty: Source::span(Type::Array(Box::new(ty.data)), ty.span),
+                        ty: Source::span(Type::Ptr(Box::new(ty.data)), ty.span),
                         argument: Box::new(expr),
                     },
                     span,
@@ -763,7 +763,7 @@ impl Parser {
 
                         current = Source::new_span(
                             Expr::Index {
-                                array: Box::new(current),
+                                ptr: Box::new(current),
                                 index: Box::new(index),
                             },
                             start,

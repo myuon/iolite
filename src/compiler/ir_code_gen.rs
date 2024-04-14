@@ -214,7 +214,7 @@ impl IrCodeGenerator {
 
                     terms.push(IrTerm::Store(
                         Box::new(IrTerm::Index {
-                            array: Box::new(IrTerm::Load(Box::new(IrTerm::Ident(
+                            ptr: Box::new(IrTerm::Load(Box::new(IrTerm::Ident(
                                 ident_name.clone(),
                             )))),
                             index: Box::new(IrTerm::Integer(index as i32 * 4)),
@@ -234,12 +234,12 @@ impl IrCodeGenerator {
     fn expr_left_value(&self, expr: Source<Expr>) -> Result<IrTerm, IrCodeGeneratorError> {
         match expr.data {
             Expr::Ident(name) => Ok(IrTerm::Ident(name.data)),
-            Expr::Index { array, index } => {
-                let array = self.expr(*array)?;
+            Expr::Index { ptr, index } => {
+                let ptr = self.expr(*ptr)?;
                 let index = self.expr(*index)?;
 
                 Ok(IrTerm::Index {
-                    array: Box::new(array),
+                    ptr: Box::new(ptr),
                     index: Box::new(IrTerm::Op {
                         op: IrOp::MulInt,
                         args: vec![index, IrTerm::Integer(4)],
@@ -266,7 +266,7 @@ impl IrCodeGenerator {
                     .unwrap();
 
                 Ok(IrTerm::Index {
-                    array: Box::new(expr),
+                    ptr: Box::new(expr),
                     index: Box::new(IrTerm::Integer(index as i32 * 4)),
                 })
             }

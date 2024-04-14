@@ -99,7 +99,7 @@ pub enum Expr {
         argument: Box<Source<Expr>>,
     },
     Index {
-        array: Box<Source<Expr>>,
+        ptr: Box<Source<Expr>>,
         index: Box<Source<Expr>>,
     },
     Block(Box<Source<Block>>),
@@ -168,7 +168,7 @@ pub enum Type {
     Bool,
     Int,
     Float,
-    Array(Box<Type>),
+    Ptr(Box<Type>),
     Fun(Vec<Type>, Box<Type>),
     Struct {
         name: String,

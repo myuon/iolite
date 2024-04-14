@@ -52,7 +52,7 @@ pub enum IrTerm {
         args: Vec<IrTerm>,
     },
     Index {
-        array: Box<IrTerm>,
+        ptr: Box<IrTerm>,
         index: Box<IrTerm>,
     },
 }
