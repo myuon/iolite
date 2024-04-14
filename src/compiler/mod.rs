@@ -61,8 +61,9 @@ impl Compiler {
     }
 
     pub fn parse(input: String) -> Result<Vec<Source<Declaration>>, Box<dyn std::error::Error>> {
-        let mut lexer =
-            lexer::Lexer::new(format!("{}\n{}", include_str!("./std.io"), input.clone()));
+        let input = format!("{}\n{}", include_str!("./std.io"), input.clone());
+
+        let mut lexer = lexer::Lexer::new(input.clone());
         let mut parser = parser::Parser::new(lexer.run().unwrap());
         let expr = match parser.decls() {
             Ok(expr) => expr,
