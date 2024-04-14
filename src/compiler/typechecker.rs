@@ -254,6 +254,16 @@ impl Typechecker {
 
                 self.types.insert(name.data.clone(), ty);
             }
+            Declaration::Struct { name, fields } => {
+                let mut field_types = vec![];
+
+                for field in fields {
+                    field_types.push(field.1.data.clone());
+                }
+
+                self.types
+                    .insert(name.data.clone(), Type::Struct(field_types));
+            }
         }
 
         Ok(())

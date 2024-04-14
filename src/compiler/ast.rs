@@ -140,6 +140,10 @@ pub enum Declaration {
         name: Source<String>,
         value: Source<Expr>,
     },
+    Struct {
+        name: Source<String>,
+        fields: Vec<(Source<String>, Source<Type>)>,
+    },
 }
 
 #[derive(Debug, PartialEq, Clone)]
@@ -157,4 +161,5 @@ pub enum Type {
     Float,
     Array(Box<Type>),
     Fun(Vec<Type>, Box<Type>),
+    Struct(Vec<Type>),
 }

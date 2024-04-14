@@ -378,6 +378,23 @@ mod tests {
             }"#,
                 12,
             ),
+            (
+                r#"
+            struct Point {
+                x: int,
+                y: int,
+            }
+
+            fun main() {
+                let p = Point {
+                    x: 10,
+                    y: 20,
+                };
+
+                return p.x + p.y;
+            }"#,
+                12,
+            ),
         ];
 
         for (input, expected) in cases {

@@ -24,7 +24,9 @@ impl IrCodeGenerator {
         let mut decls = vec![];
 
         for decl in module.declarations {
-            decls.push(self.decl(decl)?);
+            if let Some(term) = self.decl(decl)? {
+                decls.push(term);
+            }
         }
 
         // NOTE: update heap_ptr
@@ -51,7 +53,7 @@ impl IrCodeGenerator {
         })
     }
 
-    fn decl(&mut self, decl: Source<Declaration>) -> Result<IrDecl, IrCodeGeneratorError> {
+    fn decl(&mut self, decl: Source<Declaration>) -> Result<Option<IrDecl>, IrCodeGeneratorError> {
         match decl.data {
             Declaration::Function { name, params, body } => {
                 let body = {
@@ -72,11 +74,11 @@ impl IrCodeGenerator {
                     }
                 };
 
-                Ok(IrDecl::Fun {
+                Ok(Some(IrDecl::Fun {
                     name: name.data,
                     args: params.into_iter().map(|p| p.0.data).collect(),
                     body: Box::new(body),
-                })
+                }))
             }
             Declaration::Let { name, value } => {
                 let value = self.expr(value)?;
@@ -88,8 +90,9 @@ impl IrCodeGenerator {
 
                 self.globals.push(name.data.clone());
 
-                Ok(IrDecl::Let { name: name.data })
+                Ok(Some(IrDecl::Let { name: name.data }))
             }
+            Declaration::Struct { .. } => Ok(None),
         }
     }
 

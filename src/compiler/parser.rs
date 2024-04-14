@@ -160,6 +160,38 @@ impl Parser {
                     end_token.span.end,
                 ))
             }
+            Lexeme::Struct => {
+                let start_token = self.consume()?;
+
+                let name = self.ident()?;
+                self.expect(Lexeme::LBrace)?;
+
+                let mut fields = vec![];
+                while let Ok(token) = self.peek() {
+                    if matches!(token.lexeme, Lexeme::RBrace) {
+                        break;
+                    }
+
+                    let field = self.ident()?;
+                    self.expect(Lexeme::Colon)?;
+                    let ty = self.ty()?;
+                    fields.push((field, ty));
+
+                    if matches!(self.peek().map(|t| &t.lexeme), Ok(&Lexeme::Comma)) {
+                        self.consume()?;
+                    } else {
+                        break;
+                    }
+                }
+
+                let end_token = self.expect(Lexeme::RBrace)?;
+
+                Ok(Source::new_span(
+                    Declaration::Struct { name, fields },
+                    start_token.span.start,
+                    end_token.span.end,
+                ))
+            }
             _ => Err(ParseError::UnexpectedToken {
                 expected: Some(Lexeme::Fun),
                 got: token.clone(),
