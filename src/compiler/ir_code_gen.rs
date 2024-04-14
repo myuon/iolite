@@ -227,6 +227,25 @@ impl IrCodeGenerator {
 
                 Ok(IrTerm::Block { terms })
             }
+            _ => Ok(IrTerm::Load(Box::new(self.expr_left_value(expr)?))),
+        }
+    }
+
+    fn expr_left_value(&self, expr: Source<Expr>) -> Result<IrTerm, IrCodeGeneratorError> {
+        match expr.data {
+            Expr::Ident(name) => Ok(IrTerm::Ident(name.data)),
+            Expr::Index { array, index } => {
+                let array = self.expr(*array)?;
+                let index = self.expr(*index)?;
+
+                Ok(IrTerm::Index {
+                    array: Box::new(array),
+                    index: Box::new(IrTerm::Op {
+                        op: IrOp::MulInt,
+                        args: vec![index, IrTerm::Integer(4)],
+                    }),
+                })
+            }
             Expr::Project {
                 struct_name,
                 expr,
@@ -246,28 +265,9 @@ impl IrCodeGenerator {
                     .position(|(name, _)| name == &field.data)
                     .unwrap();
 
-                Ok(IrTerm::Load(Box::new(IrTerm::Index {
+                Ok(IrTerm::Index {
                     array: Box::new(expr),
                     index: Box::new(IrTerm::Integer(index as i32 * 4)),
-                })))
-            }
-            _ => Ok(IrTerm::Load(Box::new(self.expr_left_value(expr)?))),
-        }
-    }
-
-    fn expr_left_value(&self, expr: Source<Expr>) -> Result<IrTerm, IrCodeGeneratorError> {
-        match expr.data {
-            Expr::Ident(name) => Ok(IrTerm::Ident(name.data)),
-            Expr::Index { array, index } => {
-                let array = self.expr(*array)?;
-                let index = self.expr(*index)?;
-
-                Ok(IrTerm::Index {
-                    array: Box::new(array),
-                    index: Box::new(IrTerm::Op {
-                        op: IrOp::MulInt,
-                        args: vec![index, IrTerm::Integer(4)],
-                    }),
                 })
             }
             _ => todo!(),

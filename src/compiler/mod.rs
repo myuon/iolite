@@ -405,6 +405,25 @@ mod tests {
             }"#,
                 13,
             ),
+            (
+                r#"
+            struct Point {
+                x: int,
+                y: int,
+            }
+
+            fun main() {
+                let p = Point {
+                    x: 20,
+                    y: 7,
+                };
+
+                p.x = 30;
+
+                return p.x - p.y;
+            }"#,
+                23,
+            ),
         ];
 
         for (input, expected) in cases {
