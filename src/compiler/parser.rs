@@ -840,6 +840,18 @@ impl Parser {
 
                 Ok(current)
             }
+            Lexeme::LBrace => {
+                self.position += 1;
+
+                let block = self.block(Some(Lexeme::RBrace))?;
+                let end_token = self.expect(Lexeme::RBrace)?;
+
+                Ok(Source::new_span(
+                    Expr::Block(Box::new(block)),
+                    token.span.start,
+                    end_token.span.end,
+                ))
+            }
             _ => Err(ParseError::UnexpectedToken {
                 expected: None,
                 got: self.tokens[self.position].clone(),

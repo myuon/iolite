@@ -161,6 +161,7 @@ impl IrCodeGenerator {
                     args: vec![expr],
                 })
             }
+            Expr::Block(block) => self.block(*block),
             _ => Ok(IrTerm::Load(Box::new(self.expr_left_value(expr)?))),
         }
     }

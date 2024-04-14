@@ -167,6 +167,7 @@ impl Typechecker {
                     _ => Err(TypecheckerError::ArrayTypeExpected(array_ty)),
                 }
             }
+            Expr::Block(block) => self.block(block),
         }
     }
 

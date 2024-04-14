@@ -351,6 +351,19 @@ mod tests {
             }"#,
                 60,
             ),
+            (
+                r#"
+            fun main() {
+                let p = {
+                    let x = 10;
+                    let y = 20;
+                    x + y
+                };
+
+                return p;
+            }"#,
+                30,
+            ),
         ];
 
         for (input, expected) in cases {

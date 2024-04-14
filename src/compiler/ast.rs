@@ -102,6 +102,7 @@ pub enum Expr {
         array: Box<Source<Expr>>,
         index: Box<Source<Expr>>,
     },
+    Block(Box<Source<Block>>),
 }
 
 #[derive(Debug, PartialEq, Clone)]
