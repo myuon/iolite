@@ -30,6 +30,41 @@ impl IrCodeGenerator {
         self.types = types;
     }
 
+    fn allocate(&self, term: IrTerm) -> IrTerm {
+        IrTerm::Call {
+            name: "alloc".to_string(),
+            args: vec![term],
+        }
+    }
+
+    fn allocate_static(&self, size: usize) -> IrTerm {
+        self.allocate(IrTerm::Integer(size as i32 * 4))
+    }
+
+    fn slice(&self, values: Vec<IrTerm>) -> IrTerm {
+        let mut block = vec![];
+        let ident_name = format!("slice_{}", nanoid!());
+
+        block.push(IrTerm::Let {
+            name: ident_name.clone(),
+            value: Box::new(self.allocate_static(values.len())),
+        });
+
+        for (index, term) in values.into_iter().enumerate() {
+            block.push(IrTerm::Store(
+                Box::new(IrTerm::Index {
+                    ptr: Box::new(IrTerm::Load(Box::new(IrTerm::Ident(ident_name.clone())))),
+                    index: Box::new(IrTerm::Integer(index as i32 * 4)),
+                }),
+                Box::new(term),
+            ));
+        }
+
+        block.push(IrTerm::Load(Box::new(IrTerm::Ident(ident_name))));
+
+        IrTerm::Block { terms: block }
+    }
+
     pub fn module(&mut self, module: Module) -> Result<IrModule, IrCodeGeneratorError> {
         let mut decls = vec![];
 
@@ -111,7 +146,7 @@ impl IrCodeGenerator {
             Expr::Lit(lit) => match lit.data {
                 Literal::Integer(i) => Ok(IrTerm::Integer(i.data)),
                 Literal::Float(f) => Ok(IrTerm::Float(f.data)),
-                Literal::Bool(b) => Ok(IrTerm::Integer(if b.data { 1 } else { 0 })),
+                Literal::Bool(b) => Ok(IrTerm::tagged_bool(b.data)),
             },
             Expr::BinOp {
                 ty,
@@ -179,10 +214,7 @@ impl IrCodeGenerator {
             } => {
                 let expr = self.expr(*expr)?;
 
-                Ok(IrTerm::Call {
-                    name: "alloc".to_string(),
-                    args: vec![expr],
-                })
+                Ok(self.allocate(expr))
             }
             Expr::Block(block) => self.block(*block),
             Expr::Struct { name, mut fields } => {
@@ -197,35 +229,12 @@ impl IrCodeGenerator {
                     struct_ty.iter().position(|(n, _)| n == &name.data).unwrap()
                 });
 
-                let mut terms = vec![];
-
-                let ident_name = format!("struct_{}", nanoid!());
-
-                terms.push(IrTerm::Let {
-                    name: ident_name.clone(),
-                    value: Box::new(IrTerm::Call {
-                        name: "alloc".to_string(),
-                        args: vec![IrTerm::Integer(4 * struct_ty.len() as i32)],
-                    }),
-                });
-
-                for (index, (_, expr)) in fields.into_iter().enumerate() {
-                    let ir = self.expr(expr)?;
-
-                    terms.push(IrTerm::Store(
-                        Box::new(IrTerm::Index {
-                            ptr: Box::new(IrTerm::Load(Box::new(IrTerm::Ident(
-                                ident_name.clone(),
-                            )))),
-                            index: Box::new(IrTerm::Integer(index as i32 * 4)),
-                        }),
-                        Box::new(ir),
-                    ));
+                let mut values = vec![];
+                for (_, expr) in fields {
+                    values.push(self.expr(expr)?);
                 }
 
-                terms.push(IrTerm::Load(Box::new(IrTerm::Ident(ident_name))));
-
-                Ok(IrTerm::Block { terms })
+                Ok(self.slice(values))
             }
             Expr::As {
                 expr,

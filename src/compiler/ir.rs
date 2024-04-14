@@ -63,6 +63,30 @@ pub enum IrTerm {
     },
 }
 
+impl IrTerm {
+    pub fn tagged_value(tag: TypeTag, term: IrTerm) -> IrTerm {
+        IrTerm::Block {
+            terms: vec![IrTerm::Integer(tag.to_byte() as i32), term],
+        }
+    }
+
+    pub fn tagged_int(data: i32) -> IrTerm {
+        IrTerm::tagged_value(TypeTag::Int, IrTerm::Integer(data))
+    }
+
+    pub fn tagged_float(data: f32) -> IrTerm {
+        IrTerm::tagged_value(TypeTag::Float, IrTerm::Float(data))
+    }
+
+    pub fn tagged_pointer(data: i32) -> IrTerm {
+        IrTerm::tagged_value(TypeTag::Pointer, IrTerm::Integer(data))
+    }
+
+    pub fn tagged_bool(data: bool) -> IrTerm {
+        IrTerm::tagged_value(TypeTag::Bool, IrTerm::Integer(data as i32))
+    }
+}
+
 #[derive(Debug, PartialEq, Clone)]
 pub enum IrDecl {
     Fun {
@@ -79,4 +103,36 @@ pub enum IrDecl {
 pub struct IrModule {
     pub name: String,
     pub decls: Vec<IrDecl>,
+}
+
+#[derive(Debug, PartialEq, Clone)]
+pub enum TypeTag {
+    Pointer,
+    Int,
+    Float,
+    Bool,
+    Byte,
+}
+
+impl TypeTag {
+    pub fn to_byte(&self) -> u8 {
+        match self {
+            TypeTag::Pointer => 0b0,
+            TypeTag::Int => 0b1,
+            TypeTag::Float => 0b10,
+            TypeTag::Bool => 0b100,
+            TypeTag::Byte => 0b1000,
+        }
+    }
+
+    pub fn from_byte(byte: u8) -> Self {
+        match byte {
+            0b0 => TypeTag::Pointer,
+            0b1 => TypeTag::Int,
+            0b10 => TypeTag::Float,
+            0b100 => TypeTag::Bool,
+            0b1000 => TypeTag::Byte,
+            _ => panic!("Invalid type tag"),
+        }
+    }
 }

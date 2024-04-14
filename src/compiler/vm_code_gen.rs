@@ -209,16 +209,6 @@ impl VmCodeGenerator {
         Ok(())
     }
 
-    fn convert_int_to_pointer(&mut self) {
-        self.emit(Instruction::Push(0b1));
-        self.emit(Instruction::Or);
-    }
-
-    fn convert_pointer_to_int(&mut self) {
-        self.emit(Instruction::Push(0b1111_1111_1111_1111_1111_1111_1111_1110));
-        self.emit(Instruction::And);
-    }
-
     pub fn term(&mut self, ir: IrTerm) -> Result<(), VmCodeGeneratorError> {
         match ir {
             IrTerm::Nil => {
