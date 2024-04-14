@@ -9,12 +9,14 @@ pub enum IrCodeGeneratorError {}
 #[derive(Debug)]
 pub struct IrCodeGenerator {
     init_function: Vec<IrTerm>,
+    globals: Vec<String>,
 }
 
 impl IrCodeGenerator {
     pub fn new() -> Self {
         Self {
             init_function: vec![],
+            globals: vec![],
         }
     }
 
@@ -24,6 +26,12 @@ impl IrCodeGenerator {
         for decl in module.declarations {
             decls.push(self.decl(decl)?);
         }
+
+        // NOTE: update heap_ptr
+        self.init_function.push(IrTerm::Store(
+            Box::new(IrTerm::Ident("heap_ptr".to_string())),
+            Box::new(IrTerm::Integer(self.globals.len() as i32 * 4)),
+        ));
 
         // NOTE: hoist initial process to the init function
         self.init_function
@@ -77,6 +85,8 @@ impl IrCodeGenerator {
                     Box::new(IrTerm::Ident(name.data.clone())),
                     Box::new(value.clone()),
                 ));
+
+                self.globals.push(name.data.clone());
 
                 Ok(IrDecl::Let { name: name.data })
             }

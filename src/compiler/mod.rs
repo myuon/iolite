@@ -364,6 +364,20 @@ mod tests {
             }"#,
                 30,
             ),
+            (
+                r#"
+            let p = 10;
+
+            fun main() {
+                let arr = new[array[int]](10);
+                arr.(0) = 2;
+                arr.(1) = 3;
+                arr.(2) = 4;
+
+                return p + arr.(0);
+            }"#,
+                12,
+            ),
         ];
 
         for (input, expected) in cases {
