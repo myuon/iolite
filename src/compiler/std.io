@@ -5,3 +5,8 @@ fun alloc(size: int) {
   heap_ptr = heap_ptr + size;
   return ptr;
 }
+
+// type array[T] {
+//   ptr: ptr[T]
+//   length: int,
+// }

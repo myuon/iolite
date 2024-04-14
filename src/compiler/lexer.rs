@@ -69,6 +69,7 @@ const IDENT: Lazy<Regex> = Lazy::new(|| Regex::new(r"^[a-zA-Z_][a-zA-Z0-9_]*").u
 const STRING: Lazy<Regex> = Lazy::new(|| Regex::new(r#"^"[^"]*""#).unwrap());
 const FLOAT: Lazy<Regex> = Lazy::new(|| Regex::new(r"^[0-9]+\.[0-9]+").unwrap());
 const INTEGER: Lazy<Regex> = Lazy::new(|| Regex::new(r"^[0-9]+").unwrap());
+const COMMENT: Lazy<Regex> = Lazy::new(|| Regex::new(r"^//.*").unwrap());
 
 impl Lexer {
     pub fn new(input: String) -> Self {
@@ -88,6 +89,11 @@ impl Lexer {
 
         while self.position < self.input.len() {
             if let Some(m) = SPACES.find(&self.input[self.position..]) {
+                self.position += m.end();
+                continue;
+            }
+
+            if let Some(m) = COMMENT.find(&self.input[self.position..]) {
                 self.position += m.end();
                 continue;
             }
