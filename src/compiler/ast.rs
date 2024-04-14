@@ -94,7 +94,10 @@ pub enum Expr {
         cond: Box<Source<Expr>>,
         cases: Vec<Source<Expr>>,
     },
-    New(Box<Source<Expr>>),
+    New {
+        ty: Source<Type>,
+        argument: Box<Source<Expr>>,
+    },
     Index {
         array: Box<Source<Expr>>,
         index: Box<Source<Expr>>,

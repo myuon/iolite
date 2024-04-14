@@ -150,7 +150,10 @@ impl IrCodeGenerator {
                     else_: Box::new(else_),
                 })
             }
-            Expr::New(expr) => {
+            Expr::New {
+                ty: _,
+                argument: expr,
+            } => {
                 let expr = self.expr(*expr)?;
 
                 Ok(IrTerm::Call {

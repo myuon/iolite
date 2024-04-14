@@ -153,10 +153,10 @@ impl Typechecker {
 
                 Ok(result_ty)
             }
-            Expr::New(expr) => {
+            Expr::New { ty, argument: expr } => {
                 self.expr_infer(expr, Type::Int)?;
 
-                Ok(Type::Array(Box::new(Type::Unknown)))
+                Ok(ty.data.clone())
             }
             Expr::Index { array, index } => {
                 let array_ty = self.expr(array)?;
