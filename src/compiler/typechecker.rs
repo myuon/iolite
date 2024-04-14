@@ -2,7 +2,7 @@ use std::collections::HashMap;
 
 use super::ast::{BinOp, Block, Declaration, Expr, Literal, Module, Source, Span, Statement, Type};
 
-#[derive(Debug, PartialEq, Clone)]
+#[derive(Debug, Clone)]
 pub enum TypecheckerError {
     IdentNotFound(Source<String>),
     TypeMismatch {
@@ -14,6 +14,42 @@ pub enum TypecheckerError {
     ArgumentCountMismatch(usize, usize),
     FunctionTypeExpected(Type),
     IndexNotSupported(Type),
+}
+
+impl PartialEq for TypecheckerError {
+    fn eq(&self, other: &Self) -> bool {
+        match (self, other) {
+            (TypecheckerError::IdentNotFound(a), TypecheckerError::IdentNotFound(b)) => a == b,
+            (
+                TypecheckerError::TypeMismatch {
+                    expected: a_expected,
+                    actual: a_actual,
+                    span: _,
+                },
+                TypecheckerError::TypeMismatch {
+                    expected: b_expected,
+                    actual: b_actual,
+                    span: _,
+                },
+            ) => a_expected == b_expected && a_actual == b_actual,
+            (
+                TypecheckerError::NumericTypeExpected(a),
+                TypecheckerError::NumericTypeExpected(b),
+            ) => a == b,
+            (
+                TypecheckerError::ArgumentCountMismatch(a_expected, a_actual),
+                TypecheckerError::ArgumentCountMismatch(b_expected, b_actual),
+            ) => a_expected == b_expected && a_actual == b_actual,
+            (
+                TypecheckerError::FunctionTypeExpected(a),
+                TypecheckerError::FunctionTypeExpected(b),
+            ) => a == b,
+            (TypecheckerError::IndexNotSupported(a), TypecheckerError::IndexNotSupported(b)) => {
+                a == b
+            }
+            _ => false,
+        }
+    }
 }
 
 pub struct Typechecker {
@@ -211,14 +247,16 @@ impl Typechecker {
 
                         Type::fields_array(arr)
                     }
-                    _ => todo!(),
+                    _ => {
+                        return Err(TypecheckerError::IdentNotFound(field.clone()));
+                    }
                 };
 
                 let field_ty = field_types
                     .iter()
                     .find(|(name, _)| name == &field.data)
                     .map(|(_, ty)| ty.clone())
-                    .unwrap();
+                    .ok_or(TypecheckerError::IdentNotFound(field.clone()))?;
 
                 Ok(field_ty)
             }
@@ -353,6 +391,22 @@ mod tests {
             (
                 r#"fun f(a: int) { return a; }
                 fun main() { f(true); }"#,
+                TypecheckerError::TypeMismatch {
+                    expected: Type::Int,
+                    actual: Type::Bool,
+                    span: Span::unknown(),
+                },
+            ),
+            (
+                r#"fun main() { let failing = SomeThing { a: 10 }; }"#,
+                TypecheckerError::IdentNotFound(Source::unknown("SomeThing".to_string())),
+            ),
+            (
+                r#"fun main() { let p = new[ptr[int]](1); return p.something; }"#,
+                TypecheckerError::IdentNotFound(Source::unknown("something".to_string())),
+            ),
+            (
+                r#"fun main() { return 1 + true; }"#,
                 TypecheckerError::TypeMismatch {
                     expected: Type::Int,
                     actual: Type::Bool,
