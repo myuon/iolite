@@ -214,7 +214,7 @@ impl VmCodeGenerator {
             IrTerm::Nil => {
                 self.emit(Instruction::Push(0));
             }
-            IrTerm::Integer(n) => {
+            IrTerm::Int(n) => {
                 self.emit(Instruction::Push(n as u32));
             }
             IrTerm::Float(f) => {
@@ -439,7 +439,7 @@ mod tests {
             (
                 IrTerm::Op {
                     op: IrOp::AddInt,
-                    args: vec![IrTerm::Integer(1), IrTerm::Integer(2)],
+                    args: vec![IrTerm::Int(1), IrTerm::Int(2)],
                 },
                 vec![
                     Instruction::Push(1),
@@ -450,7 +450,7 @@ mod tests {
             (
                 IrTerm::Op {
                     op: IrOp::SubInt,
-                    args: vec![IrTerm::Integer(1), IrTerm::Integer(2)],
+                    args: vec![IrTerm::Int(1), IrTerm::Int(2)],
                 },
                 vec![
                     Instruction::Push(1),
@@ -461,7 +461,7 @@ mod tests {
             (
                 IrTerm::Op {
                     op: IrOp::MulInt,
-                    args: vec![IrTerm::Integer(1), IrTerm::Integer(2)],
+                    args: vec![IrTerm::Int(1), IrTerm::Int(2)],
                 },
                 vec![
                     Instruction::Push(1),
@@ -472,7 +472,7 @@ mod tests {
             (
                 IrTerm::Op {
                     op: IrOp::DivInt,
-                    args: vec![IrTerm::Integer(1), IrTerm::Integer(2)],
+                    args: vec![IrTerm::Int(1), IrTerm::Int(2)],
                 },
                 vec![
                     Instruction::Push(1),
@@ -485,11 +485,11 @@ mod tests {
                     terms: vec![
                         IrTerm::Let {
                             name: "a".to_string(),
-                            value: Box::new(IrTerm::Integer(1)),
+                            value: Box::new(IrTerm::Int(1)),
                         },
                         IrTerm::Store(
                             Box::new(IrTerm::Ident("a".to_string())),
-                            Box::new(IrTerm::Integer(2)),
+                            Box::new(IrTerm::Int(2)),
                         ),
                         IrTerm::Load(Box::new(IrTerm::Ident("a".to_string()))),
                     ],

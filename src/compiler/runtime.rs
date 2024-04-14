@@ -1,4 +1,7 @@
-use super::vm::Instruction;
+use super::{
+    ir::{TypeTag, Value},
+    vm::Instruction,
+};
 
 #[derive(Debug, Clone)]
 pub enum RuntimeError {
@@ -91,6 +94,23 @@ impl Runtime {
 
     fn pop_address(&mut self) -> u32 {
         self.pop_i32() as u32
+    }
+
+    pub fn pop_value(&mut self) -> Value {
+        let address = self.pop_i32();
+        let tag = self.load_i32(address as u32);
+
+        if tag == TypeTag::Int.to_byte() as i32 {
+            Value::Int(self.load_i32((address + 4) as u32))
+        } else if tag == TypeTag::Float.to_byte() as i32 {
+            Value::Float(self.load_f32((address + 4) as u32))
+        } else if tag == TypeTag::Bool.to_byte() as i32 {
+            Value::Bool(self.load_i32((address + 4) as u32) != 0)
+        } else if tag == TypeTag::Pointer.to_byte() as i32 {
+            Value::Pointer(self.load_i32((address + 4) as u32) as u32)
+        } else {
+            todo!()
+        }
     }
 
     fn print_stack(&self, next: &Instruction) {

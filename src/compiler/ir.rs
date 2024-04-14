@@ -27,7 +27,7 @@ pub enum IrOp {
 #[derive(Debug, PartialEq, Clone)]
 pub enum IrTerm {
     Nil,
-    Integer(i32),
+    Int(i32),
     Float(f32),
     Ident(String),
     Let {
@@ -64,26 +64,24 @@ pub enum IrTerm {
 }
 
 impl IrTerm {
-    pub fn tagged_value(tag: TypeTag, term: IrTerm) -> IrTerm {
-        IrTerm::Block {
-            terms: vec![IrTerm::Integer(tag.to_byte() as i32), term],
-        }
+    pub fn tagged_value(tag: TypeTag, term: IrTerm) -> Vec<IrTerm> {
+        vec![IrTerm::Int(tag.to_byte() as i32), term]
     }
 
-    pub fn tagged_int(data: i32) -> IrTerm {
-        IrTerm::tagged_value(TypeTag::Int, IrTerm::Integer(data))
+    pub fn tagged_int(data: i32) -> Vec<IrTerm> {
+        IrTerm::tagged_value(TypeTag::Int, IrTerm::Int(data))
     }
 
-    pub fn tagged_float(data: f32) -> IrTerm {
+    pub fn tagged_float(data: f32) -> Vec<IrTerm> {
         IrTerm::tagged_value(TypeTag::Float, IrTerm::Float(data))
     }
 
-    pub fn tagged_pointer(data: i32) -> IrTerm {
-        IrTerm::tagged_value(TypeTag::Pointer, IrTerm::Integer(data))
+    pub fn tagged_pointer(data: i32) -> Vec<IrTerm> {
+        IrTerm::tagged_value(TypeTag::Pointer, IrTerm::Int(data))
     }
 
-    pub fn tagged_bool(data: bool) -> IrTerm {
-        IrTerm::tagged_value(TypeTag::Bool, IrTerm::Integer(data as i32))
+    pub fn tagged_bool(data: bool) -> Vec<IrTerm> {
+        IrTerm::tagged_value(TypeTag::Bool, IrTerm::Int(data as i32))
     }
 }
 
@@ -135,4 +133,13 @@ impl TypeTag {
             _ => panic!("Invalid type tag"),
         }
     }
+}
+
+#[derive(Debug, PartialEq, Clone)]
+pub enum Value {
+    Nil,
+    Int(i32),
+    Float(f32),
+    Bool(bool),
+    Pointer(u32),
 }

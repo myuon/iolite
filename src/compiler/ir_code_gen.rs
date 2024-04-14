@@ -4,7 +4,7 @@ use nanoid::nanoid;
 
 use super::{
     ast::{BinOp, Block, Conversion, Declaration, Expr, Literal, Module, Source, Statement, Type},
-    ir::{IrDecl, IrModule, IrOp, IrTerm},
+    ir::{IrDecl, IrModule, IrOp, IrTerm, TypeTag},
 };
 
 #[derive(Debug, PartialEq, Clone)]
@@ -38,7 +38,7 @@ impl IrCodeGenerator {
     }
 
     fn allocate_static(&self, size: usize) -> IrTerm {
-        self.allocate(IrTerm::Integer(size as i32 * 4))
+        self.allocate(IrTerm::Int(size as i32 * 4))
     }
 
     fn slice(&self, values: Vec<IrTerm>) -> IrTerm {
@@ -54,7 +54,7 @@ impl IrCodeGenerator {
             block.push(IrTerm::Store(
                 Box::new(IrTerm::Index {
                     ptr: Box::new(IrTerm::Load(Box::new(IrTerm::Ident(ident_name.clone())))),
-                    index: Box::new(IrTerm::Integer(index as i32 * 4)),
+                    index: Box::new(IrTerm::Int(index as i32 * 4)),
                 }),
                 Box::new(term),
             ));
@@ -63,6 +63,13 @@ impl IrCodeGenerator {
         block.push(IrTerm::Load(Box::new(IrTerm::Ident(ident_name))));
 
         IrTerm::Block { terms: block }
+    }
+
+    fn load_value_data(&self, term: IrTerm) -> IrTerm {
+        IrTerm::Load(Box::new(IrTerm::Index {
+            ptr: Box::new(term),
+            index: Box::new(IrTerm::Int(4)),
+        }))
     }
 
     pub fn module(&mut self, module: Module) -> Result<IrModule, IrCodeGeneratorError> {
@@ -77,7 +84,7 @@ impl IrCodeGenerator {
         // NOTE: update heap_ptr
         self.init_function.push(IrTerm::Store(
             Box::new(IrTerm::Ident("heap_ptr".to_string())),
-            Box::new(IrTerm::Integer(self.globals.len() as i32 * 4)),
+            Box::new(IrTerm::Int(self.globals.len() as i32 * 4)),
         ));
 
         // NOTE: hoist initial process to the init function
@@ -144,9 +151,9 @@ impl IrCodeGenerator {
     pub fn expr(&self, expr: Source<Expr>) -> Result<IrTerm, IrCodeGeneratorError> {
         match expr.data {
             Expr::Lit(lit) => match lit.data {
-                Literal::Integer(i) => Ok(IrTerm::Integer(i.data)),
+                Literal::Integer(i) => Ok(IrTerm::Int(i.data)),
                 Literal::Float(f) => Ok(IrTerm::Float(f.data)),
-                Literal::Bool(b) => Ok(IrTerm::tagged_bool(b.data)),
+                Literal::Bool(b) => Ok(self.slice(IrTerm::tagged_bool(b.data))),
             },
             Expr::BinOp {
                 ty,
@@ -169,8 +176,26 @@ impl IrCodeGenerator {
                     (BinOp::Div, Type::Int) => IrOp::DivInt,
                     (BinOp::Div, Type::Float) => IrOp::DivFloat,
                     (BinOp::Div, p) => todo!("{:?}", p),
-                    (BinOp::And, _) => IrOp::And,
-                    (BinOp::Or, _) => IrOp::Or,
+                    (BinOp::And, Type::Bool) => {
+                        return Ok(self.slice(IrTerm::tagged_value(
+                            TypeTag::Bool,
+                            IrTerm::Op {
+                                op: IrOp::And,
+                                args: vec![self.load_value_data(left), self.load_value_data(right)],
+                            },
+                        )));
+                    }
+                    (BinOp::And, _) => todo!(),
+                    (BinOp::Or, Type::Bool) => {
+                        return Ok(self.slice(IrTerm::tagged_value(
+                            TypeTag::Bool,
+                            IrTerm::Op {
+                                op: IrOp::Or,
+                                args: vec![self.load_value_data(left), self.load_value_data(right)],
+                            },
+                        )));
+                    }
+                    (BinOp::Or, _) => todo!(),
                     (BinOp::Eq, _) => IrOp::Eq,
                     (BinOp::Lt, _) => IrOp::Lt,
                     (BinOp::Gt, _) => IrOp::Gt,
@@ -319,7 +344,7 @@ impl IrCodeGenerator {
                     ptr: Box::new(ptr),
                     index: Box::new(IrTerm::Op {
                         op: IrOp::MulInt,
-                        args: vec![index, IrTerm::Integer(4)],
+                        args: vec![index, IrTerm::Int(4)],
                     }),
                 })
             }
@@ -349,7 +374,7 @@ impl IrCodeGenerator {
 
                 Ok(IrTerm::Index {
                     ptr: Box::new(expr),
-                    index: Box::new(IrTerm::Integer(index as i32 * 4)),
+                    index: Box::new(IrTerm::Int(index as i32 * 4)),
                 })
             }
             _ => todo!(),
@@ -438,10 +463,10 @@ mod tests {
                 IrTerm::Op {
                     op: IrOp::AddInt,
                     args: vec![
-                        IrTerm::Integer(1),
+                        IrTerm::Int(1),
                         IrTerm::Op {
                             op: IrOp::MulInt,
-                            args: vec![IrTerm::Integer(3), IrTerm::Integer(4)],
+                            args: vec![IrTerm::Int(3), IrTerm::Int(4)],
                         },
                     ],
                 },
@@ -453,9 +478,9 @@ mod tests {
                     args: vec![
                         IrTerm::Op {
                             op: IrOp::MulInt,
-                            args: vec![IrTerm::Integer(1), IrTerm::Integer(3)],
+                            args: vec![IrTerm::Int(1), IrTerm::Int(3)],
                         },
-                        IrTerm::Integer(4),
+                        IrTerm::Int(4),
                     ],
                 },
             ),
@@ -463,7 +488,7 @@ mod tests {
                 "1 > 2",
                 IrTerm::Op {
                     op: IrOp::Gt,
-                    args: vec![IrTerm::Integer(1), IrTerm::Integer(2)],
+                    args: vec![IrTerm::Int(1), IrTerm::Int(2)],
                 },
             ),
         ];
@@ -491,11 +516,11 @@ mod tests {
                     terms: vec![
                         IrTerm::Let {
                             name: "a".to_string(),
-                            value: Box::new(IrTerm::Integer(1)),
+                            value: Box::new(IrTerm::Int(1)),
                         },
                         IrTerm::Let {
                             name: "b".to_string(),
-                            value: Box::new(IrTerm::Integer(2)),
+                            value: Box::new(IrTerm::Int(2)),
                         },
                         IrTerm::Let {
                             name: "c".to_string(),
@@ -517,11 +542,11 @@ mod tests {
                     terms: vec![
                         IrTerm::Let {
                             name: "a".to_string(),
-                            value: Box::new(IrTerm::Integer(1)),
+                            value: Box::new(IrTerm::Int(1)),
                         },
                         IrTerm::Store(
                             Box::new(IrTerm::Ident("a".to_string())),
-                            Box::new(IrTerm::Integer(2)),
+                            Box::new(IrTerm::Int(2)),
                         ),
                         IrTerm::Nil,
                     ],
@@ -533,17 +558,17 @@ mod tests {
                     terms: vec![
                         IrTerm::Let {
                             name: "a".to_string(),
-                            value: Box::new(IrTerm::Integer(2)),
+                            value: Box::new(IrTerm::Int(2)),
                         },
                         IrTerm::Block {
                             terms: vec![
                                 IrTerm::Let {
                                     name: "a".to_string(),
-                                    value: Box::new(IrTerm::Integer(3)),
+                                    value: Box::new(IrTerm::Int(3)),
                                 },
                                 IrTerm::Store(
                                     Box::new(IrTerm::Ident("a".to_string())),
-                                    Box::new(IrTerm::Integer(4)),
+                                    Box::new(IrTerm::Int(4)),
                                 ),
                                 IrTerm::Nil,
                             ],
