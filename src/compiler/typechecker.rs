@@ -17,7 +17,7 @@ pub enum TypecheckerError {
 }
 
 pub struct Typechecker {
-    types: HashMap<String, Type>,
+    pub types: HashMap<String, Type>,
     return_ty: Type,
 }
 
@@ -168,6 +168,52 @@ impl Typechecker {
                 }
             }
             Expr::Block(block) => self.block(block),
+            Expr::Struct { name, fields } => {
+                let struct_ty = self.get_type(name)?;
+                match struct_ty.clone() {
+                    Type::Struct {
+                        fields: field_types,
+                        ..
+                    } => {
+                        for (label, expr) in fields {
+                            let field_ty = field_types
+                                .iter()
+                                .find(|(name, _)| name == &label.data)
+                                .map(|(_, ty)| ty.clone())
+                                .unwrap();
+
+                            self.expr_infer(expr, field_ty)?;
+                        }
+
+                        Ok(struct_ty)
+                    }
+                    _ => todo!(),
+                }
+            }
+            Expr::Project {
+                struct_name,
+                expr,
+                field,
+            } => {
+                let struct_ty = self.expr(expr)?;
+                match struct_ty {
+                    Type::Struct {
+                        fields: field_types,
+                        name,
+                    } => {
+                        let field_ty = field_types
+                            .iter()
+                            .find(|(name, _)| name == &field.data)
+                            .map(|(_, ty)| ty.clone())
+                            .unwrap();
+
+                        *struct_name = Some(name.clone());
+
+                        Ok(field_ty)
+                    }
+                    _ => todo!(),
+                }
+            }
         }
     }
 
@@ -258,11 +304,16 @@ impl Typechecker {
                 let mut field_types = vec![];
 
                 for field in fields {
-                    field_types.push(field.1.data.clone());
+                    field_types.push((field.0.data.clone(), field.1.data.clone()));
                 }
 
-                self.types
-                    .insert(name.data.clone(), Type::Struct(field_types));
+                self.types.insert(
+                    name.data.clone(),
+                    Type::Struct {
+                        name: name.data.clone(),
+                        fields: field_types,
+                    },
+                );
             }
         }
 

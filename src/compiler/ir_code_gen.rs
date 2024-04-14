@@ -1,3 +1,7 @@
+use std::collections::HashMap;
+
+use nanoid::nanoid;
+
 use super::{
     ast::{BinOp, Block, Declaration, Expr, Literal, Module, Source, Statement, Type},
     ir::{IrDecl, IrModule, IrOp, IrTerm},
@@ -10,6 +14,7 @@ pub enum IrCodeGeneratorError {}
 pub struct IrCodeGenerator {
     init_function: Vec<IrTerm>,
     globals: Vec<String>,
+    types: HashMap<String, Type>,
 }
 
 impl IrCodeGenerator {
@@ -17,7 +22,12 @@ impl IrCodeGenerator {
         Self {
             init_function: vec![],
             globals: vec![],
+            types: HashMap::new(),
         }
+    }
+
+    pub fn set_types(&mut self, types: HashMap<String, Type>) {
+        self.types = types;
     }
 
     pub fn module(&mut self, module: Module) -> Result<IrModule, IrCodeGeneratorError> {
@@ -175,6 +185,72 @@ impl IrCodeGenerator {
                 })
             }
             Expr::Block(block) => self.block(*block),
+            Expr::Struct { name, mut fields } => {
+                let struct_ty = self
+                    .types
+                    .get(&name.data)
+                    .unwrap()
+                    .as_struct_fields()
+                    .unwrap();
+
+                fields.sort_by_key(|(name, _)| {
+                    struct_ty.iter().position(|(n, _)| n == &name.data).unwrap()
+                });
+
+                let mut terms = vec![];
+
+                let ident_name = format!("struct_{}", nanoid!());
+
+                terms.push(IrTerm::Let {
+                    name: ident_name.clone(),
+                    value: Box::new(IrTerm::Call {
+                        name: "alloc".to_string(),
+                        args: vec![IrTerm::Integer(4 * struct_ty.len() as i32)],
+                    }),
+                });
+
+                for (index, (_, expr)) in fields.into_iter().enumerate() {
+                    let ir = self.expr(expr)?;
+
+                    terms.push(IrTerm::Store(
+                        Box::new(IrTerm::Index {
+                            array: Box::new(IrTerm::Load(Box::new(IrTerm::Ident(
+                                ident_name.clone(),
+                            )))),
+                            index: Box::new(IrTerm::Integer(index as i32 * 4)),
+                        }),
+                        Box::new(ir),
+                    ));
+                }
+
+                terms.push(IrTerm::Load(Box::new(IrTerm::Ident(ident_name))));
+
+                Ok(IrTerm::Block { terms })
+            }
+            Expr::Project {
+                struct_name,
+                expr,
+                field,
+            } => {
+                let expr = self.expr(*expr)?;
+
+                let struct_ty = self
+                    .types
+                    .get(&struct_name.unwrap())
+                    .unwrap()
+                    .as_struct_fields()
+                    .unwrap();
+
+                let index = struct_ty
+                    .iter()
+                    .position(|(name, _)| name == &field.data)
+                    .unwrap();
+
+                Ok(IrTerm::Load(Box::new(IrTerm::Index {
+                    array: Box::new(expr),
+                    index: Box::new(IrTerm::Integer(index as i32 * 4)),
+                })))
+            }
             _ => Ok(IrTerm::Load(Box::new(self.expr_left_value(expr)?))),
         }
     }
@@ -315,7 +391,7 @@ mod tests {
         for (input, expected) in cases {
             let mut lexer = Lexer::new(input.to_string());
             let mut parser = Parser::new(lexer.run().unwrap());
-            let mut expr = parser.expr().unwrap();
+            let mut expr = parser.expr(true).unwrap();
             let mut typechecker = Typechecker::new();
             typechecker.expr(&mut expr).unwrap();
             let ir = gen.expr(expr).unwrap();

@@ -1,5 +1,7 @@
+use std::collections::HashMap;
+
 use self::{
-    ast::{Declaration, Module, Source},
+    ast::{Declaration, Module, Source, Type},
     byte_code_emitter::ByteCodeEmitter,
     parser::ParseError,
     runtime::Runtime,
@@ -74,7 +76,10 @@ impl Compiler {
         Ok(expr)
     }
 
-    fn typecheck(module: &mut Module, input: &str) -> Result<(), Box<dyn std::error::Error>> {
+    pub fn typecheck(
+        module: &mut Module,
+        input: &str,
+    ) -> Result<HashMap<String, Type>, Box<dyn std::error::Error>> {
         let mut typechecker = typechecker::Typechecker::new();
         match typechecker.module(module) {
             Ok(_) => {}
@@ -103,11 +108,16 @@ impl Compiler {
             }
         }
 
-        Ok(())
+        Ok(typechecker.types)
     }
 
-    pub fn ir_code_gen(block: Module) -> Result<ir::IrModule, Box<dyn std::error::Error>> {
+    pub fn ir_code_gen(
+        block: Module,
+        types: HashMap<String, Type>,
+    ) -> Result<ir::IrModule, Box<dyn std::error::Error>> {
         let mut ir_code_gen = ir_code_gen::IrCodeGenerator::new();
+        ir_code_gen.set_types(types);
+
         let ir = ir_code_gen.module(block).unwrap();
 
         Ok(ir)
@@ -135,9 +145,9 @@ impl Compiler {
             name: "main".to_string(),
             declarations: decls,
         };
-        Self::typecheck(&mut module, &input)?;
+        let types = Self::typecheck(&mut module, &input)?;
 
-        let ir = Self::ir_code_gen(module)?;
+        let ir = Self::ir_code_gen(module, types)?;
         let code = Self::vm_code_gen(ir)?;
         let binary = Self::byte_code_gen(code)?;
 
@@ -387,13 +397,13 @@ mod tests {
 
             fun main() {
                 let p = Point {
-                    x: 10,
-                    y: 20,
+                    x: 20,
+                    y: 7,
                 };
 
-                return p.x + p.y;
+                return p.x - p.y;
             }"#,
-                12,
+                13,
             ),
         ];
 

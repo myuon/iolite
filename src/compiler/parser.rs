@@ -47,6 +47,14 @@ impl Parser {
         Ok(token)
     }
 
+    fn is_ident(&mut self) -> bool {
+        if let Ok(token) = self.peek() {
+            return matches!(token.lexeme, Lexeme::Ident(_));
+        }
+
+        false
+    }
+
     fn ident(&mut self) -> Result<Source<String>, ParseError> {
         let token = self.consume()?;
         match token.lexeme {
@@ -150,7 +158,7 @@ impl Parser {
 
                 let name = self.ident()?;
                 self.expect(Lexeme::Equal)?;
-                let expr = self.expr()?;
+                let expr = self.expr(true)?;
 
                 let end_token = self.expect(Lexeme::Semicolon)?;
 
@@ -264,7 +272,7 @@ impl Parser {
 
                 self.expect(Lexeme::Equal)?;
 
-                let expr = self.expr()?;
+                let expr = self.expr(true)?;
                 let end = expr.span.end;
 
                 Ok(Source::new_span(
@@ -276,7 +284,7 @@ impl Parser {
             Lexeme::Return => {
                 self.consume()?;
 
-                let expr = self.expr()?;
+                let expr = self.expr(true)?;
                 let end = expr.span.end;
 
                 Ok(Source::new_span(
@@ -289,7 +297,7 @@ impl Parser {
                 self.consume()?;
 
                 self.expect(Lexeme::LParen)?;
-                let expr = self.expr()?;
+                let expr = self.expr(false)?;
                 self.expect(Lexeme::RParen)?;
 
                 self.expect(Lexeme::LBrace)?;
@@ -320,7 +328,7 @@ impl Parser {
             }
             Lexeme::If => {
                 self.consume()?;
-                let cond = self.expr()?;
+                let cond = self.expr(false)?;
 
                 self.expect(Lexeme::LBrace)?;
                 let then_block = self.block(Some(Lexeme::RBrace))?;
@@ -373,14 +381,14 @@ impl Parser {
                 }
             }
             _ => {
-                let expr = self.expr()?;
+                let expr = self.expr(true)?;
                 let span = expr.span.clone();
 
                 if let Ok(token) = self.peek() {
                     match token.lexeme {
                         Lexeme::Equal => {
                             self.consume()?;
-                            let right = self.expr()?;
+                            let right = self.expr(true)?;
 
                             let start = expr.span.start;
                             let end = right.span.end;
@@ -399,23 +407,23 @@ impl Parser {
         }
     }
 
-    pub fn expr(&mut self) -> Result<Source<Expr>, ParseError> {
+    pub fn expr(&mut self, with_struct: bool) -> Result<Source<Expr>, ParseError> {
         let token = self.peek()?;
         match token.lexeme {
             Lexeme::Match => {
                 let start_token = self.consume()?;
-                let cond = self.expr()?;
+                let cond = self.expr(with_struct)?;
 
                 self.expect(Lexeme::LBrace)?;
 
                 self.expect(Lexeme::True)?;
                 self.expect(Lexeme::Arrow)?;
-                let true_case = self.expr()?;
+                let true_case = self.expr(with_struct)?;
                 self.expect(Lexeme::Comma)?;
 
                 self.expect(Lexeme::False)?;
                 self.expect(Lexeme::Arrow)?;
-                let false_case = self.expr()?;
+                let false_case = self.expr(with_struct)?;
 
                 if matches!(self.peek().map(|t| &t.lexeme), Ok(Lexeme::Comma)) {
                     self.consume()?;
@@ -442,7 +450,7 @@ impl Parser {
                 self.expect(Lexeme::RBracket)?;
 
                 self.expect(Lexeme::LParen)?;
-                let expr = self.expr()?;
+                let expr = self.expr(with_struct)?;
                 self.expect(Lexeme::RParen)?;
 
                 let span = expr.span.clone();
@@ -455,19 +463,19 @@ impl Parser {
                     span,
                 ))
             }
-            _ => Ok(self.expr_5()?),
+            _ => Ok(self.expr_5(with_struct)?),
         }
     }
 
-    fn expr_5(&mut self) -> Result<Source<Expr>, ParseError> {
-        let mut current = self.expr_4()?;
+    fn expr_5(&mut self, with_struct: bool) -> Result<Source<Expr>, ParseError> {
+        let mut current = self.expr_4(with_struct)?;
 
         while self.position < self.tokens.len() {
             let token = self.peek()?.clone();
             match token.lexeme {
                 Lexeme::DoubleOr => {
                     self.consume()?;
-                    let right = self.expr_4()?;
+                    let right = self.expr_4(with_struct)?;
                     let start = current.span.start;
                     let end = right.span.end;
 
@@ -491,15 +499,15 @@ impl Parser {
         Ok(current)
     }
 
-    fn expr_4(&mut self) -> Result<Source<Expr>, ParseError> {
-        let mut current = self.expr_3()?;
+    fn expr_4(&mut self, with_struct: bool) -> Result<Source<Expr>, ParseError> {
+        let mut current = self.expr_3(with_struct)?;
 
         while self.position < self.tokens.len() {
             let token = self.peek()?.clone();
             match token.lexeme {
                 Lexeme::DoubleAnd => {
                     self.consume()?;
-                    let right = self.expr_3()?;
+                    let right = self.expr_3(with_struct)?;
                     let start = current.span.start;
                     let end = right.span.end;
 
@@ -523,15 +531,15 @@ impl Parser {
         Ok(current)
     }
 
-    fn expr_3(&mut self) -> Result<Source<Expr>, ParseError> {
-        let mut current = self.expr_2()?;
+    fn expr_3(&mut self, with_struct: bool) -> Result<Source<Expr>, ParseError> {
+        let mut current = self.expr_2(with_struct)?;
 
         while self.position < self.tokens.len() {
             let token = self.peek()?.clone();
             match token.lexeme {
                 Lexeme::Le => {
                     self.consume()?;
-                    let right = self.expr_2()?;
+                    let right = self.expr_2(with_struct)?;
                     let start = current.span.start;
                     let end = right.span.end;
 
@@ -548,7 +556,7 @@ impl Parser {
                 }
                 Lexeme::Ge => {
                     self.consume()?;
-                    let right = self.expr_2()?;
+                    let right = self.expr_2(with_struct)?;
                     let start = current.span.start;
                     let end = right.span.end;
 
@@ -565,7 +573,7 @@ impl Parser {
                 }
                 Lexeme::LAngle => {
                     self.consume()?;
-                    let right = self.expr_2()?;
+                    let right = self.expr_2(with_struct)?;
                     let start = current.span.start;
                     let end = right.span.end;
 
@@ -582,7 +590,7 @@ impl Parser {
                 }
                 Lexeme::GAngle => {
                     self.consume()?;
-                    let right = self.expr_2()?;
+                    let right = self.expr_2(with_struct)?;
                     let start = current.span.start;
                     let end = right.span.end;
 
@@ -599,7 +607,7 @@ impl Parser {
                 }
                 Lexeme::DoubleEqual => {
                     self.consume()?;
-                    let right = self.expr_2()?;
+                    let right = self.expr_2(with_struct)?;
                     let start = current.span.start;
                     let end = right.span.end;
 
@@ -616,7 +624,7 @@ impl Parser {
                 }
                 Lexeme::NotEqual => {
                     self.consume()?;
-                    let right = self.expr_2()?;
+                    let right = self.expr_2(with_struct)?;
                     let start = current.span.start;
                     let end = right.span.end;
 
@@ -640,15 +648,15 @@ impl Parser {
         Ok(current)
     }
 
-    fn expr_2(&mut self) -> Result<Source<Expr>, ParseError> {
-        let mut current = self.expr_1()?;
+    fn expr_2(&mut self, with_struct: bool) -> Result<Source<Expr>, ParseError> {
+        let mut current = self.expr_1(with_struct)?;
 
         while self.position < self.tokens.len() {
             let token = self.peek()?.clone();
             match token.lexeme {
                 Lexeme::Plus => {
                     self.consume()?;
-                    let right = self.expr_1()?;
+                    let right = self.expr_1(with_struct)?;
                     let start = current.span.start;
                     let end = right.span.end;
 
@@ -665,7 +673,7 @@ impl Parser {
                 }
                 Lexeme::Minus => {
                     self.consume()?;
-                    let right = self.expr_1()?;
+                    let right = self.expr_1(with_struct)?;
                     let start = current.span.start;
                     let end = right.span.end;
 
@@ -689,15 +697,15 @@ impl Parser {
         Ok(current)
     }
 
-    fn expr_1(&mut self) -> Result<Source<Expr>, ParseError> {
-        let mut current = self.expr_0()?;
+    fn expr_1(&mut self, with_struct: bool) -> Result<Source<Expr>, ParseError> {
+        let mut current = self.expr_0(with_struct)?;
 
         while self.position < self.tokens.len() {
             let token = self.peek()?.clone();
             match token.lexeme {
                 Lexeme::Star => {
                     self.consume()?;
-                    let right = self.expr_0()?;
+                    let right = self.expr_0(with_struct)?;
                     let start = current.span.start;
                     let end = right.span.end;
 
@@ -714,7 +722,7 @@ impl Parser {
                 }
                 Lexeme::Slash => {
                     self.consume()?;
-                    let right = self.expr_0()?;
+                    let right = self.expr_0(with_struct)?;
                     let start = current.span.start;
                     let end = right.span.end;
 
@@ -738,8 +746,8 @@ impl Parser {
         Ok(current)
     }
 
-    fn expr_0(&mut self) -> Result<Source<Expr>, ParseError> {
-        let mut current = self.expr_base()?;
+    fn expr_0(&mut self, with_struct: bool) -> Result<Source<Expr>, ParseError> {
+        let mut current = self.expr_base(with_struct)?;
 
         while self.position < self.tokens.len() {
             let token = self.peek()?.clone();
@@ -747,19 +755,35 @@ impl Parser {
                 Lexeme::Dot => {
                     self.consume()?;
 
-                    self.expect(Lexeme::LParen)?;
-                    let index = self.expr()?;
-                    let start = current.span.start;
-                    let end_token = self.expect(Lexeme::RParen)?;
+                    if self.is_next_token(Lexeme::LParen) {
+                        self.expect(Lexeme::LParen)?;
+                        let index = self.expr(with_struct)?;
+                        let start = current.span.start;
+                        let end_token = self.expect(Lexeme::RParen)?;
 
-                    current = Source::new_span(
-                        Expr::Index {
-                            array: Box::new(current),
-                            index: Box::new(index),
-                        },
-                        start,
-                        end_token.span.end,
-                    );
+                        current = Source::new_span(
+                            Expr::Index {
+                                array: Box::new(current),
+                                index: Box::new(index),
+                            },
+                            start,
+                            end_token.span.end,
+                        );
+                    } else if self.is_ident() {
+                        let field = self.ident()?;
+                        let start = current.span.start;
+                        let end = field.span.end;
+
+                        current = Source::new_span(
+                            Expr::Project {
+                                expr: Box::new(current),
+                                field,
+                                struct_name: None,
+                            },
+                            start,
+                            end,
+                        );
+                    }
                 }
                 _ => {
                     break;
@@ -770,7 +794,7 @@ impl Parser {
         Ok(current)
     }
 
-    fn expr_base(&mut self) -> Result<Source<Expr>, ParseError> {
+    fn expr_base(&mut self, with_struct: bool) -> Result<Source<Expr>, ParseError> {
         let token = self.peek()?.clone();
         match token.lexeme {
             Lexeme::Integer(i) => {
@@ -823,10 +847,8 @@ impl Parser {
             Lexeme::Ident(i) => {
                 self.consume()?;
 
-                let current = Source::span(
-                    Expr::Ident(Source::span(i.clone(), token.span.clone())),
-                    token.span,
-                );
+                let ident = Source::span(i.clone(), token.span.clone());
+                let current = Source::span(Expr::Ident(ident.clone()), token.span);
                 if let Ok(token) = self.peek().cloned() {
                     if matches!(token.lexeme, Lexeme::LParen) {
                         self.position += 1;
@@ -840,7 +862,7 @@ impl Parser {
                                 break;
                             }
 
-                            let arg = self.expr()?;
+                            let arg = self.expr(with_struct)?;
                             args.push(arg);
 
                             if let Ok(token) = self.peek() {
@@ -860,13 +882,44 @@ impl Parser {
                         ));
                     }
                 }
+                if with_struct && self.is_next_token(Lexeme::LBrace) {
+                    self.expect(Lexeme::LBrace)?;
+
+                    let mut fields = vec![];
+
+                    while !self.is_next_token(Lexeme::RBrace) {
+                        let field = self.ident()?;
+                        self.expect(Lexeme::Colon)?;
+                        let value = self.expr(with_struct)?;
+
+                        fields.push((field, value));
+
+                        if self.is_next_token(Lexeme::Comma) {
+                            self.expect(Lexeme::Comma)?;
+                            continue;
+                        } else {
+                            break;
+                        }
+                    }
+
+                    let end = self.expect(Lexeme::RBrace)?;
+
+                    return Ok(Source::new_span(
+                        Expr::Struct {
+                            name: ident,
+                            fields,
+                        },
+                        current.span.start,
+                        end.span.end,
+                    ));
+                }
 
                 Ok(current)
             }
             Lexeme::LParen => {
                 self.position += 1;
 
-                let current = self.expr()?;
+                let current = self.expr(with_struct)?;
 
                 self.expect(Lexeme::RParen)?;
 
@@ -992,7 +1045,7 @@ mod tests {
             let mut lexer = crate::compiler::lexer::Lexer::new(input.to_string());
             let tokens = lexer.run().unwrap();
             let mut parser = Parser::new(tokens);
-            let got = parser.expr().unwrap();
+            let got = parser.expr(true).unwrap();
 
             assert_eq!(got, expected);
         }

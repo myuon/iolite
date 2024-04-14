@@ -5,13 +5,14 @@ use crate::compiler::{ast::Module, vm::Instruction};
 mod compiler;
 
 fn compile(input: String) -> Vec<u8> {
-    let block = compiler::Compiler::parse(input).unwrap();
-
-    let ir = compiler::Compiler::ir_code_gen(Module {
+    let decls = compiler::Compiler::parse(input.clone()).unwrap();
+    let mut module = Module {
         name: "main".to_string(),
-        declarations: block,
-    })
-    .unwrap();
+        declarations: decls,
+    };
+    let types = compiler::Compiler::typecheck(&mut module, &input).unwrap();
+
+    let ir = compiler::Compiler::ir_code_gen(module, types).unwrap();
     println!("= IR_CODE_GEN");
     println!("{:#?}", ir);
 

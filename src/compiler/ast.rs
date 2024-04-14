@@ -103,6 +103,15 @@ pub enum Expr {
         index: Box<Source<Expr>>,
     },
     Block(Box<Source<Block>>),
+    Struct {
+        name: Source<String>,
+        fields: Vec<(Source<String>, Source<Expr>)>,
+    },
+    Project {
+        struct_name: Option<String>,
+        expr: Box<Source<Expr>>,
+        field: Source<String>,
+    },
 }
 
 #[derive(Debug, PartialEq, Clone)]
@@ -161,5 +170,17 @@ pub enum Type {
     Float,
     Array(Box<Type>),
     Fun(Vec<Type>, Box<Type>),
-    Struct(Vec<Type>),
+    Struct {
+        name: String,
+        fields: Vec<(String, Type)>,
+    },
+}
+
+impl Type {
+    pub fn as_struct_fields(&self) -> Option<&Vec<(String, Type)>> {
+        match self {
+            Type::Struct { fields, .. } => Some(fields),
+            _ => None,
+        }
+    }
 }

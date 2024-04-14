@@ -208,22 +208,6 @@ impl VmCodeGenerator {
         Ok(())
     }
 
-    fn term_left_value(&mut self, ir: IrTerm) -> Result<(), VmCodeGeneratorError> {
-        match ir {
-            IrTerm::Ident(i) => {
-                self.ident(i)?;
-            }
-            IrTerm::Index { array, index } => {
-                self.term(*array)?;
-                self.term(*index)?;
-                self.emit(Instruction::AddInt);
-            }
-            _ => todo!("term_left_value: {:?}", ir),
-        }
-
-        Ok(())
-    }
-
     pub fn term(&mut self, ir: IrTerm) -> Result<(), VmCodeGeneratorError> {
         match ir {
             IrTerm::Nil => {
@@ -308,7 +292,7 @@ impl VmCodeGenerator {
                 self.emit(Instruction::Load);
             }
             IrTerm::Store(addr, value) => {
-                self.term_left_value(*addr)?;
+                self.term(*addr)?;
                 self.term(*value)?;
                 self.emit(Instruction::Store);
             }
