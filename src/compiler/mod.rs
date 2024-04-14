@@ -220,6 +220,7 @@ mod tests {
                 "match false { true => 2, false => match false { true => 3, false => 4 } }",
                 4,
             ),
+            ("365.2422 as int", 365),
         ];
 
         for (input, expected) in cases {

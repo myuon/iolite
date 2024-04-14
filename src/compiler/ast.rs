@@ -77,6 +77,14 @@ pub enum BinOp {
 }
 
 #[derive(Debug, PartialEq, Clone)]
+pub enum Conversion {
+    IntToFloat,
+    FloatToInt,
+    IntToPointer,
+    PointerToInt,
+}
+
+#[derive(Debug, PartialEq, Clone)]
 pub enum Expr {
     Ident(Source<String>),
     Lit(Source<Literal>),
@@ -111,6 +119,11 @@ pub enum Expr {
         expr_ty: Type,
         expr: Box<Source<Expr>>,
         field: Source<String>,
+    },
+    As {
+        expr: Box<Source<Expr>>,
+        ty: Source<Type>,
+        conversion: Option<Conversion>,
     },
 }
 

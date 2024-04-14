@@ -313,6 +313,17 @@ impl Runtime {
                     }
                 }
 
+                // int to float
+                0x50 => {
+                    let a = self.pop_i32();
+                    self.push_f32(a as f32);
+                }
+                // float to int
+                0x51 => {
+                    let a = self.pop_f32();
+                    self.push(a as i32);
+                }
+
                 code => {
                     println!(
                         "{:x} {:x?} {:x?}",

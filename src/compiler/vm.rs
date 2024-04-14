@@ -15,6 +15,8 @@ pub enum Instruction {
     SubFloat,
     MulFloat,
     DivFloat,
+    IntToFloat,
+    FloatToInt,
     Load,
     Store,
     LoadBp,
@@ -89,6 +91,10 @@ impl Instruction {
             StoreBp => vec![0x43, 0x01],
             StoreSp => vec![0x43, 0x02],
 
+            // Conversion
+            IntToFloat => vec![0x50],
+            FloatToInt => vec![0x51],
+
             // Debug
             Debug(_) => todo!(),
 
@@ -143,6 +149,9 @@ impl Instruction {
                 _ => todo!(),
             },
 
+            0x50 => Instruction::IntToFloat,
+            0x51 => Instruction::FloatToInt,
+
             p => return Err(InstructionError::UnknownInstruction(p)),
         })
     }
@@ -184,6 +193,8 @@ impl Arbitrary for Instruction {
             Just(Instruction::Gt),
             Just(Instruction::Le),
             Just(Instruction::Ge),
+            Just(Instruction::IntToFloat),
+            Just(Instruction::FloatToInt),
         ]
         .boxed()
     }

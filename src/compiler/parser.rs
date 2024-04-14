@@ -709,14 +709,14 @@ impl Parser {
     }
 
     fn expr_1(&mut self, with_struct: bool) -> Result<Source<Expr>, ParseError> {
-        let mut current = self.expr_0(with_struct)?;
+        let mut current = self.expr_0_5(with_struct)?;
 
         while self.position < self.tokens.len() {
             let token = self.peek()?.clone();
             match token.lexeme {
                 Lexeme::Star => {
                     self.consume()?;
-                    let right = self.expr_0(with_struct)?;
+                    let right = self.expr_0_5(with_struct)?;
                     let start = current.span.start;
                     let end = right.span.end;
 
@@ -733,7 +733,7 @@ impl Parser {
                 }
                 Lexeme::Slash => {
                     self.consume()?;
-                    let right = self.expr_0(with_struct)?;
+                    let right = self.expr_0_5(with_struct)?;
                     let start = current.span.start;
                     let end = right.span.end;
 
@@ -743,6 +743,39 @@ impl Parser {
                             op: Source::span(BinOp::Div, token.span),
                             left: Box::new(current),
                             right: Box::new(right),
+                        },
+                        start,
+                        end,
+                    );
+                }
+                _ => {
+                    break;
+                }
+            }
+        }
+
+        Ok(current)
+    }
+
+    fn expr_0_5(&mut self, with_struct: bool) -> Result<Source<Expr>, ParseError> {
+        let mut current = self.expr_0(with_struct)?;
+
+        while self.position < self.tokens.len() {
+            let token = self.peek()?.clone();
+            match token.lexeme {
+                Lexeme::As => {
+                    self.consume()?;
+
+                    let ty = self.ty()?;
+
+                    let start = current.span.start;
+                    let end = ty.span.end;
+
+                    current = Source::new_span(
+                        Expr::As {
+                            expr: Box::new(current),
+                            ty,
+                            conversion: None,
                         },
                         start,
                         end,

@@ -129,6 +129,7 @@ impl VmCodeGenerator {
             AddInt | SubInt | MulInt | DivInt | AddFloat | SubFloat | MulFloat | DivFloat => {
                 self.stack_pointer -= 1;
             }
+            IntToFloat | FloatToInt => {}
             Load => {}
             Store => {
                 self.stack_pointer -= 2;
@@ -208,6 +209,16 @@ impl VmCodeGenerator {
         Ok(())
     }
 
+    fn convert_int_to_pointer(&mut self) {
+        self.emit(Instruction::Push(0b1));
+        self.emit(Instruction::Or);
+    }
+
+    fn convert_pointer_to_int(&mut self) {
+        self.emit(Instruction::Push(0b1111_1111_1111_1111_1111_1111_1111_1110));
+        self.emit(Instruction::And);
+    }
+
     pub fn term(&mut self, ir: IrTerm) -> Result<(), VmCodeGeneratorError> {
         match ir {
             IrTerm::Nil => {
@@ -235,25 +246,38 @@ impl VmCodeGenerator {
                     self.term(arg)?;
                 }
 
-                let op = match op {
-                    IrOp::AddInt => Instruction::AddInt,
-                    IrOp::SubInt => Instruction::SubInt,
-                    IrOp::MulInt => Instruction::MulInt,
-                    IrOp::DivInt => Instruction::DivInt,
-                    IrOp::And => Instruction::And,
-                    IrOp::Or => Instruction::Or,
-                    IrOp::Eq => Instruction::Eq,
-                    IrOp::Lt => Instruction::Lt,
-                    IrOp::Gt => Instruction::Gt,
-                    IrOp::Le => Instruction::Le,
-                    IrOp::Ge => Instruction::Ge,
-                    IrOp::NotEq => Instruction::NotEq,
-                    IrOp::AddFloat => Instruction::AddFloat,
-                    IrOp::SubFloat => Instruction::SubFloat,
-                    IrOp::MulFloat => Instruction::MulFloat,
-                    IrOp::DivFloat => Instruction::DivFloat,
-                };
-                self.emit(op);
+                match op {
+                    IrOp::IntToPointer => {
+                        self.convert_int_to_pointer();
+                    }
+                    IrOp::PointerToInt => {
+                        self.convert_pointer_to_int();
+                    }
+                    _ => {
+                        let op = match op {
+                            IrOp::AddInt => Instruction::AddInt,
+                            IrOp::SubInt => Instruction::SubInt,
+                            IrOp::MulInt => Instruction::MulInt,
+                            IrOp::DivInt => Instruction::DivInt,
+                            IrOp::And => Instruction::And,
+                            IrOp::Or => Instruction::Or,
+                            IrOp::Eq => Instruction::Eq,
+                            IrOp::Lt => Instruction::Lt,
+                            IrOp::Gt => Instruction::Gt,
+                            IrOp::Le => Instruction::Le,
+                            IrOp::Ge => Instruction::Ge,
+                            IrOp::NotEq => Instruction::NotEq,
+                            IrOp::AddFloat => Instruction::AddFloat,
+                            IrOp::SubFloat => Instruction::SubFloat,
+                            IrOp::MulFloat => Instruction::MulFloat,
+                            IrOp::DivFloat => Instruction::DivFloat,
+                            IrOp::IntToFloat => Instruction::IntToFloat,
+                            IrOp::FloatToInt => Instruction::FloatToInt,
+                            _ => todo!("{:?}", op),
+                        };
+                        self.emit(op);
+                    }
+                }
             }
             IrTerm::Block { terms } => {
                 self.new_scope();

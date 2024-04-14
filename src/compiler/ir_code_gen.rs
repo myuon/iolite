@@ -3,7 +3,7 @@ use std::collections::HashMap;
 use nanoid::nanoid;
 
 use super::{
-    ast::{BinOp, Block, Declaration, Expr, Literal, Module, Source, Statement, Type},
+    ast::{BinOp, Block, Conversion, Declaration, Expr, Literal, Module, Source, Statement, Type},
     ir::{IrDecl, IrModule, IrOp, IrTerm},
 };
 
@@ -226,6 +226,34 @@ impl IrCodeGenerator {
                 terms.push(IrTerm::Load(Box::new(IrTerm::Ident(ident_name))));
 
                 Ok(IrTerm::Block { terms })
+            }
+            Expr::As {
+                expr,
+                ty: _,
+                conversion,
+            } => {
+                let expr = self.expr(*expr)?;
+
+                let term = match conversion.unwrap() {
+                    Conversion::IntToFloat => IrTerm::Op {
+                        op: IrOp::IntToFloat,
+                        args: vec![expr],
+                    },
+                    Conversion::FloatToInt => IrTerm::Op {
+                        op: IrOp::FloatToInt,
+                        args: vec![expr],
+                    },
+                    Conversion::IntToPointer => IrTerm::Op {
+                        op: IrOp::IntToPointer,
+                        args: vec![expr],
+                    },
+                    Conversion::PointerToInt => IrTerm::Op {
+                        op: IrOp::PointerToInt,
+                        args: vec![expr],
+                    },
+                };
+
+                Ok(term)
             }
             _ => Ok(IrTerm::Load(Box::new(self.expr_left_value(expr)?))),
         }

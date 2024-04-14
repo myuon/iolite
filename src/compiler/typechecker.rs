@@ -1,6 +1,8 @@
 use std::collections::HashMap;
 
-use super::ast::{BinOp, Block, Declaration, Expr, Literal, Module, Source, Span, Statement, Type};
+use super::ast::{
+    BinOp, Block, Conversion, Declaration, Expr, Literal, Module, Source, Span, Statement, Type,
+};
 
 #[derive(Debug, Clone)]
 pub enum TypecheckerError {
@@ -14,6 +16,7 @@ pub enum TypecheckerError {
     ArgumentCountMismatch(usize, usize),
     FunctionTypeExpected(Type),
     IndexNotSupported(Type),
+    ConversionNotSupported(Type, Source<Type>),
 }
 
 impl PartialEq for TypecheckerError {
@@ -259,6 +262,36 @@ impl Typechecker {
                     .ok_or(TypecheckerError::IdentNotFound(field.clone()))?;
 
                 Ok(field_ty)
+            }
+            Expr::As {
+                expr,
+                ty,
+                conversion,
+            } => {
+                let expr_ty = self.expr(expr)?;
+
+                match (expr_ty.clone(), ty.data.clone()) {
+                    (Type::Int, Type::Float) => {
+                        *conversion = Some(Conversion::IntToFloat);
+                    }
+                    (Type::Float, Type::Int) => {
+                        *conversion = Some(Conversion::FloatToInt);
+                    }
+                    (Type::Int, Type::Ptr(_)) => {
+                        *conversion = Some(Conversion::IntToPointer);
+                    }
+                    (Type::Ptr(_), Type::Int) => {
+                        *conversion = Some(Conversion::PointerToInt);
+                    }
+                    _ => {
+                        return Err(TypecheckerError::ConversionNotSupported(
+                            expr_ty,
+                            ty.clone(),
+                        ));
+                    }
+                };
+
+                Ok(ty.data.clone())
             }
         }
     }

@@ -16,6 +16,10 @@ pub enum IrOp {
     Gt,
     Le,
     Ge,
+    IntToFloat,
+    FloatToInt,
+    IntToPointer,
+    PointerToInt,
 }
 
 #[derive(Debug, PartialEq, Clone)]
