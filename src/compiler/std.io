@@ -1,8 +1,8 @@
-let heap_ptr = 0;
+let heap_ptr = 0 as ptr[byte];
 
 fun alloc(size: int) {
   let ptr = heap_ptr;
-  heap_ptr = heap_ptr + size;
+  heap_ptr = heap_ptr.offset(size);
   return ptr;
 }
 
@@ -30,4 +30,8 @@ fun float_abs(x: float) {
   } else {
     return x;
   }
+}
+
+fun ptr_offset(p: ptr[byte], d: int) {
+  return ((p as int) + d) as ptr[byte];
 }
