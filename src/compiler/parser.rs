@@ -782,6 +782,53 @@ impl Parser {
                         end,
                     );
                 }
+                Lexeme::LParen => {
+                    self.position += 1;
+                    let mut end = None;
+
+                    let mut args = vec![];
+                    while let Ok(token) = self.peek() {
+                        if matches!(token.lexeme, Lexeme::RParen) {
+                            end = self.consume()?.span.end;
+
+                            break;
+                        }
+
+                        let arg = self.expr(with_struct)?;
+                        args.push(arg);
+
+                        if let Ok(token) = self.peek() {
+                            if matches!(token.lexeme, Lexeme::Comma) {
+                                self.position += 1;
+                            }
+                        }
+                    }
+
+                    let start = current.span.start;
+
+                    match current.data {
+                        Expr::Project {
+                            expr_ty: _,
+                            expr,
+                            field,
+                        } => {
+                            current = Source::new_span(
+                                Expr::MethodCall {
+                                    expr_ty: Type::Unknown,
+                                    expr,
+                                    name: field,
+                                    args,
+                                },
+                                start,
+                                end,
+                            );
+                        }
+                        Expr::Ident(name) => {
+                            current = Source::new_span(Expr::Call { name, args }, start, end);
+                        }
+                        _ => todo!(),
+                    }
+                }
                 _ => {
                     break;
                 }
@@ -894,39 +941,6 @@ impl Parser {
 
                 let ident = Source::span(i.clone(), token.span.clone());
                 let current = Source::span(Expr::Ident(ident.clone()), token.span);
-                if let Ok(token) = self.peek().cloned() {
-                    if matches!(token.lexeme, Lexeme::LParen) {
-                        self.position += 1;
-                        let mut end = None;
-
-                        let mut args = vec![];
-                        while let Ok(token) = self.peek() {
-                            if matches!(token.lexeme, Lexeme::RParen) {
-                                end = self.consume()?.span.end;
-
-                                break;
-                            }
-
-                            let arg = self.expr(with_struct)?;
-                            args.push(arg);
-
-                            if let Ok(token) = self.peek() {
-                                if matches!(token.lexeme, Lexeme::Comma) {
-                                    self.position += 1;
-                                }
-                            }
-                        }
-
-                        return Ok(Source::new_span(
-                            Expr::Call {
-                                name: Source::span(i.clone(), token.span),
-                                args,
-                            },
-                            current.span.start,
-                            end,
-                        ));
-                    }
-                }
                 if with_struct && self.is_next_token(Lexeme::LBrace) {
                     self.expect(Lexeme::LBrace)?;
 

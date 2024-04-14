@@ -1,3 +1,5 @@
+use std::vec;
+
 #[derive(Debug, PartialEq, Clone)]
 pub struct Span {
     pub start: Option<usize>,
@@ -99,6 +101,12 @@ pub enum Expr {
         right: Box<Source<Expr>>,
     },
     Call {
+        name: Source<String>,
+        args: Vec<Source<Expr>>,
+    },
+    MethodCall {
+        expr_ty: Type,
+        expr: Box<Source<Expr>>,
         name: Source<String>,
         args: Vec<Source<Expr>>,
     },
@@ -209,5 +217,26 @@ impl Type {
             ("ptr".to_string(), Type::Ptr(item)),
             ("length".to_string(), Type::Int),
         ]
+    }
+
+    pub fn methods_builtin(ty: &Type) -> Vec<(String, Type, String)> {
+        match ty {
+            Type::Int => vec![(
+                "abs".to_string(),
+                Type::Fun(vec![], Box::new(Type::Int)),
+                "int_abs".to_string(),
+            )],
+            Type::Float => vec![(
+                "abs".to_string(),
+                Type::Fun(vec![], Box::new(Type::Int)),
+                "float_abs".to_string(),
+            )],
+            Type::Ptr(item) => vec![(
+                "offset".to_string(),
+                Type::Fun(vec![Type::Int], Box::new(Type::Ptr(item.clone()))),
+                "ptr_offset".to_string(),
+            )],
+            _ => vec![],
+        }
     }
 }

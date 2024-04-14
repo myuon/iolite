@@ -307,6 +307,49 @@ impl Typechecker {
 
                 Ok(ty)
             }
+            Expr::MethodCall {
+                expr_ty,
+                expr,
+                name,
+                args,
+            } => {
+                let ty = self.expr(expr)?;
+
+                *expr_ty = ty.clone();
+
+                let methods = Type::methods_builtin(&ty);
+                let method = methods
+                    .iter()
+                    .find(|(method_name, _, _)| method_name == &name.data)
+                    .ok_or(TypecheckerError::IdentNotFound(name.clone()))?
+                    .1
+                    .clone();
+
+                let mut arg_types_actual = vec![];
+                for arg in args {
+                    arg_types_actual.push(self.expr(arg)?);
+                }
+
+                match method {
+                    Type::Fun(arg_types_expected, ret_ty) => {
+                        if arg_types_actual.len() != arg_types_expected.len() {
+                            return Err(TypecheckerError::ArgumentCountMismatch(
+                                arg_types_expected.len(),
+                                arg_types_actual.len(),
+                            ));
+                        }
+
+                        for (expected, actual) in arg_types_expected.iter().zip(arg_types_actual) {
+                            Self::unify(expected.clone(), actual, Span::unknown())?;
+                        }
+
+                        Ok(*ret_ty)
+                    }
+                    _ => {
+                        return Err(TypecheckerError::FunctionTypeExpected(method));
+                    }
+                }
+            }
         }
     }
 

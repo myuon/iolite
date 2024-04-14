@@ -270,6 +270,31 @@ impl IrCodeGenerator {
                     _ => todo!(),
                 }
             }
+            Expr::MethodCall {
+                expr_ty,
+                expr,
+                name,
+                args,
+            } => {
+                let mut ir_args = vec![self.expr(*expr)?];
+                for arg in args {
+                    ir_args.push(self.expr(arg)?);
+                }
+
+                let methods = Type::methods_builtin(&expr_ty);
+
+                let name = methods
+                    .iter()
+                    .find(|(n, _, _)| n == &name.data)
+                    .unwrap()
+                    .2
+                    .clone();
+
+                Ok(IrTerm::Call {
+                    name,
+                    args: ir_args,
+                })
+            }
             _ => Ok(IrTerm::Load(Box::new(self.expr_left_value(expr)?))),
         }
     }

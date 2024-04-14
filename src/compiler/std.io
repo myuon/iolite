@@ -15,3 +15,19 @@ fun alloc(size: int) {
 //   let ptr = alloc(length * sizeof[T]());
 //   return array[T] { ptr: ptr, length: length };
 // }
+
+fun int_abs(x: int) {
+  if (x < 0) {
+    return -x;
+  } else {
+    return x;
+  }
+}
+
+fun float_abs(x: float) {
+  if (x < 0.0) {
+    return -x;
+  } else {
+    return x;
+  }
+}
