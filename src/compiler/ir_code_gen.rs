@@ -228,7 +228,7 @@ impl IrCodeGenerator {
                 let else_ = self.expr(cases[1].clone())?;
 
                 Ok(IrTerm::If {
-                    cond: Box::new(cond),
+                    cond: Box::new(self.load_value_data(cond)),
                     then: Box::new(then),
                     else_: Box::new(else_),
                 })

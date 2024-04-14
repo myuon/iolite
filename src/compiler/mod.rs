@@ -204,21 +204,20 @@ mod tests {
             ("1 >= 2", 0),
             ("1 == 2", 0),
             ("2 == 2", 1),
-            // ("1 != 10", 1),
-            // ("match true { true => 2, false => 5 }", 2),
-            // ("match false { true => 2, false => 5 }", 5),
-            // ("match false { true => 2, false => 5 }", 5),
-            // (
-            //     "match false { true => 2, false => match true { true => 3, false => 4 } }",
-            //     3,
-            // ),
-            // (
-            //     "match false { true => 2, false => match false { true => 3, false => 4 } }",
-            //     4,
-            // ),
-            // ("365.2422 as int", 365),
-            // ("-200", -200),
-            // ("(-200).abs()", 200),
+            ("1 != 10", 1),
+            ("match true { true => 2, false => 5 }", 2),
+            ("match false { true => 2, false => 5 }", 5),
+            (
+                "match false { true => 2, false => match true { true => 3, false => 4 } }",
+                3,
+            ),
+            (
+                "match false { true => 2, false => match false { true => 3, false => 4 } }",
+                4,
+            ),
+            ("365.2422 as int", 365),
+            ("-200", -200),
+            ("(-200).abs()", 200),
         ];
 
         for (input, expected) in cases {
