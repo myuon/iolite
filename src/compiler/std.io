@@ -10,3 +10,8 @@ fun alloc(size: int) {
 //   ptr: ptr[T]
 //   length: int,
 // }
+
+// fun new_array[T](length: int) {
+//   let ptr = alloc(length * sizeof[T]());
+//   return array[T] { ptr: ptr, length: length };
+// }

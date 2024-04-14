@@ -13,7 +13,7 @@ pub enum TypecheckerError {
     NumericTypeExpected(Type),
     ArgumentCountMismatch(usize, usize),
     FunctionTypeExpected(Type),
-    PointerTypeExpected(Type),
+    IndexNotSupported(Type),
 }
 
 pub struct Typechecker {
@@ -164,7 +164,8 @@ impl Typechecker {
 
                 match ptr_ty {
                     Type::Ptr(ty) => Ok(*ty),
-                    _ => Err(TypecheckerError::PointerTypeExpected(ptr_ty)),
+                    Type::Array(ty) => Ok(*ty),
+                    _ => Err(TypecheckerError::IndexNotSupported(ptr_ty)),
                 }
             }
             Expr::Block(block) => self.block(block),
@@ -191,28 +192,35 @@ impl Typechecker {
                 }
             }
             Expr::Project {
-                struct_name,
+                expr_ty,
                 expr,
                 field,
             } => {
                 let struct_ty = self.expr(expr)?;
-                match struct_ty {
+                let field_types = match struct_ty.clone() {
                     Type::Struct {
                         fields: field_types,
                         name,
                     } => {
-                        let field_ty = field_types
-                            .iter()
-                            .find(|(name, _)| name == &field.data)
-                            .map(|(_, ty)| ty.clone())
-                            .unwrap();
+                        *expr_ty = Type::Ident(name.clone());
 
-                        *struct_name = Some(name.clone());
+                        field_types
+                    }
+                    Type::Array(arr) => {
+                        *expr_ty = struct_ty.clone();
 
-                        Ok(field_ty)
+                        Type::fields_array(arr)
                     }
                     _ => todo!(),
-                }
+                };
+
+                let field_ty = field_types
+                    .iter()
+                    .find(|(name, _)| name == &field.data)
+                    .map(|(_, ty)| ty.clone())
+                    .unwrap();
+
+                Ok(field_ty)
             }
         }
     }

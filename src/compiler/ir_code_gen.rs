@@ -247,18 +247,23 @@ impl IrCodeGenerator {
                 })
             }
             Expr::Project {
-                struct_name,
+                expr_ty,
                 expr,
                 field,
             } => {
                 let expr = self.expr(*expr)?;
 
-                let struct_ty = self
-                    .types
-                    .get(&struct_name.unwrap())
-                    .unwrap()
-                    .as_struct_fields()
-                    .unwrap();
+                let struct_ty = match expr_ty {
+                    Type::Ident(name) => self
+                        .types
+                        .get(&name)
+                        .unwrap()
+                        .as_struct_fields()
+                        .unwrap()
+                        .clone(),
+                    Type::Array(arr) => Type::fields_array(arr),
+                    _ => todo!(),
+                };
 
                 let index = struct_ty
                     .iter()

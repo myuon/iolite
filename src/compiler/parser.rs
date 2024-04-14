@@ -98,6 +98,20 @@ impl Parser {
             Lexeme::Ident(i) if i == "float".to_string() => {
                 Ok(Source::span(Type::Float, token.span))
             }
+            Lexeme::Ident(i) if i == "ptr".to_string() => {
+                self.expect(Lexeme::LBracket)?;
+                let t = self.ty()?;
+                self.expect(Lexeme::RBracket)?;
+
+                Ok(Source::span(Type::Ptr(Box::new(t.data)), token.span))
+            }
+            Lexeme::Ident(i) if i == "array".to_string() => {
+                self.expect(Lexeme::LBracket)?;
+                let t = self.ty()?;
+                self.expect(Lexeme::RBracket)?;
+
+                Ok(Source::span(Type::Array(Box::new(t.data)), token.span))
+            }
             _ => Err(ParseError::UnexpectedToken {
                 expected: None,
                 got: token,
@@ -443,10 +457,7 @@ impl Parser {
             Lexeme::New => {
                 self.consume()?;
                 self.expect(Lexeme::LBracket)?;
-                self.expect(Lexeme::Ident("ptr".to_string()))?;
-                self.expect(Lexeme::LBracket)?;
                 let ty = self.ty()?;
-                self.expect(Lexeme::RBracket)?;
                 self.expect(Lexeme::RBracket)?;
 
                 self.expect(Lexeme::LParen)?;
@@ -457,7 +468,7 @@ impl Parser {
 
                 Ok(Source::span(
                     Expr::New {
-                        ty: Source::span(Type::Ptr(Box::new(ty.data)), ty.span),
+                        ty,
                         argument: Box::new(expr),
                     },
                     span,
@@ -776,9 +787,9 @@ impl Parser {
 
                         current = Source::new_span(
                             Expr::Project {
+                                expr_ty: Type::Unknown,
                                 expr: Box::new(current),
                                 field,
-                                struct_name: None,
                             },
                             start,
                             end,

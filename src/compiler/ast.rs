@@ -108,7 +108,7 @@ pub enum Expr {
         fields: Vec<(Source<String>, Source<Expr>)>,
     },
     Project {
-        struct_name: Option<String>,
+        expr_ty: Type,
         expr: Box<Source<Expr>>,
         field: Source<String>,
     },
@@ -169,11 +169,13 @@ pub enum Type {
     Int,
     Float,
     Ptr(Box<Type>),
+    Array(Box<Type>),
     Fun(Vec<Type>, Box<Type>),
     Struct {
         name: String,
         fields: Vec<(String, Type)>,
     },
+    Ident(String),
 }
 
 impl Type {
@@ -182,5 +184,12 @@ impl Type {
             Type::Struct { fields, .. } => Some(fields),
             _ => None,
         }
+    }
+
+    pub fn fields_array(item: Box<Type>) -> Vec<(String, Type)> {
+        vec![
+            ("ptr".to_string(), Type::Ptr(item)),
+            ("length".to_string(), Type::Int),
+        ]
     }
 }
