@@ -1,5 +1,5 @@
 use super::{
-    ast::{BinOp, Block, Declaration, Expr, Literal, Module, Source, Statement},
+    ast::{BinOp, Block, Declaration, Expr, Literal, Module, Source, Statement, Type},
     ir::{IrDecl, IrModule, IrOp, IrTerm},
 };
 
@@ -66,7 +66,7 @@ impl IrCodeGenerator {
 
                 Ok(IrDecl::Fun {
                     name: name.data,
-                    args: params.into_iter().map(|p| p.data).collect(),
+                    args: params.into_iter().map(|p| p.0.data).collect(),
                     body: Box::new(body),
                 })
             }
@@ -90,22 +90,35 @@ impl IrCodeGenerator {
                 Literal::Float(f) => Ok(IrTerm::Float(f.data)),
                 Literal::Bool(b) => Ok(IrTerm::Integer(if b.data { 1 } else { 0 })),
             },
-            Expr::BinOp { op, left, right } => {
+            Expr::BinOp {
+                ty,
+                op,
+                left,
+                right,
+            } => {
                 let left = self.expr(*left)?;
                 let right = self.expr(*right)?;
-                let op = match op.data {
-                    BinOp::Add => IrOp::Add,
-                    BinOp::Sub => IrOp::Sub,
-                    BinOp::Mul => IrOp::Mul,
-                    BinOp::Div => IrOp::Div,
-                    BinOp::And => IrOp::And,
-                    BinOp::Or => IrOp::Or,
-                    BinOp::Eq => IrOp::Eq,
-                    BinOp::Lt => IrOp::Lt,
-                    BinOp::Gt => IrOp::Gt,
-                    BinOp::Le => IrOp::Le,
-                    BinOp::Ge => IrOp::Ge,
-                    BinOp::NotEq => IrOp::NotEq,
+                let op = match (op.data, ty) {
+                    (BinOp::Add, Type::Int) => IrOp::AddInt,
+                    (BinOp::Add, Type::Float) => IrOp::AddFloat,
+                    (BinOp::Add, p) => todo!("{:?}", p),
+                    (BinOp::Sub, Type::Int) => IrOp::SubInt,
+                    (BinOp::Sub, Type::Float) => IrOp::SubFloat,
+                    (BinOp::Sub, p) => todo!("{:?}", p),
+                    (BinOp::Mul, Type::Int) => IrOp::MulInt,
+                    (BinOp::Mul, Type::Float) => IrOp::MulFloat,
+                    (BinOp::Mul, p) => todo!("{:?}", p),
+                    (BinOp::Div, Type::Int) => IrOp::DivInt,
+                    (BinOp::Div, Type::Float) => IrOp::DivFloat,
+                    (BinOp::Div, p) => todo!("{:?}", p),
+                    (BinOp::And, _) => IrOp::And,
+                    (BinOp::Or, _) => IrOp::Or,
+                    (BinOp::Eq, _) => IrOp::Eq,
+                    (BinOp::Lt, _) => IrOp::Lt,
+                    (BinOp::Gt, _) => IrOp::Gt,
+                    (BinOp::Le, _) => IrOp::Le,
+                    (BinOp::Ge, _) => IrOp::Ge,
+                    (BinOp::NotEq, _) => IrOp::NotEq,
                 };
 
                 Ok(IrTerm::Op {
@@ -159,7 +172,7 @@ impl IrCodeGenerator {
                 Ok(IrTerm::Index {
                     array: Box::new(array),
                     index: Box::new(IrTerm::Op {
-                        op: IrOp::Mul,
+                        op: IrOp::MulInt,
                         args: vec![index, IrTerm::Integer(4)],
                     }),
                 })
@@ -238,7 +251,7 @@ impl IrCodeGenerator {
 
 #[cfg(test)]
 mod tests {
-    use crate::compiler::{lexer::Lexer, parser::Parser};
+    use crate::compiler::{lexer::Lexer, parser::Parser, typechecker::Typechecker};
 
     use super::*;
 
@@ -248,11 +261,11 @@ mod tests {
             (
                 "1 + 3 * 4",
                 IrTerm::Op {
-                    op: IrOp::Add,
+                    op: IrOp::AddInt,
                     args: vec![
                         IrTerm::Integer(1),
                         IrTerm::Op {
-                            op: IrOp::Mul,
+                            op: IrOp::MulInt,
                             args: vec![IrTerm::Integer(3), IrTerm::Integer(4)],
                         },
                     ],
@@ -261,10 +274,10 @@ mod tests {
             (
                 "1 * 3 - 4",
                 IrTerm::Op {
-                    op: IrOp::Sub,
+                    op: IrOp::SubInt,
                     args: vec![
                         IrTerm::Op {
-                            op: IrOp::Mul,
+                            op: IrOp::MulInt,
                             args: vec![IrTerm::Integer(1), IrTerm::Integer(3)],
                         },
                         IrTerm::Integer(4),
@@ -285,7 +298,10 @@ mod tests {
         for (input, expected) in cases {
             let mut lexer = Lexer::new(input.to_string());
             let mut parser = Parser::new(lexer.run().unwrap());
-            let ir = gen.expr(parser.expr().unwrap()).unwrap();
+            let mut expr = parser.expr().unwrap();
+            let mut typechecker = Typechecker::new();
+            typechecker.expr(&mut expr).unwrap();
+            let ir = gen.expr(expr).unwrap();
 
             assert_eq!(ir, expected);
         }
@@ -309,7 +325,7 @@ mod tests {
                         IrTerm::Let {
                             name: "c".to_string(),
                             value: Box::new(IrTerm::Op {
-                                op: IrOp::Add,
+                                op: IrOp::AddInt,
                                 args: vec![
                                     IrTerm::Load(Box::new(IrTerm::Ident("a".to_string()))),
                                     IrTerm::Load(Box::new(IrTerm::Ident("b".to_string()))),
@@ -368,7 +384,11 @@ mod tests {
         for (input, expected) in cases {
             let mut lexer = Lexer::new(input.to_string());
             let mut parser = Parser::new(lexer.run().unwrap());
-            let ir = gen.block(parser.block(None).unwrap()).unwrap();
+            let mut block = parser.block(None).unwrap();
+            let mut typechecker = Typechecker::new();
+            typechecker.block(&mut block).unwrap();
+
+            let ir = gen.block(block).unwrap();
 
             assert_eq!(ir, expected, "input: {}", input);
         }

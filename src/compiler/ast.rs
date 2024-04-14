@@ -81,6 +81,7 @@ pub enum Expr {
     Ident(Source<String>),
     Lit(Source<Literal>),
     BinOp {
+        ty: Type,
         op: Source<BinOp>,
         left: Box<Source<Expr>>,
         right: Box<Source<Expr>>,
@@ -128,7 +129,7 @@ pub struct Block {
 pub enum Declaration {
     Function {
         name: Source<String>,
-        params: Vec<Source<String>>,
+        params: Vec<(Source<String>, Source<Type>)>,
         body: Source<Block>,
     },
     Let {

@@ -51,7 +51,7 @@ impl Typechecker {
 
     fn expr_infer(
         &mut self,
-        expr: &Source<Expr>,
+        expr: &mut Source<Expr>,
         expected: Type,
     ) -> Result<Type, TypecheckerError> {
         let span = expr.span.clone();
@@ -59,15 +59,20 @@ impl Typechecker {
         Self::unify(expected, actual, span)
     }
 
-    fn expr(&mut self, expr: &Source<Expr>) -> Result<Type, TypecheckerError> {
-        match &expr.data {
+    pub fn expr(&mut self, expr: &mut Source<Expr>) -> Result<Type, TypecheckerError> {
+        match &mut expr.data {
             Expr::Ident(i) => Ok(self.get_type(i)?),
             Expr::Lit(lit) => Ok(match lit.data {
                 Literal::Bool(_) => Type::Bool,
                 Literal::Integer(_) => Type::Int,
                 Literal::Float(_) => Type::Float,
             }),
-            Expr::BinOp { op, left, right } => {
+            Expr::BinOp {
+                ty: expr_ty,
+                op,
+                left,
+                right,
+            } => {
                 let left_ty = self.expr(left)?;
                 let right_ty = self.expr(right)?;
 
@@ -82,11 +87,15 @@ impl Typechecker {
                             }
                         }
 
+                        *expr_ty = result.clone();
+
                         Ok(result)
                     }
                     BinOp::And | BinOp::Or => {
                         Self::unify(Type::Bool, left_ty, op.span.clone())?;
                         Self::unify(Type::Bool, right_ty, op.span.clone())?;
+
+                        *expr_ty = Type::Bool;
 
                         Ok(Type::Bool)
                     }
@@ -99,6 +108,8 @@ impl Typechecker {
                                 return Err(TypecheckerError::NumericTypeExpected(result));
                             }
                         }
+
+                        *expr_ty = result;
 
                         Ok(Type::Bool)
                     }
@@ -159,8 +170,8 @@ impl Typechecker {
         }
     }
 
-    fn statement(&mut self, stmt: &Source<Statement>) -> Result<(), TypecheckerError> {
-        match &stmt.data {
+    fn statement(&mut self, stmt: &mut Source<Statement>) -> Result<(), TypecheckerError> {
+        match &mut stmt.data {
             Statement::Let(name, value) => {
                 let ty = self.expr(value)?;
                 self.types.insert(name.data.clone(), ty);
@@ -197,7 +208,7 @@ impl Typechecker {
 
     fn block_infer(
         &mut self,
-        block: &Source<Block>,
+        block: &mut Source<Block>,
         expected: Type,
     ) -> Result<Type, TypecheckerError> {
         let span = block.span.clone();
@@ -205,27 +216,28 @@ impl Typechecker {
         Self::unify(expected, actual, span)
     }
 
-    fn block(&mut self, block: &Source<Block>) -> Result<Type, TypecheckerError> {
-        for stmt in &block.data.statements {
+    pub fn block(&mut self, block: &mut Source<Block>) -> Result<Type, TypecheckerError> {
+        for stmt in &mut block.data.statements {
             self.statement(stmt)?;
         }
 
-        if let Some(expr) = &block.data.expr {
+        if let Some(expr) = &mut block.data.expr {
             Ok(self.expr(expr)?)
         } else {
             Ok(Type::Nil)
         }
     }
 
-    fn decl(&mut self, decl: &Source<Declaration>) -> Result<(), TypecheckerError> {
-        match &decl.data {
+    fn decl(&mut self, decl: &mut Source<Declaration>) -> Result<(), TypecheckerError> {
+        match &mut decl.data {
             Declaration::Function { name, params, body } => {
                 let types_cloned = self.types.clone();
                 let mut param_types = vec![];
 
                 for param in params {
                     param_types.push(Type::Unknown);
-                    self.types.insert(param.data.clone(), Type::Unknown);
+                    self.types
+                        .insert(param.0.data.clone(), param.1.data.clone());
                 }
 
                 self.return_ty = Type::Unknown;
@@ -246,8 +258,8 @@ impl Typechecker {
         Ok(())
     }
 
-    pub fn module(&mut self, module: &Module) -> Result<(), TypecheckerError> {
-        for decl in &module.declarations {
+    pub fn module(&mut self, module: &mut Module) -> Result<(), TypecheckerError> {
+        for decl in &mut module.declarations {
             self.decl(decl)?;
         }
 

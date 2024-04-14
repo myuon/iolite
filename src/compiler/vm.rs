@@ -7,10 +7,14 @@ pub enum InstructionError {
 
 #[derive(Debug, Clone, PartialEq)]
 pub enum Instruction {
-    Add,
-    Sub,
-    Mul,
-    Div,
+    AddInt,
+    SubInt,
+    MulInt,
+    DivInt,
+    AddFloat,
+    SubFloat,
+    MulFloat,
+    DivFloat,
     Load,
     Store,
     LoadBp,
@@ -54,10 +58,14 @@ impl Instruction {
             JumpIf => vec![0x06],
 
             // Arithmetic
-            Add => vec![0x10],
-            Sub => vec![0x11],
-            Mul => vec![0x12],
-            Div => vec![0x13],
+            AddInt => vec![0x10],
+            SubInt => vec![0x11],
+            MulInt => vec![0x12],
+            DivInt => vec![0x13],
+            AddFloat => vec![0x14],
+            SubFloat => vec![0x15],
+            MulFloat => vec![0x16],
+            DivFloat => vec![0x17],
 
             // Bitwise
             Xor => vec![0x20],
@@ -101,10 +109,14 @@ impl Instruction {
             0x05 => Instruction::Jump,
             0x06 => Instruction::JumpIf,
 
-            0x10 => Instruction::Add,
-            0x11 => Instruction::Sub,
-            0x12 => Instruction::Mul,
-            0x13 => Instruction::Div,
+            0x10 => Instruction::AddInt,
+            0x11 => Instruction::SubInt,
+            0x12 => Instruction::MulInt,
+            0x13 => Instruction::DivInt,
+            0x14 => Instruction::AddFloat,
+            0x15 => Instruction::SubFloat,
+            0x16 => Instruction::MulFloat,
+            0x17 => Instruction::DivFloat,
 
             0x20 => Instruction::Xor,
             0x21 => Instruction::And,
@@ -142,10 +154,14 @@ impl Arbitrary for Instruction {
 
     fn arbitrary_with(_args: ()) -> Self::Strategy {
         prop_oneof![
-            Just(Instruction::Add),
-            Just(Instruction::Sub),
-            Just(Instruction::Mul),
-            Just(Instruction::Div),
+            Just(Instruction::AddInt),
+            Just(Instruction::SubInt),
+            Just(Instruction::MulInt),
+            Just(Instruction::DivInt),
+            Just(Instruction::AddFloat),
+            Just(Instruction::SubFloat),
+            Just(Instruction::MulFloat),
+            Just(Instruction::DivFloat),
             Just(Instruction::Load),
             Just(Instruction::Store),
             Just(Instruction::LoadBp),

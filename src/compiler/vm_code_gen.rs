@@ -58,7 +58,7 @@ impl VmCodeGenerator {
         self.emit(Instruction::LoadBp);
         // NOTE: 2 words for return address and return value
         self.emit(Instruction::Push((2 + index as u32) * 4));
-        self.emit(Instruction::Add);
+        self.emit(Instruction::AddInt);
 
         Ok(())
     }
@@ -68,7 +68,7 @@ impl VmCodeGenerator {
         self.emit(Instruction::LoadSp);
         if index > 1 {
             self.emit(Instruction::Push((index - 1) as u32 * 4));
-            self.emit(Instruction::Add);
+            self.emit(Instruction::AddInt);
         }
     }
 
@@ -126,7 +126,7 @@ impl VmCodeGenerator {
         use Instruction::*;
 
         match inst {
-            Add | Sub | Mul | Div => {
+            AddInt | SubInt | MulInt | DivInt | AddFloat | SubFloat | MulFloat | DivFloat => {
                 self.stack_pointer -= 1;
             }
             Load => {}
@@ -216,7 +216,7 @@ impl VmCodeGenerator {
             IrTerm::Index { array, index } => {
                 self.term(*array)?;
                 self.term(*index)?;
-                self.emit(Instruction::Add);
+                self.emit(Instruction::AddInt);
             }
             _ => todo!("term_left_value: {:?}", ir),
         }
@@ -252,10 +252,10 @@ impl VmCodeGenerator {
                 }
 
                 let op = match op {
-                    IrOp::Add => Instruction::Add,
-                    IrOp::Sub => Instruction::Sub,
-                    IrOp::Mul => Instruction::Mul,
-                    IrOp::Div => Instruction::Div,
+                    IrOp::AddInt => Instruction::AddInt,
+                    IrOp::SubInt => Instruction::SubInt,
+                    IrOp::MulInt => Instruction::MulInt,
+                    IrOp::DivInt => Instruction::DivInt,
                     IrOp::And => Instruction::And,
                     IrOp::Or => Instruction::Or,
                     IrOp::Eq => Instruction::Eq,
@@ -264,6 +264,10 @@ impl VmCodeGenerator {
                     IrOp::Le => Instruction::Le,
                     IrOp::Ge => Instruction::Ge,
                     IrOp::NotEq => Instruction::NotEq,
+                    IrOp::AddFloat => Instruction::AddFloat,
+                    IrOp::SubFloat => Instruction::SubFloat,
+                    IrOp::MulFloat => Instruction::MulFloat,
+                    IrOp::DivFloat => Instruction::DivFloat,
                 };
                 self.emit(op);
             }
@@ -282,7 +286,7 @@ impl VmCodeGenerator {
                 // copy the return value
                 self.emit(Instruction::LoadBp);
                 self.emit(Instruction::Push(4 * 2));
-                self.emit(Instruction::Add);
+                self.emit(Instruction::AddInt);
                 self.push_local(2);
                 self.emit(Instruction::Load);
                 self.emit(Instruction::Store);
@@ -364,7 +368,7 @@ impl VmCodeGenerator {
             IrTerm::Index { array, index } => {
                 self.term(*array)?;
                 self.term(*index)?;
-                self.emit(Instruction::Add);
+                self.emit(Instruction::AddInt);
             }
         }
 
@@ -428,31 +432,47 @@ mod tests {
         let cases = vec![
             (
                 IrTerm::Op {
-                    op: IrOp::Add,
+                    op: IrOp::AddInt,
                     args: vec![IrTerm::Integer(1), IrTerm::Integer(2)],
                 },
-                vec![Instruction::Push(1), Instruction::Push(2), Instruction::Add],
+                vec![
+                    Instruction::Push(1),
+                    Instruction::Push(2),
+                    Instruction::AddInt,
+                ],
             ),
             (
                 IrTerm::Op {
-                    op: IrOp::Sub,
+                    op: IrOp::SubInt,
                     args: vec![IrTerm::Integer(1), IrTerm::Integer(2)],
                 },
-                vec![Instruction::Push(1), Instruction::Push(2), Instruction::Sub],
+                vec![
+                    Instruction::Push(1),
+                    Instruction::Push(2),
+                    Instruction::SubInt,
+                ],
             ),
             (
                 IrTerm::Op {
-                    op: IrOp::Mul,
+                    op: IrOp::MulInt,
                     args: vec![IrTerm::Integer(1), IrTerm::Integer(2)],
                 },
-                vec![Instruction::Push(1), Instruction::Push(2), Instruction::Mul],
+                vec![
+                    Instruction::Push(1),
+                    Instruction::Push(2),
+                    Instruction::MulInt,
+                ],
             ),
             (
                 IrTerm::Op {
-                    op: IrOp::Div,
+                    op: IrOp::DivInt,
                     args: vec![IrTerm::Integer(1), IrTerm::Integer(2)],
                 },
-                vec![Instruction::Push(1), Instruction::Push(2), Instruction::Div],
+                vec![
+                    Instruction::Push(1),
+                    Instruction::Push(2),
+                    Instruction::DivInt,
+                ],
             ),
             (
                 IrTerm::Block {
@@ -477,10 +497,10 @@ mod tests {
                     Instruction::Load,
                     Instruction::LoadSp,
                     Instruction::Push(4),
-                    Instruction::Add,
+                    Instruction::AddInt,
                     Instruction::LoadSp,
                     Instruction::Push(4),
-                    Instruction::Add,
+                    Instruction::AddInt,
                     Instruction::Load,
                     Instruction::Store,
                     Instruction::Pop,

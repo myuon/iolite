@@ -1,5 +1,5 @@
 use super::{
-    ast::{BinOp, Block, Declaration, Expr, Literal, Source, Span, Statement},
+    ast::{BinOp, Block, Declaration, Expr, Literal, Source, Span, Statement, Type},
     lexer::{Lexeme, Token},
 };
 
@@ -82,7 +82,22 @@ impl Parser {
         Ok(decls)
     }
 
-    fn arity_decl(&mut self) -> Result<Vec<Source<String>>, ParseError> {
+    fn ty(&mut self) -> Result<Source<Type>, ParseError> {
+        let token = self.consume()?;
+        match token.lexeme {
+            Lexeme::Ident(i) if i == "int".to_string() => Ok(Source::span(Type::Int, token.span)),
+            Lexeme::Ident(i) if i == "bool".to_string() => Ok(Source::span(Type::Bool, token.span)),
+            Lexeme::Ident(i) if i == "float".to_string() => {
+                Ok(Source::span(Type::Float, token.span))
+            }
+            _ => Err(ParseError::UnexpectedToken {
+                expected: None,
+                got: token,
+            }),
+        }
+    }
+
+    fn arity_decl(&mut self) -> Result<Vec<(Source<String>, Source<Type>)>, ParseError> {
         let mut args = vec![];
 
         while let Ok(token) = self.peek() {
@@ -91,7 +106,9 @@ impl Parser {
             }
 
             let arg = self.ident()?;
-            args.push(arg);
+            self.expect(Lexeme::Colon)?;
+            let ty = self.ty()?;
+            args.push((arg, ty));
 
             if matches!(self.peek().map(|t| &t.lexeme), Ok(&Lexeme::Comma)) {
                 self.consume()?;
@@ -418,6 +435,7 @@ impl Parser {
 
                     current = Source::new_span(
                         Expr::BinOp {
+                            ty: Type::Unknown,
                             op: Source::span(BinOp::Or, token.span),
                             left: Box::new(current),
                             right: Box::new(right),
@@ -449,6 +467,7 @@ impl Parser {
 
                     current = Source::new_span(
                         Expr::BinOp {
+                            ty: Type::Unknown,
                             op: Source::span(BinOp::And, token.span),
                             left: Box::new(current),
                             right: Box::new(right),
@@ -480,6 +499,7 @@ impl Parser {
 
                     current = Source::new_span(
                         Expr::BinOp {
+                            ty: Type::Unknown,
                             op: Source::span(BinOp::Le, token.span),
                             left: Box::new(current),
                             right: Box::new(right),
@@ -496,6 +516,7 @@ impl Parser {
 
                     current = Source::new_span(
                         Expr::BinOp {
+                            ty: Type::Unknown,
                             op: Source::span(BinOp::Ge, token.span),
                             left: Box::new(current),
                             right: Box::new(right),
@@ -512,6 +533,7 @@ impl Parser {
 
                     current = Source::new_span(
                         Expr::BinOp {
+                            ty: Type::Unknown,
                             op: Source::span(BinOp::Lt, token.span),
                             left: Box::new(current),
                             right: Box::new(right),
@@ -528,6 +550,7 @@ impl Parser {
 
                     current = Source::new_span(
                         Expr::BinOp {
+                            ty: Type::Unknown,
                             op: Source::span(BinOp::Gt, token.span),
                             left: Box::new(current),
                             right: Box::new(right),
@@ -544,6 +567,7 @@ impl Parser {
 
                     current = Source::new_span(
                         Expr::BinOp {
+                            ty: Type::Unknown,
                             op: Source::span(BinOp::Eq, token.span),
                             left: Box::new(current),
                             right: Box::new(right),
@@ -560,6 +584,7 @@ impl Parser {
 
                     current = Source::new_span(
                         Expr::BinOp {
+                            ty: Type::Unknown,
                             op: Source::span(BinOp::NotEq, token.span),
                             left: Box::new(current),
                             right: Box::new(right),
@@ -591,6 +616,7 @@ impl Parser {
 
                     current = Source::new_span(
                         Expr::BinOp {
+                            ty: Type::Unknown,
                             op: Source::span(BinOp::Add, token.span),
                             left: Box::new(current),
                             right: Box::new(right),
@@ -607,6 +633,7 @@ impl Parser {
 
                     current = Source::new_span(
                         Expr::BinOp {
+                            ty: Type::Unknown,
                             op: Source::span(BinOp::Sub, token.span),
                             left: Box::new(current),
                             right: Box::new(right),
@@ -638,6 +665,7 @@ impl Parser {
 
                     current = Source::new_span(
                         Expr::BinOp {
+                            ty: Type::Unknown,
                             op: Source::span(BinOp::Mul, token.span),
                             left: Box::new(current),
                             right: Box::new(right),
@@ -654,6 +682,7 @@ impl Parser {
 
                     current = Source::new_span(
                         Expr::BinOp {
+                            ty: Type::Unknown,
                             op: Source::span(BinOp::Div, token.span),
                             left: Box::new(current),
                             right: Box::new(right),
@@ -825,11 +854,13 @@ mod tests {
             (
                 "1 + 3 * 4",
                 Source::unknown(Expr::BinOp {
+                    ty: Type::Unknown,
                     op: Source::unknown(BinOp::Add),
                     left: Box::new(Source::unknown(Expr::Lit(Source::unknown(
                         Literal::Integer(Source::unknown(1)),
                     )))),
                     right: Box::new(Source::unknown(Expr::BinOp {
+                        ty: Type::Unknown,
                         op: Source::unknown(BinOp::Mul),
                         left: Box::new(Source::unknown(Expr::Lit(Source::unknown(
                             Literal::Integer(Source::unknown(3)),

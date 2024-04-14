@@ -1,9 +1,13 @@
 #[derive(Debug, PartialEq, Clone)]
 pub enum IrOp {
-    Add,
-    Sub,
-    Mul,
-    Div,
+    AddInt,
+    SubInt,
+    MulInt,
+    DivInt,
+    AddFloat,
+    SubFloat,
+    MulFloat,
+    DivFloat,
     And,
     Or,
     Eq,

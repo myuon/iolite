@@ -84,6 +84,11 @@ impl Runtime {
         self.store_i32(self.sp as u32, val);
     }
 
+    fn push_f32(&mut self, val: f32) {
+        self.sp -= 4;
+        self.memory[self.sp..(self.sp + 4)].copy_from_slice(&val.to_le_bytes());
+    }
+
     fn pop_address(&mut self) -> u32 {
         self.pop_i32() as u32
     }
@@ -190,6 +195,30 @@ impl Runtime {
                     let a = self.pop_i32();
                     let b = self.pop_i32();
                     self.push(b / a);
+                }
+                // addFloat
+                0x14 => {
+                    let a = self.pop_f32();
+                    let b = self.pop_f32();
+                    self.push_f32(b + a);
+                }
+                // subFloat
+                0x15 => {
+                    let a = self.pop_f32();
+                    let b = self.pop_f32();
+                    self.push_f32(b - a);
+                }
+                // mulFloat
+                0x16 => {
+                    let a = self.pop_f32();
+                    let b = self.pop_f32();
+                    self.push_f32(b * a);
+                }
+                // divFloat
+                0x17 => {
+                    let a = self.pop_f32();
+                    let b = self.pop_f32();
+                    self.push_f32(b / a);
                 }
 
                 // xor
