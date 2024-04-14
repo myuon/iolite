@@ -61,8 +61,6 @@ impl Compiler {
     }
 
     pub fn parse(input: String) -> Result<Vec<Source<Declaration>>, Box<dyn std::error::Error>> {
-        let input = format!("{}\n{}", include_str!("./std.io"), input.clone());
-
         let mut lexer = lexer::Lexer::new(input.clone());
         let mut parser = parser::Parser::new(lexer.run().unwrap());
         let expr = match parser.decls() {
@@ -130,6 +128,8 @@ impl Compiler {
     }
 
     pub fn compile(input: String) -> Result<Vec<u8>, Box<dyn std::error::Error>> {
+        let input = format!("{}\n{}", include_str!("./std.io"), input);
+
         let decls = Self::parse(input.clone())?;
         let mut module = Module {
             name: "main".to_string(),
@@ -210,7 +210,7 @@ mod tests {
 
     #[test]
     fn test_compile_expr_as_float() {
-        let cases = vec![("1.5", 1.5), ("1.5 + 1.5", 3.0)];
+        let cases = vec![("1.5", 1.5), ("1.5 + 1.5", 3.0), ("1.5 + 1.5 * 2.0", 4.5)];
 
         for (input, expected) in cases {
             println!("====== {}", input);
