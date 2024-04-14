@@ -5,7 +5,7 @@ use super::{
     vm::Instruction,
 };
 
-#[derive(Debug)]
+#[derive(Debug, PartialEq, Clone)]
 pub enum VmCodeGeneratorError {
     ArityNotFound(String),
     LocalNotFound(String),

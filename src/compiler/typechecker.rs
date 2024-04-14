@@ -2,7 +2,7 @@ use std::collections::HashMap;
 
 use super::ast::{BinOp, Block, Declaration, Expr, Literal, Module, Source, Span, Statement, Type};
 
-#[derive(Debug)]
+#[derive(Debug, PartialEq, Clone)]
 pub enum TypecheckerError {
     IdentNotFound(Source<String>),
     TypeMismatch {
@@ -290,7 +290,7 @@ impl Typechecker {
                 let mut param_types = vec![];
 
                 for param in params {
-                    param_types.push(Type::Unknown);
+                    param_types.push(param.1.data.clone());
                     self.types
                         .insert(param.0.data.clone(), param.1.data.clone());
                 }
@@ -334,5 +334,44 @@ impl Typechecker {
         }
 
         Ok(())
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use crate::compiler::{Compiler, CompilerError};
+
+    use super::*;
+
+    #[test]
+    fn test_typecheck_errors() {
+        let cases = vec![
+            (
+                r#"fun main() { x; }"#,
+                TypecheckerError::IdentNotFound(Source::unknown("x".to_string())),
+            ),
+            (
+                r#"fun f(a: int) { return a; }
+                fun main() { f(true); }"#,
+                TypecheckerError::TypeMismatch {
+                    expected: Type::Int,
+                    actual: Type::Bool,
+                    span: Span::unknown(),
+                },
+            ),
+        ];
+
+        for (input, error) in cases {
+            let result = Compiler::compile(input.to_string());
+
+            match result.err() {
+                Some(CompilerError::TypecheckError(err)) => {
+                    assert_eq!(err, error);
+                }
+                result => {
+                    assert!(false, "want {:?}, but got {:?}", error, result);
+                }
+            }
+        }
     }
 }

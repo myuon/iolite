@@ -2,11 +2,14 @@ use std::collections::HashMap;
 
 use self::{
     ast::{Declaration, Module, Source, Type},
-    byte_code_emitter::ByteCodeEmitter,
+    byte_code_emitter::{ByteCodeEmitter, ByteCodeEmitterError},
+    ir_code_gen::IrCodeGeneratorError,
+    lexer::LexerError,
     parser::ParseError,
     runtime::Runtime,
     typechecker::TypecheckerError,
     vm::Instruction,
+    vm_code_gen::VmCodeGeneratorError,
 };
 
 pub mod ast;
@@ -19,6 +22,16 @@ pub mod runtime;
 pub mod typechecker;
 pub mod vm;
 pub mod vm_code_gen;
+
+#[derive(Debug)]
+pub enum CompilerError {
+    LexerError(LexerError),
+    ParseError(ParseError),
+    TypecheckError(TypecheckerError),
+    IrCodeGeneratorError(IrCodeGeneratorError),
+    VmCodeGeneratorError(VmCodeGeneratorError),
+    ByteCodeEmitterError(ByteCodeEmitterError),
+}
 
 pub struct Compiler {}
 
@@ -42,34 +55,28 @@ impl Compiler {
         (line, col)
     }
 
-    fn print_parse_error(input: &str, error: ParseError) {
-        match error.clone() {
-            ParseError::UnexpectedEos => {
-                eprintln!("Unexpected end of input");
-            }
-            ParseError::UnexpectedToken { got, .. } => {
-                let (line, col) = Self::find_position(input, got.position);
-
-                eprintln!(
-                    "Error at line {}, column {}: {:?}\n\n{}\n{}^",
-                    line,
-                    col,
-                    error,
-                    input.lines().collect::<Vec<_>>().join(" "),
-                    " ".repeat(got.position)
-                );
-            }
-        }
-    }
-
-    pub fn parse(input: String) -> Result<Vec<Source<Declaration>>, Box<dyn std::error::Error>> {
+    pub fn parse(input: String) -> Result<Vec<Source<Declaration>>, CompilerError> {
         let mut lexer = lexer::Lexer::new(input.clone());
-        let mut parser = parser::Parser::new(lexer.run().unwrap());
+        let mut parser = parser::Parser::new(lexer.run().map_err(CompilerError::LexerError)?);
         let expr = match parser.decls() {
             Ok(expr) => expr,
             Err(err) => {
-                Self::print_parse_error(&input, err);
-                return Err("Parse error".into());
+                match err.clone() {
+                    ParseError::UnexpectedToken { got, .. } => {
+                        let (line, col) = Self::find_position(&input, got.position);
+
+                        eprintln!(
+                            "Error at line {}, column {}\n\n{}\n{}^",
+                            line,
+                            col,
+                            input.lines().collect::<Vec<_>>().join(" "),
+                            " ".repeat(got.position)
+                        );
+                    }
+                    _ => {}
+                }
+
+                return Err(CompilerError::ParseError(err));
             }
         };
 
@@ -79,15 +86,13 @@ impl Compiler {
     pub fn typecheck(
         module: &mut Module,
         input: &str,
-    ) -> Result<HashMap<String, Type>, Box<dyn std::error::Error>> {
+    ) -> Result<HashMap<String, Type>, CompilerError> {
         let mut typechecker = typechecker::Typechecker::new();
         match typechecker.module(module) {
             Ok(_) => {}
             Err(err) => {
-                eprintln!("Type error: {:?}", err);
-
-                match err {
-                    TypecheckerError::TypeMismatch { span, .. } => {
+                match err.clone() {
+                    TypecheckerError::TypeMismatch { span, .. } if span.start.is_some() => {
                         let (line, col) = Self::find_position(input, span.start.unwrap());
                         eprintln!(
                             "Error at line {}, column {} ({})",
@@ -100,11 +105,11 @@ impl Compiler {
                             input.lines().collect::<Vec<_>>().join("\n"),
                             " ".repeat(col - 1)
                         );
-
-                        return Err("Type error".into());
                     }
                     _ => {}
                 }
+
+                return Err(CompilerError::TypecheckError(err));
             }
         }
 
@@ -114,30 +119,36 @@ impl Compiler {
     pub fn ir_code_gen(
         block: Module,
         types: HashMap<String, Type>,
-    ) -> Result<ir::IrModule, Box<dyn std::error::Error>> {
+    ) -> Result<ir::IrModule, CompilerError> {
         let mut ir_code_gen = ir_code_gen::IrCodeGenerator::new();
         ir_code_gen.set_types(types);
 
-        let ir = ir_code_gen.module(block).unwrap();
+        let ir = ir_code_gen
+            .module(block)
+            .map_err(CompilerError::IrCodeGeneratorError)?;
 
         Ok(ir)
     }
 
-    pub fn vm_code_gen(ir: ir::IrModule) -> Result<Vec<Instruction>, Box<dyn std::error::Error>> {
+    pub fn vm_code_gen(ir: ir::IrModule) -> Result<Vec<Instruction>, CompilerError> {
         let mut vm_code_gen = vm_code_gen::VmCodeGenerator::new();
-        vm_code_gen.program(ir).unwrap();
+        vm_code_gen
+            .program(ir)
+            .map_err(CompilerError::VmCodeGeneratorError)?;
 
         Ok(vm_code_gen.code)
     }
 
-    pub fn byte_code_gen(code: Vec<Instruction>) -> Result<Vec<u8>, Box<dyn std::error::Error>> {
+    pub fn byte_code_gen(code: Vec<Instruction>) -> Result<Vec<u8>, CompilerError> {
         let mut emitter = ByteCodeEmitter::new();
-        emitter.exec(code).unwrap();
+        emitter
+            .exec(code)
+            .map_err(CompilerError::ByteCodeEmitterError)?;
 
         Ok(emitter.buffer)
     }
 
-    pub fn compile(input: String) -> Result<Vec<u8>, Box<dyn std::error::Error>> {
+    pub fn compile(input: String) -> Result<Vec<u8>, CompilerError> {
         let input = format!("{}\n{}", include_str!("./std.io"), input);
 
         let decls = Self::parse(input.clone())?;
@@ -154,18 +165,18 @@ impl Compiler {
         Ok(binary)
     }
 
-    pub fn run(input: String) -> Result<i32, Box<dyn std::error::Error>> {
+    pub fn run(input: String) -> Result<i32, CompilerError> {
         let program = Self::compile(input)?;
         Self::run_vm(program)
     }
 
-    pub fn run_vm(program: Vec<u8>) -> Result<i32, Box<dyn std::error::Error>> {
+    pub fn run_vm(program: Vec<u8>) -> Result<i32, CompilerError> {
         let mut runtime = Self::exec_vm(program)?;
 
         Ok(runtime.pop_i32())
     }
 
-    fn exec_vm(program: Vec<u8>) -> Result<Runtime, Box<dyn std::error::Error>> {
+    fn exec_vm(program: Vec<u8>) -> Result<Runtime, CompilerError> {
         let mut runtime = Runtime::new(1024, program);
         runtime.exec().unwrap();
 

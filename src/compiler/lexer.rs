@@ -54,7 +54,7 @@ pub struct Token {
     pub span: Span,
 }
 
-#[derive(Debug)]
+#[derive(Debug, PartialEq, Clone)]
 pub enum LexerError {
     InvalidCharacter(char),
 }

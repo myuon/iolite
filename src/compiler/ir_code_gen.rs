@@ -7,7 +7,7 @@ use super::{
     ir::{IrDecl, IrModule, IrOp, IrTerm},
 };
 
-#[derive(Debug)]
+#[derive(Debug, PartialEq, Clone)]
 pub enum IrCodeGeneratorError {}
 
 #[derive(Debug)]
