@@ -189,6 +189,7 @@ pub enum Type {
         fields: Vec<(String, Type)>,
     },
     Ident(String),
+    Byte,
 }
 
 impl Type {

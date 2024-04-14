@@ -248,10 +248,10 @@ impl VmCodeGenerator {
 
                 match op {
                     IrOp::IntToPointer => {
-                        self.convert_int_to_pointer();
+                        // self.convert_int_to_pointer();
                     }
                     IrOp::PointerToInt => {
-                        self.convert_pointer_to_int();
+                        // self.convert_pointer_to_int();
                     }
                     _ => {
                         let op = match op {

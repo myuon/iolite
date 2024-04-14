@@ -95,6 +95,7 @@ impl Parser {
         match token.lexeme {
             Lexeme::Ident(i) if i == "int".to_string() => Ok(Source::span(Type::Int, token.span)),
             Lexeme::Ident(i) if i == "bool".to_string() => Ok(Source::span(Type::Bool, token.span)),
+            Lexeme::Ident(i) if i == "byte".to_string() => Ok(Source::span(Type::Byte, token.span)),
             Lexeme::Ident(i) if i == "float".to_string() => {
                 Ok(Source::span(Type::Float, token.span))
             }
