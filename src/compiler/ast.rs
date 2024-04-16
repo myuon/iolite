@@ -57,6 +57,7 @@ impl<T> Source<T> {
 
 #[derive(Debug, PartialEq, Clone)]
 pub enum Literal {
+    Nil,
     Bool(Source<bool>),
     Integer(Source<i32>),
     Float(Source<f32>),

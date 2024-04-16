@@ -44,6 +44,7 @@ pub enum Instruction {
     JumpIfTo(String),
     CallLabel(String),
     Debug(String),
+    Nop,
 }
 
 impl Instruction {
@@ -58,6 +59,7 @@ impl Instruction {
             Return => vec![0x04],
             Jump => vec![0x05],
             JumpIf => vec![0x06],
+            Nop => vec![0x07],
 
             // Arithmetic
             AddInt => vec![0x10],
@@ -114,6 +116,7 @@ impl Instruction {
             0x04 => Instruction::Return,
             0x05 => Instruction::Jump,
             0x06 => Instruction::JumpIf,
+            0x07 => Instruction::Nop,
 
             0x10 => Instruction::AddInt,
             0x11 => Instruction::SubInt,
@@ -195,6 +198,7 @@ impl Arbitrary for Instruction {
             Just(Instruction::Ge),
             Just(Instruction::IntToFloat),
             Just(Instruction::FloatToInt),
+            Just(Instruction::Nop),
         ]
         .boxed()
     }

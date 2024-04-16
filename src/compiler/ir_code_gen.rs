@@ -151,6 +151,7 @@ impl IrCodeGenerator {
     pub fn expr(&self, expr: Source<Expr>) -> Result<IrTerm, IrCodeGeneratorError> {
         match expr.data {
             Expr::Lit(lit) => match lit.data {
+                Literal::Nil => Ok(IrTerm::Nil),
                 Literal::Integer(i) => Ok(IrTerm::Int(i.data)),
                 Literal::Float(f) => Ok(IrTerm::Float(f.data)),
                 Literal::Bool(b) => Ok(self.slice(IrTerm::tagged_bool(b.data))),

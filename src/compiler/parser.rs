@@ -936,6 +936,14 @@ impl Parser {
                     token.span,
                 ))
             }
+            Lexeme::Nil => {
+                self.consume()?;
+
+                Ok(Source::span(
+                    Expr::Lit(Source::span(Literal::Nil, token.span.clone())),
+                    token.span,
+                ))
+            }
             Lexeme::Ident(i) => {
                 self.consume()?;
 

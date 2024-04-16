@@ -102,6 +102,7 @@ impl Typechecker {
         match &mut expr.data {
             Expr::Ident(i) => Ok(self.get_type(i)?),
             Expr::Lit(lit) => Ok(match lit.data {
+                Literal::Nil => Type::Nil,
                 Literal::Bool(_) => Type::Bool,
                 Literal::Integer(_) => Type::Int,
                 Literal::Float(_) => Type::Float,

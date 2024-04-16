@@ -174,6 +174,9 @@ impl VmCodeGenerator {
                 self.stack_pointer -= 1;
             }
             Debug(_) => {}
+            Nop => {}
+            Call => todo!(),
+            Return => todo!(),
         }
 
         self.code.push(inst);
@@ -291,7 +294,7 @@ impl VmCodeGenerator {
 
                 // copy the return value
                 self.emit(Instruction::LoadBp);
-                self.emit(Instruction::Push(4 * 2));
+                self.emit(Instruction::Push(4 * (2 + self.arity.len() as u32)));
                 self.emit(Instruction::AddInt);
                 self.push_local(2);
                 self.emit(Instruction::Load);
@@ -364,12 +367,19 @@ impl VmCodeGenerator {
                     "allocated for the return value".to_string(),
                 ));
 
+                let args_len = args.len();
+
                 // NOTE: push args in the reverse order
                 for arg in args.into_iter().rev() {
                     self.term(arg)?;
                 }
 
                 self.emit(Instruction::CallLabel(name));
+
+                // NOTE: pop arity
+                for _ in 0..args_len {
+                    self.emit(Instruction::Pop);
+                }
             }
             IrTerm::Index { ptr, index } => {
                 self.term(*ptr)?;

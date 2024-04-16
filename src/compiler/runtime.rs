@@ -114,21 +114,22 @@ impl Runtime {
     }
 
     fn print_stack(&self, next: &Instruction) {
-        let mut p = self.sp;
-        while p < self.memory.len() {
+        let mut p = self.memory.len() - 4;
+        print!("|");
+        while p >= self.sp {
             let val = self.load_i32(p as u32);
 
             if p == self.sp {
-                print!("S {:>4} ", val as u32);
+                print!(" {:>4} S", val as i32);
             } else if p == self.bp {
-                print!("B {:>4} ", val as u32);
+                print!(" {:>4} B", val as i32);
             } else {
-                print!("| {:>4} ", val as u32);
+                print!(" {:>4} |", val as i32);
             }
-            p += 4;
+            p -= 4;
         }
 
-        println!("| next: {:?}", next);
+        println!("   next: {:?}", next);
     }
 
     fn consume(&mut self) -> u8 {
@@ -141,7 +142,8 @@ impl Runtime {
     pub fn exec(&mut self) -> Result<(), RuntimeError> {
         while self.pc < self.program.len() && self.pc < 0xffffffff {
             self.print_stack(&{
-                let inst = Instruction::from_byte(&self.program[self.pc..]).unwrap();
+                let inst =
+                    Instruction::from_byte(&self.program[self.pc..]).unwrap_or(Instruction::Nop);
 
                 match inst {
                     Instruction::Push(_) => Instruction::Push(u32::from_le_bytes([
@@ -191,6 +193,8 @@ impl Runtime {
                         self.pc = address as usize;
                     }
                 }
+                // nop
+                0x07 => {}
 
                 // add
                 0x10 => {

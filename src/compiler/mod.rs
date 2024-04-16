@@ -470,6 +470,22 @@ mod tests {
             }"#,
                 7,
             ),
+            (
+                r#"
+            let global = 0;
+            fun f(x: int, y: int) {
+                global = x + y;
+
+                return nil;
+            }
+
+            fun main() {
+                f(10, 20);
+
+                return global;
+            }"#,
+                30,
+            ),
         ];
 
         for (input, expected) in cases {
