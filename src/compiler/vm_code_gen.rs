@@ -280,7 +280,7 @@ impl VmCodeGenerator {
                     }
                 }
             }
-            IrTerm::Block { terms } => {
+            IrTerm::Items(terms) => {
                 self.new_scope();
 
                 for term in terms {
@@ -491,19 +491,17 @@ mod tests {
                 ],
             ),
             (
-                IrTerm::Block {
-                    terms: vec![
-                        IrTerm::Let {
-                            name: "a".to_string(),
-                            value: Box::new(IrTerm::Int(1)),
-                        },
-                        IrTerm::Store(
-                            Box::new(IrTerm::Ident("a".to_string())),
-                            Box::new(IrTerm::Int(2)),
-                        ),
-                        IrTerm::Load(Box::new(IrTerm::Ident("a".to_string()))),
-                    ],
-                },
+                IrTerm::Items(vec![
+                    IrTerm::Let {
+                        name: "a".to_string(),
+                        value: Box::new(IrTerm::Int(1)),
+                    },
+                    IrTerm::Store(
+                        Box::new(IrTerm::Ident("a".to_string())),
+                        Box::new(IrTerm::Int(2)),
+                    ),
+                    IrTerm::Load(Box::new(IrTerm::Ident("a".to_string()))),
+                ]),
                 vec![
                     Instruction::Push(1),
                     Instruction::LoadSp,

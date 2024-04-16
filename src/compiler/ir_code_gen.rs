@@ -62,7 +62,7 @@ impl IrCodeGenerator {
 
         block.push(IrTerm::Load(Box::new(IrTerm::Ident(ident_name))));
 
-        IrTerm::Block { terms: block }
+        IrTerm::Items(block)
     }
 
     fn load_value_data(&self, term: IrTerm) -> IrTerm {
@@ -94,9 +94,7 @@ impl IrCodeGenerator {
         decls.push(IrDecl::Fun {
             name: "init".to_string(),
             args: vec![],
-            body: Box::new(IrTerm::Block {
-                terms: self.init_function.clone(),
-            }),
+            body: Box::new(IrTerm::Items(self.init_function.clone())),
         });
 
         Ok(IrModule {
@@ -112,15 +110,13 @@ impl IrCodeGenerator {
                     let term = self.block(body)?;
 
                     if name.data == "main" {
-                        IrTerm::Block {
-                            terms: vec![
-                                IrTerm::Call {
-                                    name: "init".to_string(),
-                                    args: vec![],
-                                },
-                                term,
-                            ],
-                        }
+                        IrTerm::Items(vec![
+                            IrTerm::Call {
+                                name: "init".to_string(),
+                                args: vec![],
+                            },
+                            term,
+                        ])
                     } else {
                         term
                     }
@@ -523,7 +519,7 @@ impl IrCodeGenerator {
                     let then = self.block(then)?;
                     let else_ = match else_ {
                         Some(block) => self.block(block)?,
-                        None => IrTerm::Block { terms: vec![] },
+                        None => IrTerm::Items(vec![]),
                     };
 
                     terms.push(IrTerm::If {
@@ -544,7 +540,7 @@ impl IrCodeGenerator {
             terms.push(IrTerm::Nil);
         }
 
-        Ok(IrTerm::Block { terms })
+        Ok(IrTerm::Items(terms))
     }
 }
 
@@ -611,70 +607,62 @@ mod tests {
         let cases = vec![
             (
                 "let a = 1; let b = 2; let c = a + b;",
-                IrTerm::Block {
-                    terms: vec![
-                        IrTerm::Let {
-                            name: "a".to_string(),
-                            value: Box::new(IrTerm::Int(1)),
-                        },
-                        IrTerm::Let {
-                            name: "b".to_string(),
-                            value: Box::new(IrTerm::Int(2)),
-                        },
-                        IrTerm::Let {
-                            name: "c".to_string(),
-                            value: Box::new(IrTerm::Op {
-                                op: IrOp::AddInt,
-                                args: vec![
-                                    IrTerm::Load(Box::new(IrTerm::Ident("a".to_string()))),
-                                    IrTerm::Load(Box::new(IrTerm::Ident("b".to_string()))),
-                                ],
-                            }),
-                        },
-                        IrTerm::Nil,
-                    ],
-                },
+                IrTerm::Items(vec![
+                    IrTerm::Let {
+                        name: "a".to_string(),
+                        value: Box::new(IrTerm::Int(1)),
+                    },
+                    IrTerm::Let {
+                        name: "b".to_string(),
+                        value: Box::new(IrTerm::Int(2)),
+                    },
+                    IrTerm::Let {
+                        name: "c".to_string(),
+                        value: Box::new(IrTerm::Op {
+                            op: IrOp::AddInt,
+                            args: vec![
+                                IrTerm::Load(Box::new(IrTerm::Ident("a".to_string()))),
+                                IrTerm::Load(Box::new(IrTerm::Ident("b".to_string()))),
+                            ],
+                        }),
+                    },
+                    IrTerm::Nil,
+                ]),
             ),
             (
                 "let a = 1; a = 2;",
-                IrTerm::Block {
-                    terms: vec![
-                        IrTerm::Let {
-                            name: "a".to_string(),
-                            value: Box::new(IrTerm::Int(1)),
-                        },
-                        IrTerm::Store(
-                            Box::new(IrTerm::Ident("a".to_string())),
-                            Box::new(IrTerm::Int(2)),
-                        ),
-                        IrTerm::Nil,
-                    ],
-                },
+                IrTerm::Items(vec![
+                    IrTerm::Let {
+                        name: "a".to_string(),
+                        value: Box::new(IrTerm::Int(1)),
+                    },
+                    IrTerm::Store(
+                        Box::new(IrTerm::Ident("a".to_string())),
+                        Box::new(IrTerm::Int(2)),
+                    ),
+                    IrTerm::Nil,
+                ]),
             ),
             (
                 "let a = 2; { let a = 3; a = 4; }; a",
-                IrTerm::Block {
-                    terms: vec![
+                IrTerm::Items(vec![
+                    IrTerm::Let {
+                        name: "a".to_string(),
+                        value: Box::new(IrTerm::Int(2)),
+                    },
+                    IrTerm::Items(vec![
                         IrTerm::Let {
                             name: "a".to_string(),
-                            value: Box::new(IrTerm::Int(2)),
+                            value: Box::new(IrTerm::Int(3)),
                         },
-                        IrTerm::Block {
-                            terms: vec![
-                                IrTerm::Let {
-                                    name: "a".to_string(),
-                                    value: Box::new(IrTerm::Int(3)),
-                                },
-                                IrTerm::Store(
-                                    Box::new(IrTerm::Ident("a".to_string())),
-                                    Box::new(IrTerm::Int(4)),
-                                ),
-                                IrTerm::Nil,
-                            ],
-                        },
-                        IrTerm::Load(Box::new(IrTerm::Ident("a".to_string()))),
-                    ],
-                },
+                        IrTerm::Store(
+                            Box::new(IrTerm::Ident("a".to_string())),
+                            Box::new(IrTerm::Int(4)),
+                        ),
+                        IrTerm::Nil,
+                    ]),
+                    IrTerm::Load(Box::new(IrTerm::Ident("a".to_string()))),
+                ]),
             ),
         ];
 

@@ -38,9 +38,7 @@ pub enum IrTerm {
         op: IrOp,
         args: Vec<IrTerm>,
     },
-    Block {
-        terms: Vec<IrTerm>,
-    },
+    Items(Vec<IrTerm>),
     Return(Box<IrTerm>),
     Load(Box<IrTerm>),
     Store(Box<IrTerm>, Box<IrTerm>),
