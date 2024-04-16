@@ -153,7 +153,7 @@ impl IrCodeGenerator {
             Expr::Lit(lit) => match lit.data {
                 Literal::Nil => Ok(IrTerm::Nil),
                 Literal::Integer(i) => Ok(IrTerm::Int(i.data)),
-                Literal::Float(f) => Ok(IrTerm::Float(f.data)),
+                Literal::Float(f) => Ok(self.slice(IrTerm::tagged_float(f.data))),
                 Literal::Bool(b) => Ok(self.slice(IrTerm::tagged_bool(b.data))),
             },
             Expr::BinOp {
@@ -166,16 +166,48 @@ impl IrCodeGenerator {
                 let right = self.expr(*right)?;
                 let op = match (op.data, ty) {
                     (BinOp::Add, Type::Int) => IrOp::AddInt,
-                    (BinOp::Add, Type::Float) => IrOp::AddFloat,
+                    (BinOp::Add, Type::Float) => {
+                        return Ok(self.slice(IrTerm::tagged_value(
+                            TypeTag::Float,
+                            IrTerm::Op {
+                                op: IrOp::AddFloat,
+                                args: vec![self.load_value_data(left), self.load_value_data(right)],
+                            },
+                        )));
+                    }
                     (BinOp::Add, p) => todo!("{:?}", p),
                     (BinOp::Sub, Type::Int) => IrOp::SubInt,
-                    (BinOp::Sub, Type::Float) => IrOp::SubFloat,
+                    (BinOp::Sub, Type::Float) => {
+                        return Ok(self.slice(IrTerm::tagged_value(
+                            TypeTag::Float,
+                            IrTerm::Op {
+                                op: IrOp::SubFloat,
+                                args: vec![self.load_value_data(left), self.load_value_data(right)],
+                            },
+                        )));
+                    }
                     (BinOp::Sub, p) => todo!("{:?}", p),
                     (BinOp::Mul, Type::Int) => IrOp::MulInt,
-                    (BinOp::Mul, Type::Float) => IrOp::MulFloat,
+                    (BinOp::Mul, Type::Float) => {
+                        return Ok(self.slice(IrTerm::tagged_value(
+                            TypeTag::Float,
+                            IrTerm::Op {
+                                op: IrOp::MulFloat,
+                                args: vec![self.load_value_data(left), self.load_value_data(right)],
+                            },
+                        )));
+                    }
                     (BinOp::Mul, p) => todo!("{:?}", p),
                     (BinOp::Div, Type::Int) => IrOp::DivInt,
-                    (BinOp::Div, Type::Float) => IrOp::DivFloat,
+                    (BinOp::Div, Type::Float) => {
+                        return Ok(self.slice(IrTerm::tagged_value(
+                            TypeTag::Float,
+                            IrTerm::Op {
+                                op: IrOp::DivFloat,
+                                args: vec![self.load_value_data(left), self.load_value_data(right)],
+                            },
+                        )));
+                    }
                     (BinOp::Div, p) => todo!("{:?}", p),
                     (BinOp::And, Type::Bool) => {
                         return Ok(self.slice(IrTerm::tagged_value(
@@ -197,12 +229,72 @@ impl IrCodeGenerator {
                         )));
                     }
                     (BinOp::Or, _) => todo!(),
-                    (BinOp::Eq, _) => IrOp::Eq,
-                    (BinOp::Lt, _) => IrOp::Lt,
-                    (BinOp::Gt, _) => IrOp::Gt,
-                    (BinOp::Le, _) => IrOp::Le,
-                    (BinOp::Ge, _) => IrOp::Ge,
-                    (BinOp::NotEq, _) => IrOp::NotEq,
+                    (BinOp::Eq, Type::Int) => IrOp::Eq,
+                    (BinOp::Eq, Type::Float) => {
+                        return Ok(self.slice(IrTerm::tagged_value(
+                            TypeTag::Bool,
+                            IrTerm::Op {
+                                op: IrOp::Eq,
+                                args: vec![self.load_value_data(left), self.load_value_data(right)],
+                            },
+                        )));
+                    }
+                    (BinOp::Eq, _) => todo!(),
+                    (BinOp::NotEq, Type::Int) => IrOp::NotEq,
+                    (BinOp::NotEq, Type::Float) => {
+                        return Ok(self.slice(IrTerm::tagged_value(
+                            TypeTag::Bool,
+                            IrTerm::Op {
+                                op: IrOp::NotEq,
+                                args: vec![self.load_value_data(left), self.load_value_data(right)],
+                            },
+                        )));
+                    }
+                    (BinOp::NotEq, _) => todo!(),
+                    (BinOp::Lt, Type::Int) => IrOp::Lt,
+                    (BinOp::Lt, Type::Float) => {
+                        return Ok(self.slice(IrTerm::tagged_value(
+                            TypeTag::Bool,
+                            IrTerm::Op {
+                                op: IrOp::Lt,
+                                args: vec![self.load_value_data(left), self.load_value_data(right)],
+                            },
+                        )));
+                    }
+                    (BinOp::Lt, _) => todo!(),
+                    (BinOp::Gt, Type::Int) => IrOp::Gt,
+                    (BinOp::Gt, Type::Float) => {
+                        return Ok(self.slice(IrTerm::tagged_value(
+                            TypeTag::Bool,
+                            IrTerm::Op {
+                                op: IrOp::Gt,
+                                args: vec![self.load_value_data(left), self.load_value_data(right)],
+                            },
+                        )));
+                    }
+                    (BinOp::Gt, _) => todo!(),
+                    (BinOp::Le, Type::Int) => IrOp::Le,
+                    (BinOp::Le, Type::Float) => {
+                        return Ok(self.slice(IrTerm::tagged_value(
+                            TypeTag::Bool,
+                            IrTerm::Op {
+                                op: IrOp::Le,
+                                args: vec![self.load_value_data(left), self.load_value_data(right)],
+                            },
+                        )));
+                    }
+                    (BinOp::Le, _) => todo!(),
+                    (BinOp::Ge, Type::Int) => IrOp::Ge,
+                    (BinOp::Ge, Type::Float) => {
+                        return Ok(self.slice(IrTerm::tagged_value(
+                            TypeTag::Bool,
+                            IrTerm::Op {
+                                op: IrOp::Ge,
+                                args: vec![self.load_value_data(left), self.load_value_data(right)],
+                            },
+                        )));
+                    }
+                    (BinOp::Ge, _) => todo!(),
                 };
 
                 Ok(IrTerm::Op {
@@ -270,13 +362,16 @@ impl IrCodeGenerator {
                 let expr = self.expr(*expr)?;
 
                 let term = match conversion.unwrap() {
-                    Conversion::IntToFloat => IrTerm::Op {
-                        op: IrOp::IntToFloat,
-                        args: vec![expr],
-                    },
+                    Conversion::IntToFloat => self.slice(IrTerm::tagged_value(
+                        TypeTag::Float,
+                        IrTerm::Op {
+                            op: IrOp::IntToFloat,
+                            args: vec![expr],
+                        },
+                    )),
                     Conversion::FloatToInt => IrTerm::Op {
                         op: IrOp::FloatToInt,
-                        args: vec![expr],
+                        args: vec![self.load_value_data(expr)],
                     },
                     Conversion::IntToPointer => IrTerm::Op {
                         op: IrOp::IntToPointer,
@@ -298,10 +393,13 @@ impl IrCodeGenerator {
                         op: IrOp::NegateInt,
                         args: vec![expr],
                     }),
-                    Type::Float => Ok(IrTerm::Op {
-                        op: IrOp::NegateFloat,
-                        args: vec![expr],
-                    }),
+                    Type::Float => Ok(self.slice(IrTerm::tagged_value(
+                        TypeTag::Float,
+                        IrTerm::Op {
+                            op: IrOp::NegateFloat,
+                            args: vec![self.load_value_data(expr)],
+                        },
+                    ))),
                     _ => todo!(),
                 }
             }

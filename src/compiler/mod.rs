@@ -241,26 +241,36 @@ mod tests {
             println!("====== {}", input);
             let program = Compiler::compile(format!("fun main() {{ return {}; }}", input)).unwrap();
             let mut runtime = Compiler::exec_vm(program).unwrap();
-            assert_eq!(runtime.pop_f32(), expected, "input: {}", input);
+            assert_eq!(
+                runtime.pop_value(),
+                Value::Float(expected),
+                "input: {}",
+                input
+            );
         }
     }
 
     #[test]
     fn test_compile_expr_as_value() {
         let cases = vec![
-            ("false && false", Value::Bool(false)),
-            ("true && false", Value::Bool(false)),
-            ("true && true", Value::Bool(true)),
-            ("false || false", Value::Bool(false)),
-            ("true || false", Value::Bool(true)),
-            ("true || true", Value::Bool(true)),
+            ("false && false", false),
+            ("true && false", false),
+            ("true && true", true),
+            ("false || false", false),
+            ("true || false", true),
+            ("true || true", true),
         ];
 
         for (input, expected) in cases {
             println!("====== {}", input);
             let program = Compiler::compile(format!("fun main() {{ return {}; }}", input)).unwrap();
             let mut runtime = Compiler::exec_vm(program).unwrap();
-            assert_eq!(runtime.pop_value(), expected, "input: {}", input);
+            assert_eq!(
+                runtime.pop_value(),
+                Value::Bool(expected),
+                "input: {}",
+                input
+            );
         }
     }
 
