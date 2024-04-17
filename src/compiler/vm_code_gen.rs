@@ -1,7 +1,7 @@
 use nanoid::nanoid;
 
 use super::{
-    ir::{IrDecl, IrModule, IrOp, IrTerm},
+    ir::{IrDecl, IrModule, IrOp, IrTerm, TypeTag, Value},
     vm::Instruction,
 };
 
@@ -57,7 +57,7 @@ impl VmCodeGenerator {
 
         self.emit(Instruction::LoadBp);
         // NOTE: 2 words for return address and return value
-        self.emit(Instruction::Push((2 + index as u32) * 4));
+        self.push_value(Value::Int((2 + index as i32) * Value::size()));
         self.emit(Instruction::AddInt);
 
         Ok(())
@@ -67,7 +67,7 @@ impl VmCodeGenerator {
         assert!(index > 0, "Index must be greater than 0: index={}", index);
         self.emit(Instruction::LoadSp);
         if index > 1 {
-            self.emit(Instruction::Push((index - 1) as u32 * 4));
+            self.push_value(Value::Int((index - 1) as i32 * Value::size()));
             self.emit(Instruction::AddInt);
         }
     }
@@ -109,7 +109,7 @@ impl VmCodeGenerator {
                 self.globals.push(name.clone());
                 self.globals.len() - 1
             });
-        self.emit(Instruction::Push(index as u32 * 4));
+        self.push_value(Value::Int(index as i32 * Value::size()));
     }
 
     fn is_global(&self, name: &str) -> bool {
@@ -212,16 +212,33 @@ impl VmCodeGenerator {
         Ok(())
     }
 
+    fn push_value(&mut self, value: Value) {
+        self.emit(Instruction::Push(value.as_u64()));
+    }
+
+    fn reset_tag_bits(&mut self) {
+        self.emit(Instruction::Push(0x00000000FFFFFFFF));
+        self.emit(Instruction::And);
+    }
+
+    fn attach_tag_bits(&mut self, tag: TypeTag) {
+        self.emit(Instruction::Push((tag.to_byte() as u64) << 32));
+        self.emit(Instruction::Or);
+    }
+
     pub fn term(&mut self, ir: IrTerm) -> Result<(), VmCodeGeneratorError> {
         match ir {
             IrTerm::Nil => {
-                self.emit(Instruction::Push(0));
+                self.push_value(Value::Nil);
+            }
+            IrTerm::Bool(b) => {
+                self.push_value(Value::Bool(b));
             }
             IrTerm::Int(n) => {
-                self.emit(Instruction::Push(n as u32));
+                self.push_value(Value::Int(n));
             }
             IrTerm::Float(f) => {
-                self.emit(Instruction::Push(f.to_bits()));
+                self.push_value(Value::Float(f));
             }
             IrTerm::Ident(i) => {
                 self.ident(i)?;
@@ -237,22 +254,31 @@ impl VmCodeGenerator {
             IrTerm::Op { op, args } => {
                 for arg in args {
                     self.term(arg)?;
+                    self.reset_tag_bits();
                 }
 
                 match op {
                     IrOp::IntToPointer => {
-                        // self.convert_int_to_pointer();
+                        self.attach_tag_bits(TypeTag::Pointer);
                     }
                     IrOp::PointerToInt => {
-                        // self.convert_pointer_to_int();
+                        self.attach_tag_bits(TypeTag::Int);
                     }
                     IrOp::NegateInt => {
-                        self.emit(Instruction::Push(u32::MAX));
+                        self.push_value(Value::Int(-1));
+                        self.reset_tag_bits();
+
                         self.emit(Instruction::MulInt);
+
+                        self.attach_tag_bits(TypeTag::Int);
                     }
                     IrOp::NegateFloat => {
-                        self.emit(Instruction::Push((-1 as f32).to_bits()));
+                        self.push_value(Value::Float(-1.0));
+                        self.reset_tag_bits();
+
                         self.emit(Instruction::MulFloat);
+
+                        self.attach_tag_bits(TypeTag::Float);
                     }
                     _ => {
                         let op = match op {
@@ -276,7 +302,29 @@ impl VmCodeGenerator {
                             IrOp::FloatToInt => Instruction::FloatToInt,
                             _ => todo!("{:?}", op),
                         };
-                        self.emit(op);
+                        self.emit(op.clone());
+
+                        self.attach_tag_bits(match op {
+                            Instruction::AddInt
+                            | Instruction::SubInt
+                            | Instruction::MulInt
+                            | Instruction::DivInt => TypeTag::Int,
+                            Instruction::And
+                            | Instruction::Or
+                            | Instruction::Lt
+                            | Instruction::Gt
+                            | Instruction::Le
+                            | Instruction::Ge
+                            | Instruction::Eq
+                            | Instruction::NotEq => TypeTag::Bool,
+                            Instruction::AddFloat
+                            | Instruction::SubFloat
+                            | Instruction::MulFloat
+                            | Instruction::DivFloat => TypeTag::Float,
+                            Instruction::IntToFloat => TypeTag::Float,
+                            Instruction::FloatToInt => TypeTag::Int,
+                            _ => unreachable!(),
+                        });
                     }
                 }
             }
@@ -294,7 +342,7 @@ impl VmCodeGenerator {
 
                 // copy the return value
                 self.emit(Instruction::LoadBp);
-                self.emit(Instruction::Push(4 * (2 + self.arity.len() as u32)));
+                self.push_value(Value::Int((2 + self.arity.len() as i32) * Value::size()));
                 self.emit(Instruction::AddInt);
                 self.push_local(2);
                 self.emit(Instruction::Load);
@@ -329,8 +377,8 @@ impl VmCodeGenerator {
                 self.emit(Instruction::Label(label_while_start.clone()));
 
                 self.term(*cond)?;
+                self.reset_tag_bits();
                 self.emit(Instruction::Not);
-
                 self.emit(Instruction::JumpIfTo(label_while_end.clone()));
 
                 self.term(*body)?;
@@ -348,6 +396,7 @@ impl VmCodeGenerator {
                 let stack_pointer = self.stack_pointer;
 
                 self.term(*cond)?;
+                self.reset_tag_bits();
                 self.emit(Instruction::Not);
                 self.emit(Instruction::JumpIfTo(label_if_else.clone()));
 
@@ -426,7 +475,7 @@ impl VmCodeGenerator {
 
     pub fn program(&mut self, module: IrModule) -> Result<(), VmCodeGeneratorError> {
         self.emit(Instruction::Push(0)); // 1 word for the return value
-        self.emit(Instruction::Push(0xffffffff)); // return address
+        self.emit(Instruction::Push(Value::Pointer(0xffffffff).as_u64())); // return address
         self.emit(Instruction::JumpTo("main".to_string()));
 
         self.module(module)?;
@@ -452,8 +501,8 @@ mod tests {
                     args: vec![IrTerm::Int(1), IrTerm::Int(2)],
                 },
                 vec![
-                    Instruction::Push(1),
-                    Instruction::Push(2),
+                    Instruction::Push(Value::Int(1).as_u64()),
+                    Instruction::Push(Value::Int(2).as_u64()),
                     Instruction::AddInt,
                 ],
             ),
@@ -463,8 +512,8 @@ mod tests {
                     args: vec![IrTerm::Int(1), IrTerm::Int(2)],
                 },
                 vec![
-                    Instruction::Push(1),
-                    Instruction::Push(2),
+                    Instruction::Push(Value::Int(1).as_u64()),
+                    Instruction::Push(Value::Int(2).as_u64()),
                     Instruction::SubInt,
                 ],
             ),
@@ -474,8 +523,8 @@ mod tests {
                     args: vec![IrTerm::Int(1), IrTerm::Int(2)],
                 },
                 vec![
-                    Instruction::Push(1),
-                    Instruction::Push(2),
+                    Instruction::Push(Value::Int(1).as_u64()),
+                    Instruction::Push(Value::Int(2).as_u64()),
                     Instruction::MulInt,
                 ],
             ),
@@ -485,8 +534,8 @@ mod tests {
                     args: vec![IrTerm::Int(1), IrTerm::Int(2)],
                 },
                 vec![
-                    Instruction::Push(1),
-                    Instruction::Push(2),
+                    Instruction::Push(Value::Int(1).as_u64()),
+                    Instruction::Push(Value::Int(2).as_u64()),
                     Instruction::DivInt,
                 ],
             ),
@@ -503,17 +552,17 @@ mod tests {
                     IrTerm::Load(Box::new(IrTerm::Ident("a".to_string()))),
                 ]),
                 vec![
-                    Instruction::Push(1),
+                    Instruction::Push(Value::Int(1).as_u64()),
                     Instruction::LoadSp,
-                    Instruction::Push(2),
+                    Instruction::Push(Value::Int(2).as_u64()),
                     Instruction::Store,
                     Instruction::LoadSp,
                     Instruction::Load,
                     Instruction::LoadSp,
-                    Instruction::Push(4),
+                    Instruction::Push(Value::Int(4).as_u64()),
                     Instruction::AddInt,
                     Instruction::LoadSp,
-                    Instruction::Push(4),
+                    Instruction::Push(Value::Int(4).as_u64()),
                     Instruction::AddInt,
                     Instruction::Load,
                     Instruction::Store,
@@ -533,10 +582,10 @@ mod tests {
     #[test]
     fn test_insert_at() {
         let mut gen = VmCodeGenerator::new();
-        gen.emit(Instruction::Push(1));
-        gen.emit(Instruction::Push(2));
-        gen.emit(Instruction::Push(3));
-        gen.emit(Instruction::Push(10));
+        gen.emit(Instruction::Push(Value::Int(1).as_u64()));
+        gen.emit(Instruction::Push(Value::Int(2).as_u64()));
+        gen.emit(Instruction::Push(Value::Int(3).as_u64()));
+        gen.emit(Instruction::Push(Value::Int(10).as_u64()));
         gen.copy_into(3);
 
         let mut emitter = ByteCodeEmitter::new();
@@ -545,6 +594,6 @@ mod tests {
         let mut vm = Runtime::new(1000, emitter.buffer);
         vm.exec().unwrap();
 
-        assert_eq!(vm.memory_view_32(), vec![1, 10, 3, 10]);
+        assert_eq!(vm.memory_view_64(), vec![1, 10, 3, 10]);
     }
 }

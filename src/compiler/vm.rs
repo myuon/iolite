@@ -23,7 +23,7 @@ pub enum Instruction {
     StoreBp,
     LoadSp,
     StoreSp,
-    Push(u32),
+    Push(u64),
     Pop,
     Jump,
     JumpIf,

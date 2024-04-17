@@ -5,7 +5,7 @@ use crate::compiler::{ast::Module, vm::Instruction};
 mod compiler;
 
 fn compile(input: String) -> Vec<u8> {
-    let decls = compiler::Compiler::parse(input.clone()).unwrap();
+    let decls = compiler::Compiler::parse(compiler::Compiler::create_input(input.clone())).unwrap();
     let mut module = Module {
         name: "main".to_string(),
         declarations: decls,

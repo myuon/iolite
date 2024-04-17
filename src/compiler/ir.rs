@@ -27,6 +27,7 @@ pub enum IrOp {
 #[derive(Debug, PartialEq, Clone)]
 pub enum IrTerm {
     Nil,
+    Bool(bool),
     Int(i32),
     Float(f32),
     Ident(String),
@@ -61,28 +62,6 @@ pub enum IrTerm {
     },
 }
 
-impl IrTerm {
-    pub fn tagged_value(tag: TypeTag, term: IrTerm) -> Vec<IrTerm> {
-        vec![IrTerm::Int(tag.to_byte() as i32), term]
-    }
-
-    pub fn tagged_int(data: i32) -> Vec<IrTerm> {
-        IrTerm::tagged_value(TypeTag::Int, IrTerm::Int(data))
-    }
-
-    pub fn tagged_float(data: f32) -> Vec<IrTerm> {
-        IrTerm::tagged_value(TypeTag::Float, IrTerm::Float(data))
-    }
-
-    pub fn tagged_pointer(data: i32) -> Vec<IrTerm> {
-        IrTerm::tagged_value(TypeTag::Pointer, IrTerm::Int(data))
-    }
-
-    pub fn tagged_bool(data: bool) -> Vec<IrTerm> {
-        IrTerm::tagged_value(TypeTag::Bool, IrTerm::Int(data as i32))
-    }
-}
-
 #[derive(Debug, PartialEq, Clone)]
 pub enum IrDecl {
     Fun {
@@ -113,8 +92,8 @@ pub enum TypeTag {
 impl TypeTag {
     pub fn to_byte(&self) -> u8 {
         match self {
-            TypeTag::Pointer => 0b0,
-            TypeTag::Int => 0b1,
+            TypeTag::Int => 0b0,
+            TypeTag::Pointer => 0b1,
             TypeTag::Float => 0b10,
             TypeTag::Bool => 0b100,
             TypeTag::Byte => 0b1000,
@@ -123,12 +102,12 @@ impl TypeTag {
 
     pub fn from_byte(byte: u8) -> Self {
         match byte {
-            0b0 => TypeTag::Pointer,
-            0b1 => TypeTag::Int,
+            0b0 => TypeTag::Int,
+            0b1 => TypeTag::Pointer,
             0b10 => TypeTag::Float,
             0b100 => TypeTag::Bool,
             0b1000 => TypeTag::Byte,
-            _ => panic!("Invalid type tag"),
+            _ => panic!("Invalid type tag: {}", byte),
         }
     }
 }
@@ -140,4 +119,35 @@ pub enum Value {
     Float(f32),
     Bool(bool),
     Pointer(u32),
+}
+
+impl Value {
+    pub fn as_u64(&self) -> u64 {
+        match self {
+            Value::Nil => (TypeTag::Pointer.to_byte() as u64) << 32 | 0b0,
+            Value::Int(val) => (TypeTag::Int.to_byte() as u64) << 32 | *val as u64,
+            Value::Float(val) => {
+                (TypeTag::Float.to_byte() as u64) << 32 | f32::to_bits(*val) as u64
+            }
+            Value::Bool(val) => (TypeTag::Bool.to_byte() as u64) << 32 | *val as u64,
+            Value::Pointer(val) => (TypeTag::Pointer.to_byte() as u64) << 32 | *val as u64,
+        }
+    }
+
+    pub fn from_u64(val: u64) -> Self {
+        let tag = (val >> 32) as u8;
+        let value = val as u32;
+
+        match TypeTag::from_byte(tag) {
+            TypeTag::Pointer => Value::Pointer(value),
+            TypeTag::Int => Value::Int(value as i32),
+            TypeTag::Float => Value::Float(f32::from_bits(value)),
+            TypeTag::Bool => Value::Bool(value != 0),
+            _ => panic!("Invalid type tag"),
+        }
+    }
+
+    pub fn size() -> i32 {
+        8
+    }
 }

@@ -1,6 +1,6 @@
-use std::{collections::HashMap, io::Write};
+use std::{collections::HashMap, io::Write, iter::repeat};
 
-use super::vm::Instruction;
+use super::{ir::Value, vm::Instruction};
 
 #[derive(Debug)]
 pub enum ByteCodeEmitterError {
@@ -32,10 +32,10 @@ impl ByteCodeEmitter {
     }
 
     fn push_placeholder(&mut self) -> Result<usize, ByteCodeEmitterError> {
-        self.write(&Instruction::Push(0).to_byte())?;
+        self.write(&Instruction::Push(Value::Nil.as_u64()).to_byte())?;
 
         let position = self.position;
-        self.write(&[0xff, 0xff, 0xff, 0xff])?;
+        self.write(&repeat(0xff).take(8).collect::<Vec<_>>())?;
 
         Ok(position)
     }
@@ -79,7 +79,7 @@ impl ByteCodeEmitter {
                 .get(&label)
                 .ok_or(ByteCodeEmitterError::LabelNotFound(label))?;
 
-            self.buffer[position..position + 4].copy_from_slice(&(*target as u32).to_le_bytes());
+            self.buffer[position..position + 8].copy_from_slice(&(*target as u64).to_le_bytes());
         }
 
         Ok(())
@@ -98,10 +98,10 @@ mod tests {
             Instruction::Debug("debug information".to_string()),
             Instruction::Label("start".to_string()),
             Instruction::JumpTo("end".to_string()),
-            Instruction::Push(1),
-            Instruction::Push(2),
+            Instruction::Push(Value::Int(1).as_u64()),
+            Instruction::Push(Value::Int(2).as_u64()),
             Instruction::Label("end".to_string()),
-            Instruction::Push(3),
+            Instruction::Push(Value::Int(3).as_u64()),
             Instruction::JumpIfTo("start".to_string()),
         ];
 
@@ -110,15 +110,17 @@ mod tests {
         assert_eq!(
             vec![
                 0x40, // load
-                0x01, 0x11, 0x00, 0x00, 0x00, // push *end
+                0x01, 0x1d, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, // push *end
                 0x05, // jump
-                0x01, 0x01, 0x00, 0x00, 0x00, // push 1
-                0x01, 0x02, 0x00, 0x00, 0x00, // push 2
-                0x01, 0x03, 0x00, 0x00, 0x00, // push 3
-                0x01, 0x01, 0x00, 0x00, 0x00, // push *start
+                0x01, 0x01, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, // push 1
+                0x01, 0x02, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, // push 2
+                0x01, 0x03, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, // push 3
+                0x01, 0x01, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, // push *start
                 0x06, // jump_if
             ],
             emitter.buffer,
+            "{:x?}",
+            emitter.buffer
         );
     }
 }

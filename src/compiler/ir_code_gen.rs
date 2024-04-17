@@ -4,7 +4,7 @@ use nanoid::nanoid;
 
 use super::{
     ast::{BinOp, Block, Conversion, Declaration, Expr, Literal, Module, Source, Statement, Type},
-    ir::{IrDecl, IrModule, IrOp, IrTerm, TypeTag},
+    ir::{IrDecl, IrModule, IrOp, IrTerm, Value},
 };
 
 #[derive(Debug, PartialEq, Clone)]
@@ -38,7 +38,7 @@ impl IrCodeGenerator {
     }
 
     fn allocate_static(&self, size: usize) -> IrTerm {
-        self.allocate(IrTerm::Int(size as i32 * 4))
+        self.allocate(IrTerm::Int(size as i32 * Value::size()))
     }
 
     fn slice(&self, values: Vec<IrTerm>) -> IrTerm {
@@ -54,7 +54,7 @@ impl IrCodeGenerator {
             block.push(IrTerm::Store(
                 Box::new(IrTerm::Index {
                     ptr: Box::new(IrTerm::Load(Box::new(IrTerm::Ident(ident_name.clone())))),
-                    index: Box::new(IrTerm::Int(index as i32 * 4)),
+                    index: Box::new(IrTerm::Int(index as i32 * Value::size())),
                 }),
                 Box::new(term),
             ));
@@ -63,13 +63,6 @@ impl IrCodeGenerator {
         block.push(IrTerm::Load(Box::new(IrTerm::Ident(ident_name))));
 
         IrTerm::Items(block)
-    }
-
-    fn load_value_data(&self, term: IrTerm) -> IrTerm {
-        IrTerm::Load(Box::new(IrTerm::Index {
-            ptr: Box::new(term),
-            index: Box::new(IrTerm::Int(4)),
-        }))
     }
 
     pub fn module(&mut self, module: Module) -> Result<IrModule, IrCodeGeneratorError> {
@@ -84,7 +77,7 @@ impl IrCodeGenerator {
         // NOTE: update heap_ptr
         self.init_function.push(IrTerm::Store(
             Box::new(IrTerm::Ident("heap_ptr".to_string())),
-            Box::new(IrTerm::Int(self.globals.len() as i32 * 4)),
+            Box::new(IrTerm::Int(self.globals.len() as i32 * Value::size())),
         ));
 
         // NOTE: hoist initial process to the init function
@@ -149,8 +142,8 @@ impl IrCodeGenerator {
             Expr::Lit(lit) => match lit.data {
                 Literal::Nil => Ok(IrTerm::Nil),
                 Literal::Integer(i) => Ok(IrTerm::Int(i.data)),
-                Literal::Float(f) => Ok(self.slice(IrTerm::tagged_float(f.data))),
-                Literal::Bool(b) => Ok(self.slice(IrTerm::tagged_bool(b.data))),
+                Literal::Float(f) => Ok(IrTerm::Float(f.data)),
+                Literal::Bool(b) => Ok(IrTerm::Bool(b.data)),
             },
             Expr::BinOp {
                 ty,
@@ -162,134 +155,38 @@ impl IrCodeGenerator {
                 let right = self.expr(*right)?;
                 let op = match (op.data, ty) {
                     (BinOp::Add, Type::Int) => IrOp::AddInt,
-                    (BinOp::Add, Type::Float) => {
-                        return Ok(self.slice(IrTerm::tagged_value(
-                            TypeTag::Float,
-                            IrTerm::Op {
-                                op: IrOp::AddFloat,
-                                args: vec![self.load_value_data(left), self.load_value_data(right)],
-                            },
-                        )));
-                    }
-                    (BinOp::Add, p) => todo!("{:?}", p),
+                    (BinOp::Add, Type::Float) => IrOp::AddFloat,
+                    (BinOp::Add, _) => todo!(),
                     (BinOp::Sub, Type::Int) => IrOp::SubInt,
-                    (BinOp::Sub, Type::Float) => {
-                        return Ok(self.slice(IrTerm::tagged_value(
-                            TypeTag::Float,
-                            IrTerm::Op {
-                                op: IrOp::SubFloat,
-                                args: vec![self.load_value_data(left), self.load_value_data(right)],
-                            },
-                        )));
-                    }
-                    (BinOp::Sub, p) => todo!("{:?}", p),
+                    (BinOp::Sub, Type::Float) => IrOp::SubFloat,
+                    (BinOp::Sub, _) => todo!(),
                     (BinOp::Mul, Type::Int) => IrOp::MulInt,
-                    (BinOp::Mul, Type::Float) => {
-                        return Ok(self.slice(IrTerm::tagged_value(
-                            TypeTag::Float,
-                            IrTerm::Op {
-                                op: IrOp::MulFloat,
-                                args: vec![self.load_value_data(left), self.load_value_data(right)],
-                            },
-                        )));
-                    }
-                    (BinOp::Mul, p) => todo!("{:?}", p),
+                    (BinOp::Mul, Type::Float) => IrOp::MulFloat,
+                    (BinOp::Mul, _) => todo!(),
                     (BinOp::Div, Type::Int) => IrOp::DivInt,
-                    (BinOp::Div, Type::Float) => {
-                        return Ok(self.slice(IrTerm::tagged_value(
-                            TypeTag::Float,
-                            IrTerm::Op {
-                                op: IrOp::DivFloat,
-                                args: vec![self.load_value_data(left), self.load_value_data(right)],
-                            },
-                        )));
-                    }
-                    (BinOp::Div, p) => todo!("{:?}", p),
-                    (BinOp::And, Type::Bool) => {
-                        return Ok(self.slice(IrTerm::tagged_value(
-                            TypeTag::Bool,
-                            IrTerm::Op {
-                                op: IrOp::And,
-                                args: vec![self.load_value_data(left), self.load_value_data(right)],
-                            },
-                        )));
-                    }
+                    (BinOp::Div, Type::Float) => IrOp::DivFloat,
+                    (BinOp::Div, _) => todo!(),
+                    (BinOp::And, Type::Bool) => IrOp::And,
                     (BinOp::And, _) => todo!(),
-                    (BinOp::Or, Type::Bool) => {
-                        return Ok(self.slice(IrTerm::tagged_value(
-                            TypeTag::Bool,
-                            IrTerm::Op {
-                                op: IrOp::Or,
-                                args: vec![self.load_value_data(left), self.load_value_data(right)],
-                            },
-                        )));
-                    }
+                    (BinOp::Or, Type::Bool) => IrOp::Or,
                     (BinOp::Or, _) => todo!(),
                     (BinOp::Eq, Type::Int) => IrOp::Eq,
-                    (BinOp::Eq, Type::Float) => {
-                        return Ok(self.slice(IrTerm::tagged_value(
-                            TypeTag::Bool,
-                            IrTerm::Op {
-                                op: IrOp::Eq,
-                                args: vec![self.load_value_data(left), self.load_value_data(right)],
-                            },
-                        )));
-                    }
+                    (BinOp::Eq, Type::Float) => IrOp::Eq,
                     (BinOp::Eq, _) => todo!(),
                     (BinOp::NotEq, Type::Int) => IrOp::NotEq,
-                    (BinOp::NotEq, Type::Float) => {
-                        return Ok(self.slice(IrTerm::tagged_value(
-                            TypeTag::Bool,
-                            IrTerm::Op {
-                                op: IrOp::NotEq,
-                                args: vec![self.load_value_data(left), self.load_value_data(right)],
-                            },
-                        )));
-                    }
+                    (BinOp::NotEq, Type::Float) => IrOp::NotEq,
                     (BinOp::NotEq, _) => todo!(),
                     (BinOp::Lt, Type::Int) => IrOp::Lt,
-                    (BinOp::Lt, Type::Float) => {
-                        return Ok(self.slice(IrTerm::tagged_value(
-                            TypeTag::Bool,
-                            IrTerm::Op {
-                                op: IrOp::Lt,
-                                args: vec![self.load_value_data(left), self.load_value_data(right)],
-                            },
-                        )));
-                    }
+                    (BinOp::Lt, Type::Float) => IrOp::Lt,
                     (BinOp::Lt, _) => todo!(),
                     (BinOp::Gt, Type::Int) => IrOp::Gt,
-                    (BinOp::Gt, Type::Float) => {
-                        return Ok(self.slice(IrTerm::tagged_value(
-                            TypeTag::Bool,
-                            IrTerm::Op {
-                                op: IrOp::Gt,
-                                args: vec![self.load_value_data(left), self.load_value_data(right)],
-                            },
-                        )));
-                    }
+                    (BinOp::Gt, Type::Float) => IrOp::Gt,
                     (BinOp::Gt, _) => todo!(),
                     (BinOp::Le, Type::Int) => IrOp::Le,
-                    (BinOp::Le, Type::Float) => {
-                        return Ok(self.slice(IrTerm::tagged_value(
-                            TypeTag::Bool,
-                            IrTerm::Op {
-                                op: IrOp::Le,
-                                args: vec![self.load_value_data(left), self.load_value_data(right)],
-                            },
-                        )));
-                    }
+                    (BinOp::Le, Type::Float) => IrOp::Le,
                     (BinOp::Le, _) => todo!(),
                     (BinOp::Ge, Type::Int) => IrOp::Ge,
-                    (BinOp::Ge, Type::Float) => {
-                        return Ok(self.slice(IrTerm::tagged_value(
-                            TypeTag::Bool,
-                            IrTerm::Op {
-                                op: IrOp::Ge,
-                                args: vec![self.load_value_data(left), self.load_value_data(right)],
-                            },
-                        )));
-                    }
+                    (BinOp::Ge, Type::Float) => IrOp::Ge,
                     (BinOp::Ge, _) => todo!(),
                 };
 
@@ -317,7 +214,7 @@ impl IrCodeGenerator {
                 let else_ = self.expr(cases[1].clone())?;
 
                 Ok(IrTerm::If {
-                    cond: Box::new(self.load_value_data(cond)),
+                    cond: Box::new(cond),
                     then: Box::new(then),
                     else_: Box::new(else_),
                 })
@@ -358,28 +255,16 @@ impl IrCodeGenerator {
                 let expr = self.expr(*expr)?;
 
                 let term = match conversion.unwrap() {
-                    Conversion::IntToFloat => self.slice(IrTerm::tagged_value(
-                        TypeTag::Float,
-                        IrTerm::Op {
-                            op: IrOp::IntToFloat,
-                            args: vec![expr],
-                        },
-                    )),
-                    Conversion::FloatToInt => IrTerm::Op {
-                        op: IrOp::FloatToInt,
-                        args: vec![self.load_value_data(expr)],
-                    },
-                    Conversion::IntToPointer => IrTerm::Op {
-                        op: IrOp::IntToPointer,
-                        args: vec![expr],
-                    },
-                    Conversion::PointerToInt => IrTerm::Op {
-                        op: IrOp::PointerToInt,
-                        args: vec![expr],
-                    },
+                    Conversion::IntToFloat => IrOp::IntToFloat,
+                    Conversion::FloatToInt => IrOp::FloatToInt,
+                    Conversion::IntToPointer => IrOp::IntToPointer,
+                    Conversion::PointerToInt => IrOp::PointerToInt,
                 };
 
-                Ok(term)
+                Ok(IrTerm::Op {
+                    op: term,
+                    args: vec![expr],
+                })
             }
             Expr::Negate { expr, ty } => {
                 let expr = self.expr(*expr)?;
@@ -389,13 +274,10 @@ impl IrCodeGenerator {
                         op: IrOp::NegateInt,
                         args: vec![expr],
                     }),
-                    Type::Float => Ok(self.slice(IrTerm::tagged_value(
-                        TypeTag::Float,
-                        IrTerm::Op {
-                            op: IrOp::NegateFloat,
-                            args: vec![self.load_value_data(expr)],
-                        },
-                    ))),
+                    Type::Float => Ok(IrTerm::Op {
+                        op: IrOp::NegateFloat,
+                        args: vec![expr],
+                    }),
                     _ => todo!(),
                 }
             }
@@ -469,7 +351,7 @@ impl IrCodeGenerator {
 
                 Ok(IrTerm::Index {
                     ptr: Box::new(expr),
-                    index: Box::new(IrTerm::Int(index as i32 * 4)),
+                    index: Box::new(IrTerm::Int(index as i32 * Value::size())),
                 })
             }
             _ => todo!(),

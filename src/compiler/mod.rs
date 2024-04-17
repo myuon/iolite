@@ -148,8 +148,12 @@ impl Compiler {
         Ok(emitter.buffer)
     }
 
+    pub fn create_input(input: String) -> String {
+        format!("{}\n{}", include_str!("./std.io"), input)
+    }
+
     pub fn compile(input: String) -> Result<Vec<u8>, CompilerError> {
-        let input = format!("{}\n{}", include_str!("./std.io"), input);
+        let input = Self::create_input(input);
 
         let decls = Self::parse(input.clone())?;
         let mut module = Module {
@@ -165,15 +169,15 @@ impl Compiler {
         Ok(binary)
     }
 
-    pub fn run(input: String) -> Result<i32, CompilerError> {
+    pub fn run(input: String) -> Result<i64, CompilerError> {
         let program = Self::compile(input)?;
         Self::run_vm(program)
     }
 
-    pub fn run_vm(program: Vec<u8>) -> Result<i32, CompilerError> {
+    pub fn run_vm(program: Vec<u8>) -> Result<i64, CompilerError> {
         let mut runtime = Self::exec_vm(program)?;
 
-        Ok(runtime.pop_i32())
+        Ok(runtime.pop_i64())
     }
 
     fn exec_vm(program: Vec<u8>) -> Result<Runtime, CompilerError> {
@@ -198,13 +202,6 @@ mod tests {
             ("4 * 3 - 2", 10),
             ("4 * (3 - 2)", 4),
             ("10 - 2 - 5", 3),
-            ("1 < 2", 1),
-            ("1 > 2", 0),
-            ("1 <= 2", 1),
-            ("1 >= 2", 0),
-            ("1 == 2", 0),
-            ("2 == 2", 1),
-            ("1 != 10", 1),
             ("match true { true => 2, false => 5 }", 2),
             ("match false { true => 2, false => 5 }", 5),
             (
@@ -223,7 +220,8 @@ mod tests {
         for (input, expected) in cases {
             println!("====== {}", input);
             let actual = Compiler::run(format!("fun main() {{ return {}; }}", input)).unwrap();
-            assert_eq!(actual, expected, "input: {}", input);
+            let value = Value::from_u64(actual as u64);
+            assert_eq!(value, Value::Int(expected), "input: {}", input);
         }
     }
 
@@ -251,7 +249,7 @@ mod tests {
     }
 
     #[test]
-    fn test_compile_expr_as_value() {
+    fn test_compile_expr_as_bool() {
         let cases = vec![
             ("false && false", false),
             ("true && false", false),
@@ -259,6 +257,13 @@ mod tests {
             ("false || false", false),
             ("true || false", true),
             ("true || true", true),
+            ("1 < 2", true),
+            ("1 > 2", false),
+            ("1 <= 2", true),
+            ("1 >= 2", false),
+            ("1 == 2", false),
+            ("2 == 2", true),
+            ("1 != 10", true),
         ];
 
         for (input, expected) in cases {
