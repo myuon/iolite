@@ -125,7 +125,7 @@ impl Value {
     pub fn as_u64(&self) -> u64 {
         match self {
             Value::Nil => (TypeTag::Pointer.to_byte() as u64) << 32 | 0b0,
-            Value::Int(val) => (TypeTag::Int.to_byte() as u64) << 32 | *val as u64,
+            Value::Int(val) => (TypeTag::Int.to_byte() as u64) << 32 | *val as u32 as u64,
             Value::Float(val) => {
                 (TypeTag::Float.to_byte() as u64) << 32 | f32::to_bits(*val) as u64
             }
