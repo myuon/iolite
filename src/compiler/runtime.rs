@@ -82,9 +82,9 @@ impl Runtime {
     }
 
     pub fn pop_f32(&mut self) -> f32 {
-        let val = self.load_f32(self.sp as u32);
+        let val = self.load_i64(self.sp as u64);
         self.sp += 8;
-        val
+        f32::from_bits(val as i32 as u32)
     }
 
     fn push(&mut self, val: i64) {
@@ -92,9 +92,9 @@ impl Runtime {
         self.store_i64(self.sp as u64, val);
     }
 
-    fn push_f64(&mut self, val: f64) {
+    fn push_f32(&mut self, val: f32) {
         self.sp -= 8;
-        self.memory[self.sp..(self.sp + 8)].copy_from_slice(&val.to_le_bytes());
+        self.memory[self.sp..(self.sp + 4)].copy_from_slice(&val.to_le_bytes());
     }
 
     fn pop_address(&mut self) -> u64 {
@@ -236,25 +236,25 @@ impl Runtime {
                 0x14 => {
                     let a = self.pop_f32();
                     let b = self.pop_f32();
-                    self.push_f64((b + a) as f64);
+                    self.push_f32(b + a);
                 }
                 // subFloat
                 0x15 => {
                     let a = self.pop_f32();
                     let b = self.pop_f32();
-                    self.push_f64((b - a) as f64);
+                    self.push_f32(b - a);
                 }
                 // mulFloat
                 0x16 => {
                     let a = self.pop_f32();
                     let b = self.pop_f32();
-                    self.push_f64((b * a) as f64);
+                    self.push_f32(b * a);
                 }
                 // divFloat
                 0x17 => {
                     let a = self.pop_f32();
                     let b = self.pop_f32();
-                    self.push_f64((b / a) as f64);
+                    self.push_f32(b / a);
                 }
 
                 // xor
@@ -352,7 +352,7 @@ impl Runtime {
                 // int to float
                 0x50 => {
                     let a = self.pop_i64();
-                    self.push_f64(a as f64);
+                    self.push_f32(a as f32);
                 }
                 // float to int
                 0x51 => {
