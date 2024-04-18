@@ -321,7 +321,7 @@ impl IrCodeGenerator {
                     ptr: Box::new(ptr),
                     index: Box::new(IrTerm::Op {
                         op: IrOp::MulInt,
-                        args: vec![index, IrTerm::Int(4)],
+                        args: vec![index, IrTerm::Int(Value::size())],
                     }),
                 })
             }

@@ -184,9 +184,9 @@ impl Runtime {
                 }
                 // call
                 0x03 => {
-                    let address = self.pop_address();
+                    let pc = self.pop_i64();
                     self.push(self.pc as i64);
-                    self.pc = address as usize;
+                    self.pc = pc as usize;
                 }
                 // return
                 0x04 => {
@@ -297,25 +297,25 @@ impl Runtime {
                 0x32 => {
                     let a = self.pop_i64();
                     let b = self.pop_i64();
-                    self.push(if b < a { 1 } else { 0 });
+                    self.push(if (b as i32) < (a as i32) { 1 } else { 0 });
                 }
                 // gt
                 0x33 => {
                     let a = self.pop_i64();
                     let b = self.pop_i64();
-                    self.push(if b > a { 1 } else { 0 });
+                    self.push(if (b as i32) > (a as i32) { 1 } else { 0 });
                 }
                 // le
                 0x34 => {
                     let a = self.pop_i64();
                     let b = self.pop_i64();
-                    self.push(if b <= a { 1 } else { 0 });
+                    self.push(if (b as i32) <= (a as i32) { 1 } else { 0 });
                 }
                 // ge
                 0x35 => {
                     let a = self.pop_i64();
                     let b = self.pop_i64();
-                    self.push(if b >= a { 1 } else { 0 });
+                    self.push(if (b as i32) >= (a as i32) { 1 } else { 0 });
                 }
 
                 // load
