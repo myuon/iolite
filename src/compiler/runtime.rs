@@ -81,10 +81,6 @@ impl Runtime {
         val
     }
 
-    fn pop_signed_rawint(&mut self) -> i32 {
-        self.pop_i64() as i32
-    }
-
     pub fn pop_f32(&mut self) -> f32 {
         let val = self.load_f32(self.sp as u32);
         self.sp += 8;
@@ -94,10 +90,6 @@ impl Runtime {
     fn push(&mut self, val: i64) {
         self.sp -= 8;
         self.store_i64(self.sp as u64, val);
-    }
-
-    fn push_rawint(&mut self, val: u32) {
-        self.push(val as u64 as i64);
     }
 
     fn push_f64(&mut self, val: f64) {
@@ -217,28 +209,28 @@ impl Runtime {
 
                 // add
                 0x10 => {
-                    let a = self.pop_signed_rawint();
-                    let b = self.pop_signed_rawint();
-                    self.push_rawint((b + a) as u32);
+                    let a = self.pop_i64();
+                    let b = self.pop_i64();
+                    self.push(b + a);
                 }
                 // sub
                 0x11 => {
-                    let a = self.pop_signed_rawint();
-                    let b = self.pop_signed_rawint();
+                    let a = self.pop_i64();
+                    let b = self.pop_i64();
                     // NOTE: prevent sign bit to be used
-                    self.push_rawint((b - a) as u32);
+                    self.push((b as i32 - a as i32) as u32 as u64 as i64);
                 }
                 // mul
                 0x12 => {
-                    let a = self.pop_signed_rawint();
-                    let b = self.pop_signed_rawint();
-                    self.push_rawint((b * a) as u32);
+                    let a = self.pop_i64();
+                    let b = self.pop_i64();
+                    self.push((b as i32 * a as i32) as u32 as u64 as i64);
                 }
                 // div
                 0x13 => {
-                    let a = self.pop_signed_rawint();
-                    let b = self.pop_signed_rawint();
-                    self.push_rawint((b / a) as u32);
+                    let a = self.pop_i64();
+                    let b = self.pop_i64();
+                    self.push((b as i32 / a as i32) as u32 as u64 as i64);
                 }
                 // addFloat
                 0x14 => {
@@ -267,15 +259,15 @@ impl Runtime {
 
                 // xor
                 0x20 => {
-                    let a = self.pop_signed_rawint();
-                    let b = self.pop_signed_rawint();
-                    self.push_rawint(b as u32 ^ a as u32);
+                    let a = self.pop_i64();
+                    let b = self.pop_i64();
+                    self.push(b ^ a);
                 }
                 // and
                 0x21 => {
-                    let a = self.pop_signed_rawint();
-                    let b = self.pop_signed_rawint();
-                    self.push_rawint(b as u32 & a as u32);
+                    let a = self.pop_i64();
+                    let b = self.pop_i64();
+                    self.push(b & a);
                 }
                 // or
                 0x22 => {
