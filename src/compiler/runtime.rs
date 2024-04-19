@@ -128,7 +128,7 @@ impl Runtime {
             match next {
                 Instruction::Push(val) => format!("Push({:?})", val),
                 _ => format!("{:?}", next),
-            }
+            },
         );
     }
 
