@@ -501,6 +501,18 @@ mod tests {
             }"#,
                 30,
             ),
+            (
+                r#"
+            fun main() {
+                let arr = new[array[byte]](10);
+                arr.(0) = 65 as byte;
+                arr.(1) = 66 as byte;
+                arr.(2) = 67 as byte;
+
+                return arr.(2);
+            }"#,
+                Value::Byte(67).as_u64() as i64,
+            ),
         ];
 
         for (input, expected) in cases {

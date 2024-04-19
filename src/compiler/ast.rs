@@ -85,6 +85,7 @@ pub enum Conversion {
     FloatToInt,
     IntToPointer,
     PointerToInt,
+    IntToByte,
 }
 
 #[derive(Debug, PartialEq, Clone)]

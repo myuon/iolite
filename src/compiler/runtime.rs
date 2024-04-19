@@ -359,6 +359,11 @@ impl Runtime {
                     let a = self.pop_f32();
                     self.push(a as f32 as i32 as i64);
                 }
+                // int to byte
+                0x52 => {
+                    let a = self.pop_i64();
+                    self.push(a as u8 as i64);
+                }
 
                 code => {
                     println!(

@@ -284,6 +284,9 @@ impl Typechecker {
                     (Type::Ptr(_), Type::Int) => {
                         *conversion = Some(Conversion::PointerToInt);
                     }
+                    (Type::Int, Type::Byte) => {
+                        *conversion = Some(Conversion::IntToByte);
+                    }
                     _ => {
                         return Err(TypecheckerError::ConversionNotSupported(
                             expr_ty,

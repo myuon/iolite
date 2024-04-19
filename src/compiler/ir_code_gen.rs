@@ -259,6 +259,7 @@ impl IrCodeGenerator {
                     Conversion::FloatToInt => IrOp::FloatToInt,
                     Conversion::IntToPointer => IrOp::IntToPointer,
                     Conversion::PointerToInt => IrOp::PointerToInt,
+                    Conversion::IntToByte => IrOp::IntToByte,
                 };
 
                 Ok(IrTerm::Op {

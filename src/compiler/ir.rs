@@ -22,6 +22,7 @@ pub enum IrOp {
     PointerToInt,
     NegateInt,
     NegateFloat,
+    IntToByte,
 }
 
 #[derive(Debug, PartialEq, Clone)]
@@ -119,6 +120,7 @@ pub enum Value {
     Float(f32),
     Bool(bool),
     Pointer(u32),
+    Byte(u8),
 }
 
 impl Value {
@@ -131,6 +133,7 @@ impl Value {
             }
             Value::Bool(val) => (TypeTag::Bool.to_byte() as u64) << 32 | *val as u64,
             Value::Pointer(val) => (TypeTag::Pointer.to_byte() as u64) << 32 | *val as u64,
+            Value::Byte(val) => (TypeTag::Byte.to_byte() as u64) << 32 | *val as u64,
         }
     }
 
@@ -143,6 +146,7 @@ impl Value {
             TypeTag::Int => Value::Int(value as i32),
             TypeTag::Float => Value::Float(f32::from_bits(value)),
             TypeTag::Bool => Value::Bool(value != 0),
+            TypeTag::Byte => Value::Byte(value as u8),
             _ => panic!("Invalid type tag"),
         }
     }

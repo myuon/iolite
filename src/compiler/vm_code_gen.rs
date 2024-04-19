@@ -129,7 +129,7 @@ impl VmCodeGenerator {
             AddInt | SubInt | MulInt | DivInt | AddFloat | SubFloat | MulFloat | DivFloat => {
                 self.stack_pointer -= 1;
             }
-            IntToFloat | FloatToInt => {}
+            IntToFloat | FloatToInt | IntToByte => {}
             Load => {}
             Store => {
                 self.stack_pointer -= 2;
@@ -300,6 +300,7 @@ impl VmCodeGenerator {
                             IrOp::DivFloat => Instruction::DivFloat,
                             IrOp::IntToFloat => Instruction::IntToFloat,
                             IrOp::FloatToInt => Instruction::FloatToInt,
+                            IrOp::IntToByte => Instruction::IntToByte,
                             _ => todo!("{:?}", op),
                         };
                         self.emit(op.clone());
@@ -323,6 +324,7 @@ impl VmCodeGenerator {
                             | Instruction::DivFloat => TypeTag::Float,
                             Instruction::IntToFloat => TypeTag::Float,
                             Instruction::FloatToInt => TypeTag::Int,
+                            Instruction::IntToByte => TypeTag::Byte,
                             _ => unreachable!(),
                         });
                     }
