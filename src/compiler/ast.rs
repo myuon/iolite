@@ -241,4 +241,12 @@ impl Type {
             _ => vec![],
         }
     }
+
+    pub fn sizeof(&self) -> usize {
+        match self {
+            Type::Bool => 1,
+            Type::Byte => 1,
+            _ => 4,
+        }
+    }
 }

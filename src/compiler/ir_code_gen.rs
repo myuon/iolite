@@ -219,13 +219,13 @@ impl IrCodeGenerator {
                     else_: Box::new(else_),
                 })
             }
-            Expr::New {
-                ty: _,
-                argument: expr,
-            } => {
+            Expr::New { ty, argument: expr } => {
                 let expr = self.expr(*expr)?;
 
-                Ok(self.allocate(expr))
+                Ok(self.allocate(IrTerm::Op {
+                    op: IrOp::MulInt,
+                    args: vec![expr, IrTerm::Int(ty.data.sizeof() as i32)],
+                }))
             }
             Expr::Block(block) => self.block(*block),
             Expr::Struct { name, mut fields } => {
