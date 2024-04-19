@@ -169,20 +169,20 @@ impl Compiler {
         Ok(binary)
     }
 
-    pub fn run(input: String) -> Result<i64, CompilerError> {
+    pub fn run(input: String, print_stacks: bool) -> Result<i64, CompilerError> {
         let program = Self::compile(input)?;
-        Self::run_vm(program)
+        Self::run_vm(program, print_stacks)
     }
 
-    pub fn run_vm(program: Vec<u8>) -> Result<i64, CompilerError> {
-        let mut runtime = Self::exec_vm(program)?;
+    pub fn run_vm(program: Vec<u8>, print_stacks: bool) -> Result<i64, CompilerError> {
+        let mut runtime = Self::exec_vm(program, print_stacks)?;
 
         Ok(runtime.pop_i64())
     }
 
-    fn exec_vm(program: Vec<u8>) -> Result<Runtime, CompilerError> {
+    fn exec_vm(program: Vec<u8>, print_stacks: bool) -> Result<Runtime, CompilerError> {
         let mut runtime = Runtime::new(1024, program);
-        runtime.exec().unwrap();
+        runtime.exec(print_stacks).unwrap();
 
         Ok(runtime)
     }
@@ -219,7 +219,8 @@ mod tests {
 
         for (input, expected) in cases {
             println!("====== {}", input);
-            let actual = Compiler::run(format!("fun main() {{ return {}; }}", input)).unwrap();
+            let actual =
+                Compiler::run(format!("fun main() {{ return {}; }}", input), false).unwrap();
             let value = Value::from_u64(actual as u64);
             assert_eq!(value, Value::Int(expected), "input: {}", input);
         }
@@ -238,7 +239,7 @@ mod tests {
         for (input, expected) in cases {
             println!("====== {}", input);
             let program = Compiler::compile(format!("fun main() {{ return {}; }}", input)).unwrap();
-            let mut runtime = Compiler::exec_vm(program).unwrap();
+            let mut runtime = Compiler::exec_vm(program, false).unwrap();
             assert_eq!(
                 runtime.pop_value(),
                 Value::Float(expected),
@@ -269,7 +270,7 @@ mod tests {
         for (input, expected) in cases {
             println!("====== {}", input);
             let program = Compiler::compile(format!("fun main() {{ return {}; }}", input)).unwrap();
-            let mut runtime = Compiler::exec_vm(program).unwrap();
+            let mut runtime = Compiler::exec_vm(program, false).unwrap();
             assert_eq!(
                 runtime.pop_value(),
                 Value::Bool(expected),
@@ -534,7 +535,7 @@ mod tests {
 
         for (input, expected) in cases {
             println!("====== {}", input);
-            let actual = Compiler::run(input.to_string()).unwrap();
+            let actual = Compiler::run(input.to_string(), false).unwrap();
             assert_eq!(actual, expected, "input: {}", input);
         }
     }

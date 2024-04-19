@@ -139,29 +139,31 @@ impl Runtime {
         code
     }
 
-    pub fn exec(&mut self) -> Result<(), RuntimeError> {
+    pub fn exec(&mut self, print_stacks: bool) -> Result<(), RuntimeError> {
         while self.pc < self.program.len() && self.pc < 0xffffffff {
-            self.print_stack(&{
-                let inst =
-                    Instruction::from_byte(&self.program[self.pc..]).unwrap_or(Instruction::Nop);
+            if print_stacks {
+                self.print_stack(&{
+                    let inst = Instruction::from_byte(&self.program[self.pc..])
+                        .unwrap_or(Instruction::Nop);
 
-                match inst {
-                    Instruction::Push(_) => Instruction::Push(
-                        Value::from_u64(u64::from_le_bytes([
-                            self.program[self.pc + 1],
-                            self.program[self.pc + 2],
-                            self.program[self.pc + 3],
-                            self.program[self.pc + 4],
-                            self.program[self.pc + 5],
-                            self.program[self.pc + 6],
-                            self.program[self.pc + 7],
-                            self.program[self.pc + 8],
-                        ]))
-                        .as_u64(),
-                    ),
-                    _ => inst,
-                }
-            });
+                    match inst {
+                        Instruction::Push(_) => Instruction::Push(
+                            Value::from_u64(u64::from_le_bytes([
+                                self.program[self.pc + 1],
+                                self.program[self.pc + 2],
+                                self.program[self.pc + 3],
+                                self.program[self.pc + 4],
+                                self.program[self.pc + 5],
+                                self.program[self.pc + 6],
+                                self.program[self.pc + 7],
+                                self.program[self.pc + 8],
+                            ]))
+                            .as_u64(),
+                        ),
+                        _ => inst,
+                    }
+                });
+            }
 
             match self.consume() {
                 // push

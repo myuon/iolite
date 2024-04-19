@@ -1,3 +1,5 @@
+use std::io::Read;
+
 use clap::{Parser, Subcommand};
 
 use crate::compiler::{ast::Module, vm::Instruction};
@@ -13,8 +15,20 @@ struct Cli {
 
 #[derive(Debug, Subcommand)]
 enum CliCommands {
-    Compile { input: String },
-    Run { input: String },
+    Compile {
+        input: Option<String>,
+
+        #[clap(long)]
+        stdin: bool,
+    },
+    Run {
+        input: Option<String>,
+
+        #[clap(long)]
+        stdin: bool,
+        #[clap(long = "print-stacks")]
+        print_stacks: bool,
+    },
 }
 
 fn compile(input: String) -> Vec<u8> {
@@ -54,11 +68,33 @@ fn main() {
     let cli = Cli::parse();
 
     match cli.command {
-        CliCommands::Compile { input } => {
+        CliCommands::Compile { input, stdin } => {
+            let input = if stdin {
+                let mut buf = Vec::new();
+                std::io::stdin().read_to_end(&mut buf).unwrap();
+
+                String::from_utf8(buf).unwrap()
+            } else {
+                input.unwrap()
+            };
+
             compile(input);
         }
-        CliCommands::Run { input } => {
-            let result = compiler::Compiler::run(input).unwrap();
+        CliCommands::Run {
+            input,
+            stdin,
+            print_stacks,
+        } => {
+            let input = if stdin {
+                let mut buf = Vec::new();
+                std::io::stdin().read_to_end(&mut buf).unwrap();
+
+                String::from_utf8(buf).unwrap()
+            } else {
+                input.unwrap()
+            };
+            let result = compiler::Compiler::run(input, print_stacks).unwrap();
+
             println!("result: {}", result);
         }
     }
