@@ -1,8 +1,21 @@
-use std::env;
+use clap::{Parser, Subcommand};
 
 use crate::compiler::{ast::Module, vm::Instruction};
 
 mod compiler;
+
+#[derive(Parser, Debug)]
+#[clap(name = "iolite")]
+struct Cli {
+    #[clap(subcommand)]
+    command: CliCommands,
+}
+
+#[derive(Debug, Subcommand)]
+enum CliCommands {
+    Compile { input: String },
+    Run { input: String },
+}
 
 fn compile(input: String) -> Vec<u8> {
     let decls = compiler::Compiler::parse(compiler::Compiler::create_input(input.clone())).unwrap();
@@ -38,15 +51,15 @@ fn compile(input: String) -> Vec<u8> {
 }
 
 fn main() {
-    let args = env::args().collect::<Vec<String>>();
-    if args[1] == "compile" {
-        let input = args[2].clone();
-        compile(input);
-    } else if args[1] == "run" {
-        let input = args[2].clone();
-        let result = compiler::Compiler::run(input).unwrap();
-        println!("result: {}", result);
-    } else {
-        println!("Unknown command");
+    let cli = Cli::parse();
+
+    match cli.command {
+        CliCommands::Compile { input } => {
+            compile(input);
+        }
+        CliCommands::Run { input } => {
+            let result = compiler::Compiler::run(input).unwrap();
+            println!("result: {}", result);
+        }
     }
 }
