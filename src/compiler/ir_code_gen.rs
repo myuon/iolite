@@ -234,17 +234,34 @@ impl IrCodeGenerator {
             Expr::New { ty, argument: expr } => {
                 let expr = self.expr(*expr)?;
 
-                Ok(self.allocate(IrTerm::Op {
-                    op: IrOp::MulInt,
-                    args: vec![
-                        expr,
-                        IrTerm::Int(
-                            // NOTE: alignment for Value::size()
-                            (ty.data.sizeof() as i32 + Value::size() - 1) / Value::size()
-                                * Value::size(),
-                        ),
-                    ],
-                }))
+                match ty.data {
+                    Type::Ptr(item) => {
+                        let aligned_size = (item.sizeof() as i32 + Value::size() - 1)
+                            / Value::size()
+                            * Value::size();
+
+                        Ok(self.allocate(IrTerm::Op {
+                            op: IrOp::MulInt,
+                            args: vec![expr, IrTerm::Int(aligned_size)],
+                        }))
+                    }
+                    Type::Array(item) => {
+                        // FIXME: alignment should be calculated in alloc function
+                        let aligned_size = (item.sizeof() as i32 + Value::size() - 1)
+                            / Value::size()
+                            * Value::size();
+
+                        // FIXME: expr will be evaluated twice
+                        Ok(self.slice(vec![
+                            self.allocate(IrTerm::Op {
+                                op: IrOp::MulInt,
+                                args: vec![expr.clone(), IrTerm::Int(aligned_size)],
+                            }),
+                            expr,
+                        ]))
+                    }
+                    _ => todo!(),
+                }
             }
             Expr::Block(block) => self.block(*block),
             Expr::Struct { name, mut fields } => {
@@ -369,10 +386,28 @@ impl IrCodeGenerator {
                 let index = self.expr(*index)?;
 
                 Ok(IrTerm::Index {
-                    ptr: Box::new(ptr),
+                    ptr: Box::new(match &ty {
+                        Type::Ptr(_) => ptr,
+                        // array.(i) -> array.ptr.(i)
+                        Type::Array(_) => IrTerm::Load {
+                            size: Value::size() as usize,
+                            address: Box::new(IrTerm::Index {
+                                ptr: Box::new(ptr),
+                                index: Box::new(IrTerm::Int(0)),
+                            }),
+                        },
+                        _ => todo!(),
+                    }),
                     index: Box::new(IrTerm::Op {
                         op: IrOp::MulInt,
-                        args: vec![index, IrTerm::Int(ty.sizeof() as i32)],
+                        args: vec![
+                            index,
+                            IrTerm::Int(match &ty {
+                                Type::Ptr(item) => item.sizeof(),
+                                Type::Array(item) => item.sizeof(),
+                                _ => todo!(),
+                            } as i32),
+                        ],
                     }),
                 })
             }
