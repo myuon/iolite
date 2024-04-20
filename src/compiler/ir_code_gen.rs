@@ -326,38 +326,57 @@ impl IrCodeGenerator {
                     args: ir_args,
                 })
             }
+            Expr::Index { ty, ptr, index } => {
+                let term = self.expr_left_value(Source::span(
+                    Expr::Index {
+                        ty: ty.clone(),
+                        ptr,
+                        index,
+                    },
+                    expr.span,
+                ))?;
+                let item_ty = match &ty {
+                    Type::Array(item) => item,
+                    Type::Ptr(item) => item,
+                    _ => todo!(),
+                };
+
+                Ok(IrTerm::Op {
+                    op: match item_ty.as_ref() {
+                        Type::Byte => IrOp::IntToByte,
+                        _ => IrOp::PointerToInt,
+                    },
+                    args: vec![IrTerm::Load {
+                        size: item_ty.sizeof(),
+                        address: Box::new(term),
+                    }],
+                })
+            }
             _ => {
-                let (size, term) = self.expr_left_value(expr)?;
+                let term = self.expr_left_value(expr)?;
 
                 Ok(IrTerm::Load {
-                    size,
+                    size: Value::size() as usize,
                     address: Box::new(term),
                 })
             }
         }
     }
 
-    fn expr_left_value(&self, expr: Source<Expr>) -> Result<(usize, IrTerm), IrCodeGeneratorError> {
+    fn expr_left_value(&self, expr: Source<Expr>) -> Result<IrTerm, IrCodeGeneratorError> {
         match expr.data {
-            Expr::Ident(name) => Ok((Value::size() as usize, IrTerm::Ident(name.data))),
+            Expr::Ident(name) => Ok(IrTerm::Ident(name.data)),
             Expr::Index { ty, ptr, index } => {
                 let ptr = self.expr(*ptr)?;
                 let index = self.expr(*index)?;
 
-                Ok((
-                    match &ty {
-                        Type::Array(item) => item.sizeof(),
-                        Type::Ptr(item) => item.sizeof(),
-                        _ => todo!(),
-                    },
-                    IrTerm::Index {
-                        ptr: Box::new(ptr),
-                        index: Box::new(IrTerm::Op {
-                            op: IrOp::MulInt,
-                            args: vec![index, IrTerm::Int(ty.sizeof() as i32)],
-                        }),
-                    },
-                ))
+                Ok(IrTerm::Index {
+                    ptr: Box::new(ptr),
+                    index: Box::new(IrTerm::Op {
+                        op: IrOp::MulInt,
+                        args: vec![index, IrTerm::Int(ty.sizeof() as i32)],
+                    }),
+                })
             }
             Expr::Project {
                 expr_ty,
@@ -383,13 +402,10 @@ impl IrCodeGenerator {
                     .position(|(name, _)| name == &field.data)
                     .unwrap();
 
-                Ok((
-                    struct_ty[index].1.sizeof() as usize,
-                    IrTerm::Index {
-                        ptr: Box::new(expr),
-                        index: Box::new(IrTerm::Int(index as i32 * Value::size())),
-                    },
-                ))
+                Ok(IrTerm::Index {
+                    ptr: Box::new(expr),
+                    index: Box::new(IrTerm::Int(index as i32 * Value::size())),
+                })
             }
             _ => todo!(),
         }
@@ -419,11 +435,11 @@ impl IrCodeGenerator {
                     terms.push(ir);
                 }
                 Statement::Assign(lhs, rhs) => {
-                    let (size, lhs) = self.expr_left_value(lhs)?;
+                    let lhs = self.expr_left_value(lhs)?;
                     let rhs = self.expr(rhs)?;
 
                     terms.push(IrTerm::Store {
-                        size,
+                        size: Value::size() as usize,
                         address: Box::new(lhs),
                         value: Box::new(rhs),
                     });
