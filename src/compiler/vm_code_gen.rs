@@ -368,6 +368,7 @@ impl VmCodeGenerator {
                 self.reset_tag_bits();
                 self.emit(match size {
                     1 => Instruction::Load8,
+                    4 => Instruction::Load32,
                     8 => Instruction::Load,
                     _ => todo!(),
                 });
@@ -382,6 +383,7 @@ impl VmCodeGenerator {
                 self.term(*value)?;
                 self.emit(match size {
                     1 => Instruction::Store8,
+                    4 => Instruction::Store32,
                     8 => Instruction::Store,
                     _ => todo!(),
                 });

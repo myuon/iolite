@@ -236,7 +236,14 @@ impl IrCodeGenerator {
 
                 Ok(self.allocate(IrTerm::Op {
                     op: IrOp::MulInt,
-                    args: vec![expr, IrTerm::Int(8)],
+                    args: vec![
+                        expr,
+                        IrTerm::Int(
+                            // NOTE: alignment for Value::size()
+                            (ty.data.sizeof() as i32 + Value::size() - 1) / Value::size()
+                                * Value::size(),
+                        ),
+                    ],
                 }))
             }
             Expr::Block(block) => self.block(*block),
@@ -319,27 +326,38 @@ impl IrCodeGenerator {
                     args: ir_args,
                 })
             }
-            _ => Ok(IrTerm::Load {
-                size: Value::size() as usize,
-                address: Box::new(self.expr_left_value(expr)?),
-            }),
+            _ => {
+                let (size, term) = self.expr_left_value(expr)?;
+
+                Ok(IrTerm::Load {
+                    size,
+                    address: Box::new(term),
+                })
+            }
         }
     }
 
-    fn expr_left_value(&self, expr: Source<Expr>) -> Result<IrTerm, IrCodeGeneratorError> {
+    fn expr_left_value(&self, expr: Source<Expr>) -> Result<(usize, IrTerm), IrCodeGeneratorError> {
         match expr.data {
-            Expr::Ident(name) => Ok(IrTerm::Ident(name.data)),
-            Expr::Index { ty: _, ptr, index } => {
+            Expr::Ident(name) => Ok((Value::size() as usize, IrTerm::Ident(name.data))),
+            Expr::Index { ty, ptr, index } => {
                 let ptr = self.expr(*ptr)?;
                 let index = self.expr(*index)?;
 
-                Ok(IrTerm::Index {
-                    ptr: Box::new(ptr),
-                    index: Box::new(IrTerm::Op {
-                        op: IrOp::MulInt,
-                        args: vec![index, IrTerm::Int(Value::size())],
-                    }),
-                })
+                Ok((
+                    match &ty {
+                        Type::Array(item) => item.sizeof(),
+                        Type::Ptr(item) => item.sizeof(),
+                        _ => todo!(),
+                    },
+                    IrTerm::Index {
+                        ptr: Box::new(ptr),
+                        index: Box::new(IrTerm::Op {
+                            op: IrOp::MulInt,
+                            args: vec![index, IrTerm::Int(ty.sizeof() as i32)],
+                        }),
+                    },
+                ))
             }
             Expr::Project {
                 expr_ty,
@@ -365,10 +383,13 @@ impl IrCodeGenerator {
                     .position(|(name, _)| name == &field.data)
                     .unwrap();
 
-                Ok(IrTerm::Index {
-                    ptr: Box::new(expr),
-                    index: Box::new(IrTerm::Int(index as i32 * Value::size())),
-                })
+                Ok((
+                    struct_ty[index].1.sizeof() as usize,
+                    IrTerm::Index {
+                        ptr: Box::new(expr),
+                        index: Box::new(IrTerm::Int(index as i32 * Value::size())),
+                    },
+                ))
             }
             _ => todo!(),
         }
@@ -398,11 +419,11 @@ impl IrCodeGenerator {
                     terms.push(ir);
                 }
                 Statement::Assign(lhs, rhs) => {
-                    let lhs = self.expr_left_value(lhs)?;
+                    let (size, lhs) = self.expr_left_value(lhs)?;
                     let rhs = self.expr(rhs)?;
 
                     terms.push(IrTerm::Store {
-                        size: Value::size() as usize,
+                        size,
                         address: Box::new(lhs),
                         value: Box::new(rhs),
                     });

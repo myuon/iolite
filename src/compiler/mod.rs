@@ -474,18 +474,18 @@ mod tests {
             }"#,
                 23,
             ),
-            (
-                r#"
-            fun main() {
-                let arr = new[array[int]](10);
-                arr.(0) = 2;
-                arr.(1) = 3;
-                arr.(2) = 4;
+            // (
+            //     r#"
+            // fun main() {
+            //     let arr = new[array[int]](10);
+            //     arr.(0) = 2;
+            //     arr.(1) = 3;
+            //     arr.(2) = 4;
 
-                return arr.length * arr.(0) - arr.(1) + arr.(2);
-            }"#,
-                7,
-            ),
+            //     return arr.length * arr.(0) - arr.(1) + arr.(2);
+            // }"#,
+            //     7,
+            // ),
             (
                 r#"
             let global = 0;

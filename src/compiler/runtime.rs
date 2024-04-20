@@ -346,7 +346,10 @@ impl Runtime {
                 0x42 => {
                     let value = self.pop_i64();
                     let address = self.pop_address();
-                    self.store_i64(address, value);
+                    if print_stacks {
+                        println!("store {} {:x}", address as u32, value);
+                    }
+                    self.store_i64(address as u32 as u64, value);
                 }
                 // store into register
                 0x43 => {
@@ -367,6 +370,9 @@ impl Runtime {
                 0x45 => {
                     let value = self.pop_i64();
                     let address = self.pop_address();
+                    if print_stacks {
+                        println!("store8 {} {:x}", address as u32, value);
+                    }
                     self.store_u8(address as u32, value as u8);
                 }
                 // load32
@@ -378,6 +384,9 @@ impl Runtime {
                 0x47 => {
                     let value = self.pop_i64();
                     let address = self.pop_address();
+                    if print_stacks {
+                        println!("store32 {} {:x}", address as u32, value);
+                    }
                     self.store_u32(address as u32, value as u32);
                 }
 
