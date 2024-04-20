@@ -1,7 +1,11 @@
 use std::{error::Error, io::Read};
 
 use clap::{Parser, Subcommand};
-use lsp::{InitializeResult, RpcMessageRequest, RpcMessageResponse, ServerCapabilities};
+use compiler::lexer::Lexeme;
+use lsp::{
+    InitializeResult, RpcMessageRequest, RpcMessageResponse, SemanticTokenTypes, SemanticTokens,
+    SemanticTokensData, SemanticTokensLegend, SemanticTokensOptions, ServerCapabilities,
+};
 use tokio::{
     io::{AsyncReadExt, AsyncWriteExt},
     net::TcpListener,
@@ -205,13 +209,13 @@ async fn process_stream(
     let req = serde_json::from_str::<RpcMessageRequest>(&content_part)?;
 
     let resp = handle_request(req).await.unwrap();
-    let resp_body = serde_json::to_string(&resp)?;
+    if let Some(resp) = resp {
+        let resp_body = serde_json::to_string(&resp)?;
+        let rcp_resp = format!("Content-Length: {}\r\n\r\n{}", resp_body.len(), resp_body);
+        writer.write(rcp_resp.as_bytes()).await?;
 
-    let rcp_resp = format!("Content-Length: {}\r\n\r\n{}", resp_body.len(), resp_body);
-
-    writer.write(rcp_resp.as_bytes()).await?;
-
-    println!("ok; resp={}", resp_body);
+        println!("ok; resp={}", resp_body);
+    }
 
     Ok::<_, Box<dyn Error + Sync + Send>>(())
 }
@@ -267,12 +271,81 @@ fn test_parse_headers() {
     }
 }
 
-async fn handle_request(req: RpcMessageRequest) -> Result<RpcMessageResponse, Box<dyn Error>> {
-    Ok(RpcMessageResponse {
-        jsonrpc: "2.0".to_string(),
-        id: req.id,
-        result: serde_json::to_value(&InitializeResult {
-            capabilities: ServerCapabilities {},
-        })?,
-    })
+async fn handle_request(
+    req: RpcMessageRequest,
+) -> Result<Option<RpcMessageResponse>, Box<dyn Error>> {
+    let token_types = vec![SemanticTokenTypes::Keyword, SemanticTokenTypes::Comment];
+
+    match req.method.as_str() {
+        "initialize" => Ok(Some(RpcMessageResponse {
+            jsonrpc: "2.0".to_string(),
+            id: req.id,
+            result: serde_json::to_value(&InitializeResult {
+                capabilities: ServerCapabilities {
+                    semantic_tokens_provider: Some(SemanticTokensOptions {
+                        legend: SemanticTokensLegend {
+                            token_types,
+                            token_modifiers: vec![],
+                        },
+                        range: None,
+                        full: Some(true),
+                    }),
+                },
+            })?,
+        })),
+        "textDocument/semanticTokens/full" => {
+            let params = serde_json::from_value::<lsp::SemanticTokensParams>(req.params.clone())?;
+            let filepath = params.text_document.uri.as_filepath().unwrap();
+            let content = std::fs::read_to_string(filepath)?;
+
+            let tokens = compiler::Compiler::run_lexer(content.clone()).unwrap();
+            let mut token_data = vec![];
+            let mut prev = (0, 0);
+            for token in tokens {
+                match &token.lexeme {
+                    Lexeme::Let => match (token.span.start, token.span.end) {
+                        (Some(start), Some(end)) => {
+                            let (line, col) = compiler::Compiler::find_position(&content, start);
+
+                            token_data.push(SemanticTokensData {
+                                line_delta: line - prev.0,
+                                char_delta: if line == prev.0 { col - prev.1 } else { col },
+                                ty: SemanticTokenTypes::Keyword,
+                                length: end - start,
+                            });
+
+                            prev = (line, col);
+                        }
+                        _ => {}
+                    },
+                    Lexeme::Comment(_) => match (token.span.start, token.span.end) {
+                        (Some(start), Some(end)) => {
+                            let (line, col) = compiler::Compiler::find_position(&content, start);
+
+                            token_data.push(SemanticTokensData {
+                                line_delta: line - prev.0,
+                                char_delta: if line == prev.0 { col - prev.1 } else { col },
+                                ty: SemanticTokenTypes::Comment,
+                                length: end - start,
+                            });
+
+                            prev = (line, col);
+                        }
+                        _ => {}
+                    },
+                    _ => {}
+                }
+            }
+
+            Ok(Some(RpcMessageResponse {
+                jsonrpc: "2.0".to_string(),
+                id: req.id,
+                result: serde_json::to_value(&SemanticTokens::encode_data(
+                    token_data,
+                    token_types,
+                ))?,
+            }))
+        }
+        _ => Ok(None),
+    }
 }

@@ -47,6 +47,7 @@ pub enum Lexeme {
     String(String),
     Integer(i32),
     Float(f32),
+    Comment(String),
 }
 
 #[derive(Clone, Debug, PartialEq)]
@@ -96,6 +97,7 @@ impl Lexer {
             }
 
             if let Some(m) = COMMENT.find(&self.input[self.position..]) {
+                tokens.push(self.new_token(Lexeme::Comment(m.as_str().to_string()), m.end()));
                 self.position += m.end();
                 continue;
             }

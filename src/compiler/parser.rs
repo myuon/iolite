@@ -21,7 +21,10 @@ pub enum ParseError {
 impl Parser {
     pub fn new(tokens: Vec<Token>) -> Self {
         Self {
-            tokens,
+            tokens: tokens
+                .into_iter()
+                .filter(|t| !matches!(t.lexeme, Lexeme::Comment(_)))
+                .collect(),
             position: 0,
         }
     }

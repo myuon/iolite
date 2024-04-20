@@ -1,18 +1,13 @@
-import * as path from "path";
 import * as net from "net";
-import { workspace, type ExtensionContext } from "vscode";
+import { type ExtensionContext } from "vscode";
 
-import {
-  LanguageClient,
-  type LanguageClientOptions,
-  type ServerOptions,
-  TransportKind,
-  StreamInfo,
-} from "vscode-languageclient/node";
+import { LanguageClient, StreamInfo } from "vscode-languageclient/node";
 
 let client: LanguageClient;
 
-export function activate(context: ExtensionContext) {
+export async function activate(_context: ExtensionContext) {
+  console.log("Iolite Language Server activated");
+
   const serverOptions = (): Promise<StreamInfo> => {
     let socket = net.connect(3030, "127.0.0.1");
 
@@ -28,13 +23,10 @@ export function activate(context: ExtensionContext) {
     serverOptions,
     {
       documentSelector: [{ scheme: "file", language: "iolite" }],
-      synchronize: {
-        fileEvents: workspace.createFileSystemWatcher("**/.iolite"),
-      },
     }
   );
 
-  client.start();
+  await client.start();
 }
 
 export function deactivate(): Thenable<void> | undefined {

@@ -36,7 +36,7 @@ pub enum CompilerError {
 pub struct Compiler {}
 
 impl Compiler {
-    fn find_position(input: &str, position: usize) -> (usize, usize) {
+    pub fn find_position(input: &str, position: usize) -> (usize, usize) {
         let mut line = 1;
         let mut col = 1;
         for (i, c) in input.chars().enumerate() {
@@ -53,6 +53,11 @@ impl Compiler {
         }
 
         (line, col)
+    }
+
+    pub fn run_lexer(input: String) -> Result<Vec<lexer::Token>, CompilerError> {
+        let mut lexer = lexer::Lexer::new(input);
+        Ok(lexer.run().map_err(CompilerError::LexerError)?)
     }
 
     pub fn parse(input: String) -> Result<Vec<Source<Declaration>>, CompilerError> {
