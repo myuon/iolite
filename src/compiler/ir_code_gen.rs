@@ -4,7 +4,7 @@ use nanoid::nanoid;
 
 use super::{
     ast::{BinOp, Block, Conversion, Declaration, Expr, Literal, Module, Source, Statement, Type},
-    ir::{IrDecl, IrModule, IrOp, IrTerm, Value},
+    ir::{IrDecl, IrModule, IrOp, IrTerm, TypeTag, Value},
 };
 
 #[derive(Debug, PartialEq, Clone)]
@@ -86,7 +86,7 @@ impl IrCodeGenerator {
             size: Value::size() as usize,
             address: Box::new(IrTerm::Ident("heap_ptr".to_string())),
             value: Box::new(IrTerm::Op {
-                op: IrOp::IntToPointer,
+                op: IrOp::Cast(TypeTag::Pointer),
                 args: vec![IrTerm::Int(self.globals.len() as i32 * Value::size())],
             }),
         });
@@ -274,11 +274,9 @@ impl IrCodeGenerator {
                 let expr = self.expr(*expr)?;
 
                 let term = match conversion.unwrap() {
+                    Conversion::Cast(tag) => IrOp::Cast(tag),
                     Conversion::IntToFloat => IrOp::IntToFloat,
                     Conversion::FloatToInt => IrOp::FloatToInt,
-                    Conversion::IntToPointer => IrOp::IntToPointer,
-                    Conversion::PointerToInt => IrOp::PointerToInt,
-                    Conversion::IntToByte => IrOp::IntToByte,
                 };
 
                 Ok(IrTerm::Op {
@@ -343,8 +341,8 @@ impl IrCodeGenerator {
 
                 Ok(IrTerm::Op {
                     op: match item_ty.as_ref() {
-                        Type::Byte => IrOp::IntToByte,
-                        _ => IrOp::PointerToInt,
+                        Type::Byte => IrOp::Cast(TypeTag::Byte),
+                        _ => IrOp::Cast(TypeTag::Int),
                     },
                     args: vec![IrTerm::Load {
                         size: item_ty.sizeof(),

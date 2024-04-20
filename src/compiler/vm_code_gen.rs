@@ -129,7 +129,7 @@ impl VmCodeGenerator {
             AddInt | SubInt | MulInt | DivInt | AddFloat | SubFloat | MulFloat | DivFloat => {
                 self.stack_pointer -= 1;
             }
-            IntToFloat | FloatToInt | IntToByte => {}
+            IntToFloat | FloatToInt => {}
             Load | Load8 | Load32 => {}
             Store | Store8 | Store32 => {
                 self.stack_pointer -= 2;
@@ -256,11 +256,8 @@ impl VmCodeGenerator {
                 }
 
                 match op {
-                    IrOp::IntToPointer => {
-                        self.attach_tag_bits(TypeTag::Pointer);
-                    }
-                    IrOp::PointerToInt => {
-                        self.attach_tag_bits(TypeTag::Int);
+                    IrOp::Cast(tag) => {
+                        self.attach_tag_bits(tag);
                     }
                     IrOp::NegateInt => {
                         self.push_value(Value::Int(-1));
@@ -298,7 +295,6 @@ impl VmCodeGenerator {
                             IrOp::DivFloat => Instruction::DivFloat,
                             IrOp::IntToFloat => Instruction::IntToFloat,
                             IrOp::FloatToInt => Instruction::FloatToInt,
-                            IrOp::IntToByte => Instruction::IntToByte,
                             _ => todo!("{:?}", op),
                         };
                         self.emit(op.clone());
@@ -322,7 +318,6 @@ impl VmCodeGenerator {
                             | Instruction::DivFloat => TypeTag::Float,
                             Instruction::IntToFloat => TypeTag::Float,
                             Instruction::FloatToInt => TypeTag::Int,
-                            Instruction::IntToByte => TypeTag::Byte,
                             _ => unreachable!(),
                         });
                     }

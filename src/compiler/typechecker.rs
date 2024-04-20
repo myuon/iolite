@@ -1,7 +1,10 @@
 use std::collections::HashMap;
 
-use super::ast::{
-    BinOp, Block, Conversion, Declaration, Expr, Literal, Module, Source, Span, Statement, Type,
+use super::{
+    ast::{
+        BinOp, Block, Conversion, Declaration, Expr, Literal, Module, Source, Span, Statement, Type,
+    },
+    ir::TypeTag,
 };
 
 #[derive(Debug, Clone)]
@@ -281,13 +284,13 @@ impl Typechecker {
                         *conversion = Some(Conversion::FloatToInt);
                     }
                     (Type::Int, Type::Ptr(_)) => {
-                        *conversion = Some(Conversion::IntToPointer);
+                        *conversion = Some(Conversion::Cast(TypeTag::Pointer));
                     }
                     (Type::Ptr(_), Type::Int) => {
-                        *conversion = Some(Conversion::PointerToInt);
+                        *conversion = Some(Conversion::Cast(TypeTag::Int));
                     }
                     (Type::Int, Type::Byte) => {
-                        *conversion = Some(Conversion::IntToByte);
+                        *conversion = Some(Conversion::Cast(TypeTag::Byte));
                     }
                     _ => {
                         return Err(TypecheckerError::ConversionNotSupported(

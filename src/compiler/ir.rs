@@ -18,13 +18,11 @@ pub enum IrOp {
     Gt,
     Le,
     Ge,
+    Cast(TypeTag),
     IntToFloat,
     FloatToInt,
-    IntToPointer,
-    PointerToInt,
     NegateInt,
     NegateFloat,
-    IntToByte,
 }
 
 #[derive(Debug, PartialEq, Clone)]

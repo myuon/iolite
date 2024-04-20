@@ -1,5 +1,7 @@
 use std::vec;
 
+use super::ir::TypeTag;
+
 #[derive(Debug, PartialEq, Clone)]
 pub struct Span {
     pub start: Option<usize>,
@@ -81,11 +83,9 @@ pub enum BinOp {
 
 #[derive(Debug, PartialEq, Clone)]
 pub enum Conversion {
+    Cast(TypeTag),
     IntToFloat,
     FloatToInt,
-    IntToPointer,
-    PointerToInt,
-    IntToByte,
 }
 
 #[derive(Debug, PartialEq, Clone)]
