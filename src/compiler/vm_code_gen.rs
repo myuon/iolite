@@ -175,8 +175,6 @@ impl VmCodeGenerator {
             }
             Debug(_) => {}
             Nop => {}
-            Call => todo!(),
-            Return => todo!(),
         }
 
         self.code.push(inst);
@@ -362,12 +360,15 @@ impl VmCodeGenerator {
 
                 self.emit(Instruction::Return);
             }
-            IrTerm::Load(term) => {
+            IrTerm::Load { address: term } => {
                 self.term(*term)?;
                 self.reset_tag_bits();
                 self.emit(Instruction::Load);
             }
-            IrTerm::Store(addr, value) => {
+            IrTerm::Store {
+                address: addr,
+                value,
+            } => {
                 self.term(*addr)?;
                 self.reset_tag_bits();
                 self.term(*value)?;
@@ -573,11 +574,13 @@ mod tests {
                         name: "a".to_string(),
                         value: Box::new(IrTerm::Int(1)),
                     },
-                    IrTerm::Store(
-                        Box::new(IrTerm::Ident("a".to_string())),
-                        Box::new(IrTerm::Int(2)),
-                    ),
-                    IrTerm::Load(Box::new(IrTerm::Ident("a".to_string()))),
+                    IrTerm::Store {
+                        address: Box::new(IrTerm::Ident("a".to_string())),
+                        value: Box::new(IrTerm::Int(2)),
+                    },
+                    IrTerm::Load {
+                        address: Box::new(IrTerm::Ident("a".to_string())),
+                    },
                 ]),
                 vec![
                     Instruction::Push(Value::Int(1).as_u64()),

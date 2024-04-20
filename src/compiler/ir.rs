@@ -44,8 +44,13 @@ pub enum IrTerm {
     },
     Items(Vec<IrTerm>),
     Return(Box<IrTerm>),
-    Load(Box<IrTerm>),
-    Store(Box<IrTerm>, Box<IrTerm>),
+    Load {
+        address: Box<IrTerm>,
+    },
+    Store {
+        address: Box<IrTerm>,
+        value: Box<IrTerm>,
+    },
     While {
         cond: Box<IrTerm>,
         body: Box<IrTerm>,

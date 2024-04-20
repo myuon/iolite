@@ -51,16 +51,20 @@ impl IrCodeGenerator {
         });
 
         for (index, term) in values.into_iter().enumerate() {
-            block.push(IrTerm::Store(
-                Box::new(IrTerm::Index {
-                    ptr: Box::new(IrTerm::Load(Box::new(IrTerm::Ident(ident_name.clone())))),
+            block.push(IrTerm::Store {
+                address: Box::new(IrTerm::Index {
+                    ptr: Box::new(IrTerm::Load {
+                        address: Box::new(IrTerm::Ident(ident_name.clone())),
+                    }),
                     index: Box::new(IrTerm::Int(index as i32 * Value::size())),
                 }),
-                Box::new(term),
-            ));
+                value: Box::new(term),
+            });
         }
 
-        block.push(IrTerm::Load(Box::new(IrTerm::Ident(ident_name))));
+        block.push(IrTerm::Load {
+            address: Box::new(IrTerm::Ident(ident_name)),
+        });
 
         IrTerm::Items(block)
     }
@@ -75,13 +79,13 @@ impl IrCodeGenerator {
         }
 
         // NOTE: update heap_ptr
-        self.init_function.push(IrTerm::Store(
-            Box::new(IrTerm::Ident("heap_ptr".to_string())),
-            Box::new(IrTerm::Op {
+        self.init_function.push(IrTerm::Store {
+            address: Box::new(IrTerm::Ident("heap_ptr".to_string())),
+            value: Box::new(IrTerm::Op {
                 op: IrOp::IntToPointer,
                 args: vec![IrTerm::Int(self.globals.len() as i32 * Value::size())],
             }),
-        ));
+        });
 
         // NOTE: hoist initial process to the init function
         self.init_function
@@ -127,10 +131,10 @@ impl IrCodeGenerator {
             Declaration::Let { name, ty, value } => {
                 let value = self.expr(value)?;
 
-                self.init_function.push(IrTerm::Store(
-                    Box::new(IrTerm::Ident(name.data.clone())),
-                    Box::new(value.clone()),
-                ));
+                self.init_function.push(IrTerm::Store {
+                    address: Box::new(IrTerm::Ident(name.data.clone())),
+                    value: Box::new(value.clone()),
+                });
 
                 self.globals.push(name.data.clone());
 
@@ -310,7 +314,9 @@ impl IrCodeGenerator {
                     args: ir_args,
                 })
             }
-            _ => Ok(IrTerm::Load(Box::new(self.expr_left_value(expr)?))),
+            _ => Ok(IrTerm::Load {
+                address: Box::new(self.expr_left_value(expr)?),
+            }),
         }
     }
 
@@ -389,7 +395,10 @@ impl IrCodeGenerator {
                     let lhs = self.expr_left_value(lhs)?;
                     let rhs = self.expr(rhs)?;
 
-                    terms.push(IrTerm::Store(Box::new(lhs), Box::new(rhs)));
+                    terms.push(IrTerm::Store {
+                        address: Box::new(lhs),
+                        value: Box::new(rhs),
+                    });
                 }
                 Statement::While { cond, body } => {
                     let cond = self.expr(cond)?;
@@ -507,8 +516,12 @@ mod tests {
                         value: Box::new(IrTerm::Op {
                             op: IrOp::AddInt,
                             args: vec![
-                                IrTerm::Load(Box::new(IrTerm::Ident("a".to_string()))),
-                                IrTerm::Load(Box::new(IrTerm::Ident("b".to_string()))),
+                                IrTerm::Load {
+                                    address: Box::new(IrTerm::Ident("a".to_string())),
+                                },
+                                IrTerm::Load {
+                                    address: Box::new(IrTerm::Ident("b".to_string())),
+                                },
                             ],
                         }),
                     },
@@ -522,10 +535,10 @@ mod tests {
                         name: "a".to_string(),
                         value: Box::new(IrTerm::Int(1)),
                     },
-                    IrTerm::Store(
-                        Box::new(IrTerm::Ident("a".to_string())),
-                        Box::new(IrTerm::Int(2)),
-                    ),
+                    IrTerm::Store {
+                        address: Box::new(IrTerm::Ident("a".to_string())),
+                        value: Box::new(IrTerm::Int(2)),
+                    },
                     IrTerm::Nil,
                 ]),
             ),
@@ -541,13 +554,15 @@ mod tests {
                             name: "a".to_string(),
                             value: Box::new(IrTerm::Int(3)),
                         },
-                        IrTerm::Store(
-                            Box::new(IrTerm::Ident("a".to_string())),
-                            Box::new(IrTerm::Int(4)),
-                        ),
+                        IrTerm::Store {
+                            address: Box::new(IrTerm::Ident("a".to_string())),
+                            value: Box::new(IrTerm::Int(4)),
+                        },
                         IrTerm::Nil,
                     ]),
-                    IrTerm::Load(Box::new(IrTerm::Ident("a".to_string()))),
+                    IrTerm::Load {
+                        address: Box::new(IrTerm::Ident("a".to_string())),
+                    },
                 ]),
             ),
         ];
