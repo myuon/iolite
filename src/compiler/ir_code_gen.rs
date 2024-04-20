@@ -52,8 +52,10 @@ impl IrCodeGenerator {
 
         for (index, term) in values.into_iter().enumerate() {
             block.push(IrTerm::Store {
+                size: Value::size() as usize,
                 address: Box::new(IrTerm::Index {
                     ptr: Box::new(IrTerm::Load {
+                        size: Value::size() as usize,
                         address: Box::new(IrTerm::Ident(ident_name.clone())),
                     }),
                     index: Box::new(IrTerm::Int(index as i32 * Value::size())),
@@ -63,6 +65,7 @@ impl IrCodeGenerator {
         }
 
         block.push(IrTerm::Load {
+            size: Value::size() as usize,
             address: Box::new(IrTerm::Ident(ident_name)),
         });
 
@@ -80,6 +83,7 @@ impl IrCodeGenerator {
 
         // NOTE: update heap_ptr
         self.init_function.push(IrTerm::Store {
+            size: Value::size() as usize,
             address: Box::new(IrTerm::Ident("heap_ptr".to_string())),
             value: Box::new(IrTerm::Op {
                 op: IrOp::IntToPointer,
@@ -128,10 +132,11 @@ impl IrCodeGenerator {
                     body: Box::new(body),
                 }))
             }
-            Declaration::Let { name, ty, value } => {
+            Declaration::Let { name, ty: _, value } => {
                 let value = self.expr(value)?;
 
                 self.init_function.push(IrTerm::Store {
+                    size: Value::size() as usize,
                     address: Box::new(IrTerm::Ident(name.data.clone())),
                     value: Box::new(value.clone()),
                 });
@@ -231,7 +236,7 @@ impl IrCodeGenerator {
 
                 Ok(self.allocate(IrTerm::Op {
                     op: IrOp::MulInt,
-                    args: vec![expr, IrTerm::Int(ty.data.sizeof() as i32)],
+                    args: vec![expr, IrTerm::Int(8)],
                 }))
             }
             Expr::Block(block) => self.block(*block),
@@ -315,6 +320,7 @@ impl IrCodeGenerator {
                 })
             }
             _ => Ok(IrTerm::Load {
+                size: Value::size() as usize,
                 address: Box::new(self.expr_left_value(expr)?),
             }),
         }
@@ -323,7 +329,7 @@ impl IrCodeGenerator {
     fn expr_left_value(&self, expr: Source<Expr>) -> Result<IrTerm, IrCodeGeneratorError> {
         match expr.data {
             Expr::Ident(name) => Ok(IrTerm::Ident(name.data)),
-            Expr::Index { ty, ptr, index } => {
+            Expr::Index { ty: _, ptr, index } => {
                 let ptr = self.expr(*ptr)?;
                 let index = self.expr(*index)?;
 
@@ -331,7 +337,7 @@ impl IrCodeGenerator {
                     ptr: Box::new(ptr),
                     index: Box::new(IrTerm::Op {
                         op: IrOp::MulInt,
-                        args: vec![index, IrTerm::Int(ty.sizeof() as i32)],
+                        args: vec![index, IrTerm::Int(Value::size())],
                     }),
                 })
             }
@@ -396,6 +402,7 @@ impl IrCodeGenerator {
                     let rhs = self.expr(rhs)?;
 
                     terms.push(IrTerm::Store {
+                        size: Value::size() as usize,
                         address: Box::new(lhs),
                         value: Box::new(rhs),
                     });
@@ -517,9 +524,11 @@ mod tests {
                             op: IrOp::AddInt,
                             args: vec![
                                 IrTerm::Load {
+                                    size: Value::size() as usize,
                                     address: Box::new(IrTerm::Ident("a".to_string())),
                                 },
                                 IrTerm::Load {
+                                    size: Value::size() as usize,
                                     address: Box::new(IrTerm::Ident("b".to_string())),
                                 },
                             ],
@@ -536,6 +545,7 @@ mod tests {
                         value: Box::new(IrTerm::Int(1)),
                     },
                     IrTerm::Store {
+                        size: Value::size() as usize,
                         address: Box::new(IrTerm::Ident("a".to_string())),
                         value: Box::new(IrTerm::Int(2)),
                     },
@@ -555,12 +565,14 @@ mod tests {
                             value: Box::new(IrTerm::Int(3)),
                         },
                         IrTerm::Store {
+                            size: Value::size() as usize,
                             address: Box::new(IrTerm::Ident("a".to_string())),
                             value: Box::new(IrTerm::Int(4)),
                         },
                         IrTerm::Nil,
                     ]),
                     IrTerm::Load {
+                        size: Value::size() as usize,
                         address: Box::new(IrTerm::Ident("a".to_string())),
                     },
                 ]),

@@ -45,9 +45,11 @@ pub enum IrTerm {
     Items(Vec<IrTerm>),
     Return(Box<IrTerm>),
     Load {
+        size: usize,
         address: Box<IrTerm>,
     },
     Store {
+        size: usize,
         address: Box<IrTerm>,
         value: Box<IrTerm>,
     },

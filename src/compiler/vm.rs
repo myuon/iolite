@@ -19,7 +19,9 @@ pub enum Instruction {
     FloatToInt,
     IntToByte,
     Load,
+    LoadByte,
     Store,
+    StoreByte,
     LoadBp,
     StoreBp,
     LoadSp,
@@ -93,6 +95,8 @@ impl Instruction {
             Store => vec![0x42],
             StoreBp => vec![0x43, 0x01],
             StoreSp => vec![0x43, 0x02],
+            LoadByte => vec![0x44],
+            StoreByte => vec![0x45],
 
             // Conversion
             IntToFloat => vec![0x50],
@@ -153,6 +157,8 @@ impl Instruction {
                 0x02 => Instruction::StoreSp,
                 _ => todo!(),
             },
+            0x44 => Instruction::LoadByte,
+            0x45 => Instruction::StoreByte,
 
             0x50 => Instruction::IntToFloat,
             0x51 => Instruction::FloatToInt,
@@ -183,6 +189,8 @@ impl Arbitrary for Instruction {
             Just(Instruction::StoreBp),
             Just(Instruction::LoadSp),
             Just(Instruction::StoreSp),
+            Just(Instruction::LoadByte),
+            Just(Instruction::StoreByte),
             Just(Instruction::Push(0)),
             Just(Instruction::Pop),
             Just(Instruction::Jump),

@@ -517,7 +517,7 @@ mod tests {
 
                 return arr.(1) + arr2.(1);
             }"#,
-                7,
+                9,
             ),
             (
                 r#"

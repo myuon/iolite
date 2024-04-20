@@ -130,8 +130,8 @@ impl VmCodeGenerator {
                 self.stack_pointer -= 1;
             }
             IntToFloat | FloatToInt | IntToByte => {}
-            Load => {}
-            Store => {
+            Load | LoadByte => {}
+            Store | StoreByte => {
                 self.stack_pointer -= 2;
             }
             LoadBp => {
@@ -360,19 +360,31 @@ impl VmCodeGenerator {
 
                 self.emit(Instruction::Return);
             }
-            IrTerm::Load { address: term } => {
+            IrTerm::Load {
+                size,
+                address: term,
+            } => {
                 self.term(*term)?;
                 self.reset_tag_bits();
-                self.emit(Instruction::Load);
+                self.emit(match size {
+                    1 => Instruction::LoadByte,
+                    8 => Instruction::Load,
+                    _ => todo!(),
+                });
             }
             IrTerm::Store {
+                size,
                 address: addr,
                 value,
             } => {
                 self.term(*addr)?;
                 self.reset_tag_bits();
                 self.term(*value)?;
-                self.emit(Instruction::Store);
+                self.emit(match size {
+                    1 => Instruction::StoreByte,
+                    8 => Instruction::Store,
+                    _ => todo!(),
+                });
             }
             IrTerm::While { cond, body } => {
                 let label_id = nanoid!();
@@ -575,10 +587,12 @@ mod tests {
                         value: Box::new(IrTerm::Int(1)),
                     },
                     IrTerm::Store {
+                        size: 8,
                         address: Box::new(IrTerm::Ident("a".to_string())),
                         value: Box::new(IrTerm::Int(2)),
                     },
                     IrTerm::Load {
+                        size: 8,
                         address: Box::new(IrTerm::Ident("a".to_string())),
                     },
                 ]),
