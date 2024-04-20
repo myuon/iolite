@@ -30,6 +30,12 @@
         "scopeName": "source.iolite",
         "path": "./syntaxes/iolite.tmLanguage.json"
       }
+    ],
+    "commands": [
+      {
+        "command": "iolite.helloworld",
+        "title": "Iolite: say hello!"
+      }
     ]
   },
   "devDependencies": {

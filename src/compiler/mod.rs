@@ -157,14 +157,18 @@ impl Compiler {
         format!("{}\n{}", include_str!("./std.io"), input)
     }
 
+    pub fn create_module(decls: Vec<Source<Declaration>>) -> Module {
+        Module {
+            name: "main".to_string(),
+            declarations: decls,
+        }
+    }
+
     pub fn compile(input: String) -> Result<Vec<u8>, CompilerError> {
         let input = Self::create_input(input);
 
         let decls = Self::parse(input.clone())?;
-        let mut module = Module {
-            name: "main".to_string(),
-            declarations: decls,
-        };
+        let mut module = Self::create_module(decls);
         let types = Self::typecheck(&mut module, &input)?;
 
         let ir = Self::ir_code_gen(module, types)?;

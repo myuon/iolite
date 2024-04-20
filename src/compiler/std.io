@@ -40,3 +40,4 @@ fun float_abs(x: float) {
 fun ptr_offset(p: ptr[byte], d: int) {
   return (p as int + d) as ptr[byte];
 }
+

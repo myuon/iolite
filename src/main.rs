@@ -1,10 +1,12 @@
-use std::{error::Error, io::Read};
+use std::{collections::HashMap, error::Error, io::Read};
 
 use clap::{Parser, Subcommand};
-use compiler::lexer::Lexeme;
+use compiler::{lexer::Lexeme, CompilerError};
 use lsp::{
-    InitializeResult, RpcMessageRequest, RpcMessageResponse, SemanticTokenTypes, SemanticTokens,
-    SemanticTokensData, SemanticTokensLegend, SemanticTokensOptions, ServerCapabilities,
+    Diagnostic, DiagnosticOptions, DocumentDiagnosticReportKind, FullDocumentDiagnosticReport,
+    InitializeResult, Position, Range, RelatedFullDocumentDiagnosticReport, RpcMessageRequest,
+    RpcMessageResponse, SemanticTokenTypes, SemanticTokens, SemanticTokensData,
+    SemanticTokensLegend, SemanticTokensOptions, ServerCapabilities, TextDocumentSyncKind,
 };
 use tokio::{
     io::{AsyncReadExt, AsyncWriteExt},
@@ -162,7 +164,14 @@ async fn process_stream(
                         parse_headers(&String::from_utf8(header_part_str.clone()).unwrap());
                     for (key, value) in header_part {
                         if key == "Content-Length" {
-                            content_length = value.parse().unwrap();
+                            content_length = match value.parse() {
+                                Ok(len) => len,
+                                Err(err) => {
+                                    eprintln!("Cannot parse content-length: {}", err);
+
+                                    return Ok(());
+                                }
+                            };
                         }
                     }
                     if content_length == -1 {
@@ -282,6 +291,7 @@ async fn handle_request(
             id: req.id,
             result: serde_json::to_value(&InitializeResult {
                 capabilities: ServerCapabilities {
+                    text_document_sync: Some(TextDocumentSyncKind::Full),
                     semantic_tokens_provider: Some(SemanticTokensOptions {
                         legend: SemanticTokensLegend {
                             token_types,
@@ -290,9 +300,18 @@ async fn handle_request(
                         range: None,
                         full: Some(true),
                     }),
+                    diagnostic_provider: Some(DiagnosticOptions {
+                        inter_file_dependencies: false,
+                        workspace_diagnostics: false,
+                    }),
                 },
             })?,
         })),
+        "initialized" => {
+            println!("Initialized!");
+
+            Ok(None)
+        }
         // it seems not working
         "textDocument/semanticTokens/full" => {
             let params = serde_json::from_value::<lsp::SemanticTokensParams>(req.params.clone())?;
@@ -345,6 +364,102 @@ async fn handle_request(
                     token_data,
                     token_types,
                 ))?,
+            }))
+        }
+        "textDocument/diagnostic" => {
+            let params = serde_json::from_value::<lsp::SemanticTokensParams>(req.params.clone())?;
+
+            let input = compiler::Compiler::create_input(
+                std::fs::read_to_string(params.text_document.uri.as_filepath().unwrap()).unwrap(),
+            );
+            let parsed = match compiler::Compiler::parse(input.clone()) {
+                Ok(parsed) => parsed,
+                Err(CompilerError::ParseError(err)) => {
+                    return Ok(Some(RpcMessageResponse {
+                        jsonrpc: "2.0".to_string(),
+                        id: req.id,
+                        result: serde_json::to_value(RelatedFullDocumentDiagnosticReport {
+                            related_documents: Some(
+                                vec![(
+                                    params.text_document.uri,
+                                    FullDocumentDiagnosticReport {
+                                        kind: DocumentDiagnosticReportKind::Full,
+                                        items: vec![Diagnostic {
+                                            range: Range {
+                                                start: Position {
+                                                    line: 0,
+                                                    character: 0,
+                                                },
+                                                end: Position {
+                                                    line: 1,
+                                                    character: 1,
+                                                },
+                                            },
+                                            message: format!("{:?}", err),
+                                        }],
+                                    },
+                                )]
+                                .into_iter()
+                                .collect(),
+                            ),
+                        })?,
+                    }));
+                }
+                _ => todo!(),
+            };
+            let mut module = compiler::Compiler::create_module(parsed);
+            match compiler::Compiler::typecheck(&mut module, &input) {
+                Ok(_) => {}
+                Err(CompilerError::TypecheckError(err)) => {
+                    return Ok(Some(RpcMessageResponse {
+                        jsonrpc: "2.0".to_string(),
+                        id: req.id,
+                        result: serde_json::to_value(RelatedFullDocumentDiagnosticReport {
+                            related_documents: Some(
+                                vec![(
+                                    params.text_document.uri,
+                                    FullDocumentDiagnosticReport {
+                                        kind: DocumentDiagnosticReportKind::Full,
+                                        items: vec![Diagnostic {
+                                            range: Range {
+                                                start: Position {
+                                                    line: 0,
+                                                    character: 0,
+                                                },
+                                                end: Position {
+                                                    line: 1,
+                                                    character: 1,
+                                                },
+                                            },
+                                            message: format!("{:?}", err),
+                                        }],
+                                    },
+                                )]
+                                .into_iter()
+                                .collect(),
+                            ),
+                        })?,
+                    }));
+                }
+                _ => todo!(),
+            };
+
+            Ok(Some(RpcMessageResponse {
+                jsonrpc: "2.0".to_string(),
+                id: req.id,
+                result: serde_json::to_value(RelatedFullDocumentDiagnosticReport {
+                    related_documents: Some(
+                        vec![(
+                            params.text_document.uri,
+                            FullDocumentDiagnosticReport {
+                                kind: DocumentDiagnosticReportKind::Full,
+                                items: vec![],
+                            },
+                        )]
+                        .into_iter()
+                        .collect(),
+                    ),
+                })?,
             }))
         }
         _ => Ok(None),

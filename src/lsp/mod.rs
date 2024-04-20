@@ -1,5 +1,9 @@
+use std::collections::HashMap;
+
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
+
+use crate::compiler::parser;
 
 #[derive(Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -29,7 +33,19 @@ pub struct InitializeResult {
 #[serde(rename_all = "camelCase")]
 pub struct ServerCapabilities {
     #[serde(skip_serializing_if = "Option::is_none")]
+    pub text_document_sync: Option<TextDocumentSyncKind>,
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub semantic_tokens_provider: Option<SemanticTokensOptions>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub diagnostic_provider: Option<DiagnosticOptions>,
+}
+
+#[derive(Serialize)]
+#[serde(rename_all = "camelCase")]
+pub enum TextDocumentSyncKind {
+    None = 0,
+    Full = 1,
+    Incremental = 2,
 }
 
 #[derive(Serialize)]
@@ -40,6 +56,13 @@ pub struct SemanticTokensOptions {
     pub range: Option<bool>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub full: Option<bool>,
+}
+
+#[derive(Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct DiagnosticOptions {
+    pub inter_file_dependencies: bool,
+    pub workspace_diagnostics: bool,
 }
 
 #[derive(Serialize)]
@@ -127,7 +150,7 @@ impl SemanticTokens {
     }
 }
 
-#[derive(Deserialize, Debug)]
+#[derive(Deserialize, Serialize, Debug, PartialEq, Eq, Hash)]
 #[serde(rename_all = "camelCase")]
 pub struct DocumentUri(pub String);
 
@@ -147,4 +170,52 @@ pub struct TextDocumentIdentifier {
 #[serde(rename_all = "camelCase")]
 pub struct SemanticTokensParams {
     pub text_document: TextDocumentIdentifier,
+}
+
+#[derive(Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct PublishDiagnosticsParams {
+    pub uri: DocumentUri,
+    pub diagnostics: Vec<Diagnostic>,
+}
+
+#[derive(Deserialize, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct Diagnostic {
+    pub range: Range,
+    pub message: String,
+}
+
+#[derive(Deserialize, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct Range {
+    pub start: Position,
+    pub end: Position,
+}
+
+#[derive(Deserialize, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct Position {
+    pub line: usize,
+    pub character: usize,
+}
+
+#[derive(Serialize)]
+#[serde(rename_all = "camelCase")]
+pub enum DocumentDiagnosticReportKind {
+    Full,
+}
+
+#[derive(Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct FullDocumentDiagnosticReport {
+    pub kind: DocumentDiagnosticReportKind,
+    pub items: Vec<Diagnostic>,
+}
+
+#[derive(Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct RelatedFullDocumentDiagnosticReport {
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub related_documents: Option<HashMap<DocumentUri, FullDocumentDiagnosticReport>>,
 }
