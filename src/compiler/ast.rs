@@ -22,6 +22,13 @@ impl Span {
             end: None,
         }
     }
+
+    pub fn has(&self, pos: usize) -> bool {
+        match (self.start, self.end) {
+            (Some(start), Some(end)) => start <= pos && pos < end,
+            _ => false,
+        }
+    }
 }
 
 #[derive(Debug, Clone)]

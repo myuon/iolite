@@ -14,7 +14,7 @@ pub enum IrCodeGeneratorError {}
 pub struct IrCodeGenerator {
     init_function: Vec<IrTerm>,
     globals: Vec<String>,
-    types: HashMap<String, Type>,
+    types: HashMap<String, Source<Type>>,
 }
 
 impl IrCodeGenerator {
@@ -26,7 +26,7 @@ impl IrCodeGenerator {
         }
     }
 
-    pub fn set_types(&mut self, types: HashMap<String, Type>) {
+    pub fn set_types(&mut self, types: HashMap<String, Source<Type>>) {
         self.types = types;
     }
 
@@ -258,6 +258,7 @@ impl IrCodeGenerator {
                     .types
                     .get(&name.data)
                     .unwrap()
+                    .data
                     .as_struct_fields()
                     .unwrap();
 
@@ -412,6 +413,7 @@ impl IrCodeGenerator {
                         .types
                         .get(&name)
                         .unwrap()
+                        .data
                         .as_struct_fields()
                         .unwrap()
                         .clone(),

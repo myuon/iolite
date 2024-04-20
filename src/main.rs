@@ -15,7 +15,7 @@ use tokio::{
 
 use crate::{
     compiler::{ast::Module, vm::Instruction},
-    lsp::TextDocumentPositionParams,
+    lsp::{Location, TextDocumentPositionParams},
 };
 
 mod compiler;
@@ -442,8 +442,6 @@ async fn handle_request(
         }
         "textDocument/definition" => {
             let params = serde_json::from_value::<TextDocumentPositionParams>(req.params.clone())?;
-            println!("Definition! {:?}", params);
-
             let input =
                 std::fs::read_to_string(params.text_document.uri.as_filepath().unwrap()).unwrap();
             let parsed = compiler::Compiler::parse(input.clone()).unwrap();
@@ -454,7 +452,33 @@ async fn handle_request(
                 params.position.line,
                 params.position.character,
             );
-            compiler::Compiler::search_for_definition(&mut module, position).unwrap();
+            let def_position =
+                compiler::Compiler::search_for_definition(&mut module, position).unwrap();
+
+            if let Some(def_position) = def_position {
+                let start_position =
+                    compiler::Compiler::find_position(&input, def_position.start.unwrap());
+                let end_position =
+                    compiler::Compiler::find_position(&input, def_position.end.unwrap());
+
+                return Ok(Some(RpcMessageResponse {
+                    jsonrpc: "2.0".to_string(),
+                    id: req.id,
+                    result: serde_json::to_value(Location {
+                        uri: params.text_document.uri,
+                        range: Range {
+                            start: Position {
+                                line: start_position.0,
+                                character: start_position.1,
+                            },
+                            end: Position {
+                                line: end_position.0,
+                                character: end_position.1,
+                            },
+                        },
+                    })?,
+                }));
+            }
 
             Ok(None)
         }

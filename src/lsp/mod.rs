@@ -3,8 +3,6 @@ use std::collections::HashMap;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 
-use crate::compiler::parser;
-
 #[derive(Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct RpcMessageRequest {
@@ -143,8 +141,8 @@ impl SemanticTokens {
             length,
         } in data
         {
-            result.push(line_delta - 1);
-            result.push(char_delta - 1);
+            result.push(line_delta);
+            result.push(char_delta);
             result.push(tys.iter().position(|x| x == &ty).unwrap());
             result.push(length);
             result.push(0); // modifiers
@@ -190,7 +188,7 @@ pub struct Diagnostic {
     pub message: String,
 }
 
-#[derive(Deserialize, Serialize)]
+#[derive(Deserialize, Serialize, Debug)]
 #[serde(rename_all = "camelCase")]
 pub struct Range {
     pub start: Position,
@@ -202,6 +200,13 @@ pub struct Range {
 pub struct Position {
     pub line: usize,
     pub character: usize,
+}
+
+#[derive(Deserialize, Serialize, Debug)]
+#[serde(rename_all = "camelCase")]
+pub struct Location {
+    pub uri: DocumentUri,
+    pub range: Range,
 }
 
 #[derive(Serialize)]

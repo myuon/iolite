@@ -1,7 +1,7 @@
 use std::collections::HashMap;
 
 use self::{
-    ast::{Declaration, Module, Source, Type},
+    ast::{Declaration, Module, Source, Span, Type},
     byte_code_emitter::{ByteCodeEmitter, ByteCodeEmitterError},
     ir_code_gen::IrCodeGeneratorError,
     lexer::LexerError,
@@ -37,8 +37,8 @@ pub struct Compiler {}
 
 impl Compiler {
     pub fn find_position(input: &str, position: usize) -> (usize, usize) {
-        let mut line = 1;
-        let mut col = 1;
+        let mut line = 0;
+        let mut col = 0;
         for (i, c) in input.chars().enumerate() {
             if i == position {
                 break;
@@ -46,7 +46,7 @@ impl Compiler {
 
             if c == '\n' {
                 line += 1;
-                col = 1;
+                col = 0;
             } else {
                 col += 1;
             }
@@ -56,8 +56,8 @@ impl Compiler {
     }
 
     pub fn find_line_and_column(input: &str, line: usize, col: usize) -> usize {
-        let mut current_line = 1;
-        let mut current_col = 1;
+        let mut current_line = 0;
+        let mut current_col = 0;
         let mut position = 0;
 
         for c in input.chars() {
@@ -67,7 +67,7 @@ impl Compiler {
 
             if c == '\n' {
                 current_line += 1;
-                current_col = 1;
+                current_col = 0;
             } else {
                 current_col += 1;
             }
@@ -114,7 +114,7 @@ impl Compiler {
     pub fn typecheck(
         module: &mut Module,
         input: &str,
-    ) -> Result<HashMap<String, Type>, CompilerError> {
+    ) -> Result<HashMap<String, Source<Type>>, CompilerError> {
         let mut typechecker = typechecker::Typechecker::new();
         match typechecker.module(module) {
             Ok(_) => {}
@@ -147,7 +147,7 @@ impl Compiler {
     pub fn search_for_definition(
         module: &mut Module,
         position: usize,
-    ) -> Result<Option<usize>, CompilerError> {
+    ) -> Result<Option<Span>, CompilerError> {
         let mut typechecker = typechecker::Typechecker::new();
 
         Ok(typechecker.search_for_definition(module, position))
@@ -155,7 +155,7 @@ impl Compiler {
 
     pub fn ir_code_gen(
         block: Module,
-        types: HashMap<String, Type>,
+        types: HashMap<String, Source<Type>>,
     ) -> Result<ir::IrModule, CompilerError> {
         let mut ir_code_gen = ir_code_gen::IrCodeGenerator::new();
         ir_code_gen.set_types(types);

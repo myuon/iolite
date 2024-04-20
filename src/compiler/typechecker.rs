@@ -61,11 +61,11 @@ impl PartialEq for TypecheckerError {
 #[derive(Debug, Clone)]
 struct SearchDefinition {
     position: usize,
-    found: Option<usize>,
+    found: Option<Span>,
 }
 
 pub struct Typechecker {
-    pub types: HashMap<String, Type>,
+    pub types: HashMap<String, Source<Type>>,
     return_ty: Type,
     search_def: Option<SearchDefinition>,
 }
@@ -92,11 +92,22 @@ impl Typechecker {
         }
     }
 
-    fn get_type(&self, name: &Source<String>) -> Result<Type, TypecheckerError> {
+    fn get_type(&self, name: &Source<String>) -> Result<Source<Type>, TypecheckerError> {
         self.types
             .get(&name.data)
             .cloned()
             .ok_or(TypecheckerError::IdentNotFound(name.clone()))
+    }
+
+    fn check_search_ident(&mut self, ident: &Source<String>) {
+        if let Some(search) = &self.search_def {
+            if ident.span.has(search.position) {
+                self.search_def = Some(SearchDefinition {
+                    position: search.position,
+                    found: Some(self.get_type(ident).unwrap().span.clone()),
+                });
+            }
+        }
     }
 
     fn expr_infer(
@@ -111,7 +122,11 @@ impl Typechecker {
 
     pub fn expr(&mut self, expr: &mut Source<Expr>) -> Result<Type, TypecheckerError> {
         match &mut expr.data {
-            Expr::Ident(i) => Ok(self.get_type(i)?),
+            Expr::Ident(i) => {
+                self.check_search_ident(i);
+
+                Ok(self.get_type(i)?.data)
+            }
             Expr::Lit(lit) => Ok(match lit.data {
                 Literal::Nil => Type::Nil,
                 Literal::Bool(_) => Type::Bool,
@@ -167,13 +182,15 @@ impl Typechecker {
                 }
             }
             Expr::Call { name, args } => {
+                self.check_search_ident(name);
+
                 let mut arg_types_actual = vec![];
 
                 for arg in args {
                     arg_types_actual.push(self.expr(arg)?);
                 }
 
-                let fun_ty = self.get_type(name)?;
+                let fun_ty = self.get_type(name)?.data;
                 match fun_ty {
                     Type::Fun(arg_types_expected, ret_ty) => {
                         if arg_types_actual.len() != arg_types_expected.len() {
@@ -223,7 +240,7 @@ impl Typechecker {
             }
             Expr::Block(block) => self.block(block),
             Expr::Struct { name, fields } => {
-                let struct_ty = self.get_type(name)?;
+                let struct_ty = self.get_type(name)?.data;
                 match struct_ty.clone() {
                     Type::Struct {
                         fields: field_types,
@@ -374,7 +391,8 @@ impl Typechecker {
         match &mut stmt.data {
             Statement::Let(name, value) => {
                 let ty = self.expr(value)?;
-                self.types.insert(name.data.clone(), ty);
+                self.types
+                    .insert(name.data.clone(), Source::span(ty, name.span.clone()));
             }
             Statement::Return(expr) => {
                 self.return_ty = self.expr_infer(expr, self.return_ty.clone())?;
@@ -436,8 +454,10 @@ impl Typechecker {
 
                 for param in params {
                     param_types.push(param.1.data.clone());
-                    self.types
-                        .insert(param.0.data.clone(), param.1.data.clone());
+                    self.types.insert(
+                        param.0.data.clone(),
+                        Source::span(param.1.data.clone(), param.0.span.clone()),
+                    );
                 }
 
                 self.return_ty = Type::Unknown;
@@ -446,7 +466,8 @@ impl Typechecker {
                 let ty = Type::Fun(param_types, Box::new(self.return_ty.clone()));
 
                 self.types = types_cloned;
-                self.types.insert(name.data.clone(), ty);
+                self.types
+                    .insert(name.data.clone(), Source::span(ty, name.span.clone()));
             }
             Declaration::Let {
                 name,
@@ -457,7 +478,8 @@ impl Typechecker {
 
                 *let_ty = ty.clone();
 
-                self.types.insert(name.data.clone(), ty);
+                self.types
+                    .insert(name.data.clone(), Source::span(ty, name.span.clone()));
             }
             Declaration::Struct { name, fields } => {
                 let mut field_types = vec![];
@@ -468,10 +490,13 @@ impl Typechecker {
 
                 self.types.insert(
                     name.data.clone(),
-                    Type::Struct {
-                        name: name.data.clone(),
-                        fields: field_types,
-                    },
+                    Source::span(
+                        Type::Struct {
+                            name: name.data.clone(),
+                            fields: field_types,
+                        },
+                        name.span.clone(),
+                    ),
                 );
             }
         }
@@ -487,7 +512,7 @@ impl Typechecker {
         Ok(())
     }
 
-    pub fn search_for_definition(&mut self, module: &mut Module, position: usize) -> Option<usize> {
+    pub fn search_for_definition(&mut self, module: &mut Module, position: usize) -> Option<Span> {
         self.search_def = Some(SearchDefinition {
             position,
             found: None,
@@ -495,7 +520,7 @@ impl Typechecker {
 
         self.module(module).unwrap();
 
-        self.search_def.clone().unwrap().found
+        self.search_def.clone()?.found
     }
 }
 
