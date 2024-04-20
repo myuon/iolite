@@ -1,8 +1,7 @@
 use std::{error::Error, io::Read};
 
 use clap::{Parser, Subcommand};
-use serde::{Deserialize, Serialize};
-use serde_json::Value;
+use lsp::{InitializeResult, RpcMessageRequest, RpcMessageResponse, ServerCapabilities};
 use tokio::{
     io::{AsyncReadExt, AsyncWriteExt},
     net::TcpListener,
@@ -11,6 +10,7 @@ use tokio::{
 use crate::compiler::{ast::Module, vm::Instruction};
 
 mod compiler;
+mod lsp;
 
 #[derive(Parser, Debug)]
 #[clap(name = "iolite")]
@@ -266,28 +266,6 @@ fn test_parse_headers() {
         assert_eq!(parse_headers(input), expected);
     }
 }
-
-#[derive(Deserialize)]
-struct RpcMessageRequest {
-    jsonrpc: String,
-    id: Option<Value>,
-    method: String,
-}
-
-#[derive(Serialize)]
-struct RpcMessageResponse {
-    jsonrpc: String,
-    id: Option<Value>,
-    result: Value,
-}
-
-#[derive(Serialize)]
-struct InitializeResult {
-    capabilities: ServerCapabilities,
-}
-
-#[derive(Serialize)]
-struct ServerCapabilities {}
 
 async fn handle_request(req: RpcMessageRequest) -> Result<RpcMessageResponse, Box<dyn Error>> {
     Ok(RpcMessageResponse {
