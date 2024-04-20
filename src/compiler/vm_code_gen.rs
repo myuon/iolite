@@ -599,9 +599,13 @@ mod tests {
                 vec![
                     Instruction::Push(Value::Int(1).as_u64()),
                     Instruction::LoadSp,
+                    Instruction::Push(0x00000000FFFFFFFF),
+                    Instruction::And,
                     Instruction::Push(Value::Int(2).as_u64()),
                     Instruction::Store,
                     Instruction::LoadSp,
+                    Instruction::Push(0x00000000FFFFFFFF),
+                    Instruction::And,
                     Instruction::Load,
                     Instruction::LoadSp,
                     Instruction::Push(Value::Int(8).as_u64()),
