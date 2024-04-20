@@ -121,6 +121,7 @@ pub enum Expr {
         argument: Box<Source<Expr>>,
     },
     Index {
+        ty: Type,
         ptr: Box<Source<Expr>>,
         index: Box<Source<Expr>>,
     },
@@ -174,6 +175,7 @@ pub enum Declaration {
     },
     Let {
         name: Source<String>,
+        ty: Type,
         value: Source<Expr>,
     },
     Struct {

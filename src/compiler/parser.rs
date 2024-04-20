@@ -178,7 +178,11 @@ impl Parser {
                 let end_token = self.expect(Lexeme::Semicolon)?;
 
                 Ok(Source::new_span(
-                    Declaration::Let { name, value: expr },
+                    Declaration::Let {
+                        name,
+                        ty: Type::Unknown,
+                        value: expr,
+                    },
                     start_token.span.start,
                     end_token.span.end,
                 ))
@@ -855,6 +859,7 @@ impl Parser {
 
                         current = Source::new_span(
                             Expr::Index {
+                                ty: Type::Unknown,
                                 ptr: Box::new(current),
                                 index: Box::new(index),
                             },

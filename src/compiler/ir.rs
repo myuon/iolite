@@ -1,3 +1,5 @@
+use super::ast::Type;
+
 #[derive(Debug, PartialEq, Clone)]
 pub enum IrOp {
     AddInt,
@@ -109,6 +111,18 @@ impl TypeTag {
             0b100 => TypeTag::Bool,
             0b1000 => TypeTag::Byte,
             _ => panic!("Invalid type tag: {}", byte),
+        }
+    }
+
+    pub fn from_type(ty: &Type) -> Self {
+        match ty {
+            Type::Int => TypeTag::Int,
+            Type::Ptr(_) => TypeTag::Pointer,
+            Type::Nil => TypeTag::Pointer,
+            Type::Float => TypeTag::Float,
+            Type::Bool => TypeTag::Bool,
+            Type::Byte => TypeTag::Byte,
+            _ => panic!("Invalid type"),
         }
     }
 }

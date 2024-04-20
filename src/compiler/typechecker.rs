@@ -198,9 +198,11 @@ impl Typechecker {
 
                 Ok(ty.data.clone())
             }
-            Expr::Index { ptr, index } => {
+            Expr::Index { ty, ptr, index } => {
                 let ptr_ty = self.expr(ptr)?;
                 self.expr_infer(index, Type::Int)?;
+
+                *ty = ptr_ty.clone();
 
                 match ptr_ty {
                     Type::Ptr(ty) => Ok(*ty),
@@ -435,8 +437,14 @@ impl Typechecker {
                 self.types = types_cloned;
                 self.types.insert(name.data.clone(), ty);
             }
-            Declaration::Let { name, value } => {
+            Declaration::Let {
+                name,
+                ty: let_ty,
+                value,
+            } => {
                 let ty = self.expr(value)?;
+
+                *let_ty = ty.clone();
 
                 self.types.insert(name.data.clone(), ty);
             }

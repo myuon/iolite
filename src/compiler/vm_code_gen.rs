@@ -364,10 +364,12 @@ impl VmCodeGenerator {
             }
             IrTerm::Load(term) => {
                 self.term(*term)?;
+                self.reset_tag_bits();
                 self.emit(Instruction::Load);
             }
             IrTerm::Store(addr, value) => {
                 self.term(*addr)?;
+                self.reset_tag_bits();
                 self.term(*value)?;
                 self.emit(Instruction::Store);
             }

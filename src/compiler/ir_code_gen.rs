@@ -77,7 +77,10 @@ impl IrCodeGenerator {
         // NOTE: update heap_ptr
         self.init_function.push(IrTerm::Store(
             Box::new(IrTerm::Ident("heap_ptr".to_string())),
-            Box::new(IrTerm::Int(self.globals.len() as i32 * Value::size())),
+            Box::new(IrTerm::Op {
+                op: IrOp::IntToPointer,
+                args: vec![IrTerm::Int(self.globals.len() as i32 * Value::size())],
+            }),
         ));
 
         // NOTE: hoist initial process to the init function
@@ -121,7 +124,7 @@ impl IrCodeGenerator {
                     body: Box::new(body),
                 }))
             }
-            Declaration::Let { name, value } => {
+            Declaration::Let { name, ty, value } => {
                 let value = self.expr(value)?;
 
                 self.init_function.push(IrTerm::Store(
@@ -314,7 +317,7 @@ impl IrCodeGenerator {
     fn expr_left_value(&self, expr: Source<Expr>) -> Result<IrTerm, IrCodeGeneratorError> {
         match expr.data {
             Expr::Ident(name) => Ok(IrTerm::Ident(name.data)),
-            Expr::Index { ptr, index } => {
+            Expr::Index { ty, ptr, index } => {
                 let ptr = self.expr(*ptr)?;
                 let index = self.expr(*index)?;
 
@@ -322,7 +325,7 @@ impl IrCodeGenerator {
                     ptr: Box::new(ptr),
                     index: Box::new(IrTerm::Op {
                         op: IrOp::MulInt,
-                        args: vec![index, IrTerm::Int(Value::size())],
+                        args: vec![index, IrTerm::Int(ty.sizeof() as i32)],
                     }),
                 })
             }
