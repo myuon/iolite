@@ -130,8 +130,8 @@ impl VmCodeGenerator {
                 self.stack_pointer -= 1;
             }
             IntToFloat | FloatToInt | IntToByte => {}
-            Load | LoadByte => {}
-            Store | StoreByte => {
+            Load | Load8 | Load32 => {}
+            Store | Store8 | Store32 => {
                 self.stack_pointer -= 2;
             }
             LoadBp => {
@@ -367,7 +367,7 @@ impl VmCodeGenerator {
                 self.term(*term)?;
                 self.reset_tag_bits();
                 self.emit(match size {
-                    1 => Instruction::LoadByte,
+                    1 => Instruction::Load8,
                     8 => Instruction::Load,
                     _ => todo!(),
                 });
@@ -381,7 +381,7 @@ impl VmCodeGenerator {
                 self.reset_tag_bits();
                 self.term(*value)?;
                 self.emit(match size {
-                    1 => Instruction::StoreByte,
+                    1 => Instruction::Store8,
                     8 => Instruction::Store,
                     _ => todo!(),
                 });

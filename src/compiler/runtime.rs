@@ -7,9 +7,9 @@ pub enum RuntimeError {
 }
 
 pub struct Runtime {
-    memory: Vec<u8>,
-    sp: usize,
-    bp: usize,
+    pub(crate) memory: Vec<u8>,
+    pub(crate) sp: usize,
+    pub(crate) bp: usize,
     pc: usize,
     program: Vec<u8>,
 }
@@ -73,6 +73,14 @@ impl Runtime {
 
     fn store_i64(&mut self, address: u64, value: i64) {
         self.memory[address as usize..(address as usize + 8)].copy_from_slice(&value.to_le_bytes());
+    }
+
+    fn store_u32(&mut self, address: u32, value: u32) {
+        self.memory[address as usize..(address as usize + 4)].copy_from_slice(&value.to_le_bytes());
+    }
+
+    fn store_u8(&mut self, address: u32, value: u8) {
+        self.memory[address as usize] = value;
     }
 
     pub fn pop_i64(&mut self) -> i64 {
@@ -350,6 +358,28 @@ impl Runtime {
                         _ => return Err(RuntimeError::UnknownRegister(register)),
                     }
                 }
+                // load8
+                0x44 => {
+                    let address = self.pop_address();
+                    self.push(self.memory[address as usize] as u8 as u64 as i64);
+                }
+                // store8
+                0x45 => {
+                    let value = self.pop_i64();
+                    let address = self.pop_address();
+                    self.store_u8(address as u32, value as u8);
+                }
+                // load32
+                0x46 => {
+                    let address = self.pop_address();
+                    self.push(self.load_i64(address) as u32 as u64 as i64);
+                }
+                // store32
+                0x47 => {
+                    let value = self.pop_i64();
+                    let address = self.pop_address();
+                    self.store_u32(address as u32, value as u32);
+                }
 
                 // int to float
                 0x50 => {
@@ -380,5 +410,102 @@ impl Runtime {
         }
 
         Ok(())
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_working_with_memory() {
+        let cases = vec![
+            (
+                vec![
+                    0x40, // load
+                ],
+                8,
+                vec![
+                    0x4a, 0x5b, 0x6c, 0x7d, 0x8e, 0x9f, 0xa0, 0xb1, //
+                    0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, //
+                ],
+                vec![
+                    0x4a, 0x5b, 0x6c, 0x7d, 0x8e, 0x9f, 0xa0, 0xb1, //
+                    0x4a, 0x5b, 0x6c, 0x7d, 0x8e, 0x9f, 0xa0, 0xb1, //
+                ],
+            ),
+            (
+                vec![
+                    0x44, // load8
+                ],
+                8,
+                vec![
+                    0x4a, 0x5b, 0x6c, 0x7d, 0x8e, 0x9f, 0xa0, 0xb1, //
+                    0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, //
+                ],
+                vec![
+                    0x4a, 0x5b, 0x6c, 0x7d, 0x8e, 0x9f, 0xa0, 0xb1, //
+                    0x4a, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, //
+                ],
+            ),
+            (
+                vec![
+                    0x46, // load32
+                ],
+                8,
+                vec![
+                    0x4a, 0x5b, 0x6c, 0x7d, 0x8e, 0x9f, 0xa0, 0xb1, //
+                    0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, //
+                ],
+                vec![
+                    0x4a, 0x5b, 0x6c, 0x7d, 0x8e, 0x9f, 0xa0, 0xb1, //
+                    0x4a, 0x5b, 0x6c, 0x7d, 0x00, 0x00, 0x00, 0x00, //
+                ],
+            ),
+            (
+                vec![
+                    0x46, // load32
+                ],
+                8,
+                vec![
+                    0x4a, 0x5b, 0x6c, 0x7d, 0x8e, 0x9f, 0xa0, 0xb1, //
+                    0x04, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, //
+                ],
+                vec![
+                    0x4a, 0x5b, 0x6c, 0x7d, 0x8e, 0x9f, 0xa0, 0xb1, //
+                    0x8e, 0x9f, 0xa0, 0xb1, 0x00, 0x00, 0x00, 0x00, //
+                ],
+            ),
+            (
+                vec![
+                    0x47, // store32
+                ],
+                8,
+                vec![
+                    0x4a, 0x5b, 0x6c, 0x7d, 0x8e, 0x9f, 0xa0, 0xb1, //
+                    0x12, 0x34, 0x56, 0x78, 0x9a, 0x0b, 0x1c, 0x2d, //
+                    0x04, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, //
+                ],
+                vec![
+                    0x4a, 0x5b, 0x6c, 0x7d, 0x12, 0x34, 0x56, 0x78, //
+                    0x12, 0x34, 0x56, 0x78, 0x9a, 0x0b, 0x1c, 0x2d, //
+                    0x04, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, //
+                ],
+            ),
+        ];
+
+        for (program, sp, memory, want) in cases {
+            let mut runtime = Runtime::new(memory.len(), program.clone());
+            runtime.sp = sp;
+            runtime.bp = sp;
+            runtime.memory = memory;
+            runtime.exec(false).unwrap();
+
+            assert_eq!(
+                runtime.memory, want,
+                "{:x?}, {:x?}",
+                program, runtime.memory
+            );
+        }
     }
 }
