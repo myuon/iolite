@@ -293,6 +293,7 @@ async fn handle_request(
                 },
             })?,
         })),
+        // it seems not working
         "textDocument/semanticTokens/full" => {
             let params = serde_json::from_value::<lsp::SemanticTokensParams>(req.params.clone())?;
             let filepath = params.text_document.uri.as_filepath().unwrap();
