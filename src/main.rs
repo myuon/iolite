@@ -120,79 +120,100 @@ async fn run_server() -> Result<(), Box<dyn Error + Sync + Send>> {
         let (mut reader, mut writer) = tokio::io::split(stream);
 
         tokio::spawn(async move {
-            let mut header_part_str = vec![];
-            let mut content_part_str = vec![];
-            let mut content_length = -1;
+            println!("tokio:spawn");
 
             loop {
-                let mut buf = vec![0; 1024];
-                match reader.read(&mut buf).await {
-                    Ok(0) => {
-                        println!("connection closed");
-                        break;
-                    }
-                    Ok(n) => {
-                        let chunk = buf[..n].to_vec();
-                        if let Some(pos) = find_position(&chunk, &"\r\n\r\n".as_bytes().to_vec()) {
-                            header_part_str.extend_from_slice(&chunk[..pos]);
-
-                            let header_part =
-                                parse_headers(&String::from_utf8(header_part_str.clone()).unwrap());
-                            for (key, value) in header_part {
-                                if key == "Content-Length" {
-                                    content_length = value.parse().unwrap();
-                                }
-                            }
-                            if content_length == -1 {
-                                eprintln!("Content-Length is not found");
-                                break;
-                            }
-
-                            let c = &chunk[pos + 4..];
-                            content_part_str.extend_from_slice(&c);
-                            content_length -= c.len() as i32;
-                        } else {
-                            if content_length == -1 {
-                                header_part_str.extend_from_slice(&chunk);
-                            } else {
-                                content_part_str.extend_from_slice(&chunk);
-                                content_length -= n as i32;
-                            }
-                        }
-
-                        if content_length == 0 {
-                            break;
-                        }
-
-                        continue;
-                    }
-                    Err(e) => {
-                        eprintln!("failed to read from socket; err = {:?}", e);
-                        break;
-                    }
+                if let Err(err) = process_stream(&mut reader, &mut writer).await {
+                    eprintln!("failed to process stream; err = {:?}", err);
+                    break;
                 }
             }
 
-            let content_part = String::from_utf8(content_part_str)?;
-            println!(
-                "rpc header={}, content_part={}...",
-                String::from_utf8(header_part_str)?,
-                content_part[..100].to_string()
-            );
-            let req = serde_json::from_str::<RpcMessageRequest>(&content_part)?;
-
-            let resp = handle_request(req).await.unwrap();
-            let resp_body = serde_json::to_string(&resp)?;
-
-            writer
-                .write(
-                    format!("Content-Length: {}\r\n\r\n{}", resp_body.len(), resp_body).as_bytes(),
-                )
-                .await?;
-
-            Ok::<_, Box<dyn Error + Sync + Send>>(())
+            println!("tokio:spawn end");
         });
     }
+}
+
+async fn process_stream(
+    reader: &mut (impl AsyncReadExt + Unpin),
+    writer: &mut (impl AsyncWriteExt + Unpin),
+) -> Result<(), Box<dyn Error + Sync + Send>> {
+    let mut header_part_str = vec![];
+    let mut content_part_str = vec![];
+    let mut content_length = -1;
+
+    loop {
+        let mut buf = vec![0; 1024];
+        match reader.read(&mut buf).await {
+            Ok(0) => {
+                println!("connection closed");
+                break;
+            }
+            Ok(n) => {
+                let chunk = buf[..n].to_vec();
+                if let Some(pos) = find_position(&chunk, &"\r\n\r\n".as_bytes().to_vec()) {
+                    header_part_str.extend_from_slice(&chunk[..pos]);
+
+                    let header_part =
+                        parse_headers(&String::from_utf8(header_part_str.clone()).unwrap());
+                    for (key, value) in header_part {
+                        if key == "Content-Length" {
+                            content_length = value.parse().unwrap();
+                        }
+                    }
+                    if content_length == -1 {
+                        eprintln!("Content-Length is not found");
+                        break;
+                    }
+
+                    let c = &chunk[pos + 4..];
+                    content_part_str.extend_from_slice(&c);
+                    content_length -= c.len() as i32;
+                } else {
+                    if content_length == -1 {
+                        header_part_str.extend_from_slice(&chunk);
+                    } else {
+                        content_part_str.extend_from_slice(&chunk);
+                        content_length -= n as i32;
+                    }
+                }
+
+                if content_length == 0 {
+                    break;
+                }
+
+                continue;
+            }
+            Err(e) => {
+                eprintln!("failed to read from socket; err = {:?}", e);
+                break;
+            }
+        }
+    }
+
+    let content_part = String::from_utf8(content_part_str)?;
+    println!(
+        "rpc header={}, content_part={}",
+        String::from_utf8(header_part_str)?,
+        if content_part.len() > 100 {
+            format!("{}..", content_part[..100].to_string())
+        } else {
+            format!("{}", content_part)
+        },
+    );
+
+    let req = serde_json::from_str::<RpcMessageRequest>(&content_part)?;
+
+    let resp = handle_request(req).await.unwrap();
+    let resp_body = serde_json::to_string(&resp)?;
+
+    let rcp_resp = format!("Content-Length: {}\r\n\r\n{}", resp_body.len(), resp_body);
+
+    writer.write(rcp_resp.as_bytes()).await?;
+
+    println!("ok; resp={}", resp_body);
+
+    Ok::<_, Box<dyn Error + Sync + Send>>(())
 }
 
 fn find_position<T: PartialEq>(content: &Vec<T>, haystack: &Vec<T>) -> Option<usize> {
@@ -249,14 +270,14 @@ fn test_parse_headers() {
 #[derive(Deserialize)]
 struct RpcMessageRequest {
     jsonrpc: String,
-    id: String,
+    id: Option<Value>,
     method: String,
 }
 
 #[derive(Serialize)]
 struct RpcMessageResponse {
     jsonrpc: String,
-    id: String,
+    id: Option<Value>,
     result: Value,
 }
 
