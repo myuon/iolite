@@ -1,4 +1,4 @@
-use std::{collections::HashMap, error::Error, io::Read};
+use std::{error::Error, io::Read};
 
 use clap::{Parser, Subcommand};
 use compiler::{lexer::Lexeme, CompilerError};
