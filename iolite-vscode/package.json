@@ -1,0 +1,52 @@
+{
+  "name": "iolite",
+  "displayName": "iolite",
+  "description": "",
+  "version": "0.0.1",
+  "engines": {
+    "vscode": "^1.88.0"
+  },
+  "categories": [
+    "Programming Languages"
+  ],
+  "contributes": {
+    "languages": [
+      {
+        "id": "iolite",
+        "aliases": [
+          "iolite",
+          "iolite"
+        ],
+        "extensions": [
+          ".io",
+          ".iolite"
+        ],
+        "configuration": "./language-configuration.json"
+      }
+    ],
+    "grammars": [
+      {
+        "language": "iolite",
+        "scopeName": "source.iolite",
+        "path": "./syntaxes/iolite.tmLanguage.json"
+      }
+    ]
+  },
+  "devDependencies": {
+    "@types/bun": "latest"
+  },
+  "peerDependencies": {
+    "typescript": "^5.0.0"
+  },
+  "dependencies": {
+    "@types/node": "^20.12.7",
+    "@types/vscode": "^1.88.0",
+    "vscode-languageclient": "^9.0.1"
+  },
+  "main": "./out/extension.js",
+  "scripts": {
+    "prebuild": "rm -rf out/",
+    "build": "tsc -b",
+    "watch": "tsc -b -w"
+  }
+}
