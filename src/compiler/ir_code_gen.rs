@@ -235,27 +235,16 @@ impl IrCodeGenerator {
                 let expr = self.expr(*expr)?;
 
                 match ty.data {
-                    Type::Ptr(item) => {
-                        let aligned_size = (item.sizeof() as i32 + Value::size() - 1)
-                            / Value::size()
-                            * Value::size();
-
-                        Ok(self.allocate(IrTerm::Op {
-                            op: IrOp::MulInt,
-                            args: vec![expr, IrTerm::Int(aligned_size)],
-                        }))
-                    }
+                    Type::Ptr(item) => Ok(self.allocate(IrTerm::Op {
+                        op: IrOp::MulInt,
+                        args: vec![expr, IrTerm::Int(item.sizeof() as i32)],
+                    })),
                     Type::Array(item) => {
-                        // FIXME: alignment should be calculated in alloc function
-                        let aligned_size = (item.sizeof() as i32 + Value::size() - 1)
-                            / Value::size()
-                            * Value::size();
-
                         // FIXME: expr will be evaluated twice
                         Ok(self.slice(vec![
                             self.allocate(IrTerm::Op {
                                 op: IrOp::MulInt,
-                                args: vec![expr.clone(), IrTerm::Int(aligned_size)],
+                                args: vec![expr.clone(), IrTerm::Int(item.sizeof() as i32)],
                             }),
                             expr,
                         ]))

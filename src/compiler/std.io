@@ -1,8 +1,13 @@
 let heap_ptr = 0 as ptr[byte];
 
+fun align_int(x: int, alignment: int) {
+  return (x + alignment - 1) / alignment * alignment;
+}
+
 fun alloc(size: int) {
+  let aligned_size = align_int(size, 8);
   let ptr = heap_ptr;
-  heap_ptr = heap_ptr.offset(size);
+  heap_ptr = heap_ptr.offset(aligned_size);
   return ptr;
 }
 
