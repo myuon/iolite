@@ -55,6 +55,29 @@ impl Compiler {
         (line, col)
     }
 
+    pub fn find_line_and_column(input: &str, line: usize, col: usize) -> usize {
+        let mut current_line = 1;
+        let mut current_col = 1;
+        let mut position = 0;
+
+        for c in input.chars() {
+            if current_line == line && current_col == col {
+                break;
+            }
+
+            if c == '\n' {
+                current_line += 1;
+                current_col = 1;
+            } else {
+                current_col += 1;
+            }
+
+            position += 1;
+        }
+
+        position
+    }
+
     pub fn run_lexer(input: String) -> Result<Vec<lexer::Token>, CompilerError> {
         let mut lexer = lexer::Lexer::new(input);
         Ok(lexer.run().map_err(CompilerError::LexerError)?)
@@ -119,6 +142,15 @@ impl Compiler {
         }
 
         Ok(typechecker.types)
+    }
+
+    pub fn search_for_definition(
+        module: &mut Module,
+        position: usize,
+    ) -> Result<Option<usize>, CompilerError> {
+        let mut typechecker = typechecker::Typechecker::new();
+
+        Ok(typechecker.search_for_definition(module, position))
     }
 
     pub fn ir_code_gen(

@@ -35,6 +35,10 @@ pub struct ServerCapabilities {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub text_document_sync: Option<TextDocumentSyncKind>,
     #[serde(skip_serializing_if = "Option::is_none")]
+    pub declaration_provider: Option<bool>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub definition_provider: Option<bool>,
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub semantic_tokens_provider: Option<SemanticTokensOptions>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub diagnostic_provider: Option<DiagnosticOptions>,
@@ -160,7 +164,7 @@ impl DocumentUri {
     }
 }
 
-#[derive(Deserialize)]
+#[derive(Deserialize, Debug)]
 #[serde(rename_all = "camelCase")]
 pub struct TextDocumentIdentifier {
     pub uri: DocumentUri,
@@ -193,7 +197,7 @@ pub struct Range {
     pub end: Position,
 }
 
-#[derive(Deserialize, Serialize)]
+#[derive(Deserialize, Serialize, Debug)]
 #[serde(rename_all = "camelCase")]
 pub struct Position {
     pub line: usize,
@@ -218,4 +222,11 @@ pub struct FullDocumentDiagnosticReport {
 pub struct RelatedFullDocumentDiagnosticReport {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub related_documents: Option<HashMap<DocumentUri, FullDocumentDiagnosticReport>>,
+}
+
+#[derive(Deserialize, Debug)]
+#[serde(rename_all = "camelCase")]
+pub struct TextDocumentPositionParams {
+    pub text_document: TextDocumentIdentifier,
+    pub position: Position,
 }

@@ -13,7 +13,10 @@ use tokio::{
     net::TcpListener,
 };
 
-use crate::compiler::{ast::Module, vm::Instruction};
+use crate::{
+    compiler::{ast::Module, vm::Instruction},
+    lsp::TextDocumentPositionParams,
+};
 
 mod compiler;
 mod lsp;
@@ -140,74 +143,42 @@ async fn run_server() -> Result<(), Box<dyn Error + Sync + Send>> {
     }
 }
 
+async fn read_headers(
+    reader: &mut (impl AsyncReadExt + Unpin),
+) -> Result<Vec<(String, String)>, Box<dyn Error + Sync + Send>> {
+    let mut data = vec![];
+    while !data.ends_with("\r\n\r\n".as_bytes()) {
+        let mut buf = vec![0; 1];
+        let n = reader.read(&mut buf).await?;
+        if n == 0 {
+            return Err("UnexpectedEof".into());
+        }
+
+        data.push(buf[0]);
+    }
+
+    Ok(parse_headers(&String::from_utf8(data)?))
+}
+
 async fn process_stream(
     reader: &mut (impl AsyncReadExt + Unpin),
     writer: &mut (impl AsyncWriteExt + Unpin),
 ) -> Result<(), Box<dyn Error + Sync + Send>> {
-    let mut header_part_str = vec![];
-    let mut content_part_str = vec![];
-    let mut content_length = -1;
+    let headers = read_headers(reader).await?;
+    let length = headers
+        .into_iter()
+        .find(|(key, _)| key == "Content-Length")
+        .ok_or("Content-Length is not found in headers".to_string())?
+        .1
+        .parse::<usize>()
+        .map_err(|err| format!("Cannot parse content-length: {}", err))?;
 
-    loop {
-        let mut buf = vec![0; 1024];
-        match reader.read(&mut buf).await {
-            Ok(0) => {
-                println!("connection closed");
-                break;
-            }
-            Ok(n) => {
-                let chunk = buf[..n].to_vec();
-                if let Some(pos) = find_position(&chunk, &"\r\n\r\n".as_bytes().to_vec()) {
-                    header_part_str.extend_from_slice(&chunk[..pos]);
+    let mut content = vec![0; length];
+    reader.read(&mut content).await?;
 
-                    let header_part =
-                        parse_headers(&String::from_utf8(header_part_str.clone()).unwrap());
-                    for (key, value) in header_part {
-                        if key == "Content-Length" {
-                            content_length = match value.parse() {
-                                Ok(len) => len,
-                                Err(err) => {
-                                    eprintln!("Cannot parse content-length: {}", err);
-
-                                    return Ok(());
-                                }
-                            };
-                        }
-                    }
-                    if content_length == -1 {
-                        eprintln!("Content-Length is not found");
-                        break;
-                    }
-
-                    let c = &chunk[pos + 4..];
-                    content_part_str.extend_from_slice(&c);
-                    content_length -= c.len() as i32;
-                } else {
-                    if content_length == -1 {
-                        header_part_str.extend_from_slice(&chunk);
-                    } else {
-                        content_part_str.extend_from_slice(&chunk);
-                        content_length -= n as i32;
-                    }
-                }
-
-                if content_length == 0 {
-                    break;
-                }
-
-                continue;
-            }
-            Err(e) => {
-                eprintln!("failed to read from socket; err = {:?}", e);
-                break;
-            }
-        }
-    }
-
-    let content_part = String::from_utf8(content_part_str)?;
+    let content_part = String::from_utf8(content)?;
     println!(
-        "rpc header={}, content_part={}",
-        String::from_utf8(header_part_str)?,
+        "!content={}",
         if content_part.len() > 100 {
             format!("{}..", content_part[..100].to_string())
         } else {
@@ -227,16 +198,6 @@ async fn process_stream(
     }
 
     Ok::<_, Box<dyn Error + Sync + Send>>(())
-}
-
-fn find_position<T: PartialEq>(content: &Vec<T>, haystack: &Vec<T>) -> Option<usize> {
-    for i in 0..content.len() {
-        if content[i..].starts_with(&haystack) {
-            return Some(i);
-        }
-    }
-
-    None
 }
 
 fn parse_headers(headers: &str) -> Vec<(String, String)> {
@@ -286,27 +247,36 @@ async fn handle_request(
     let token_types = vec![SemanticTokenTypes::Keyword, SemanticTokenTypes::Comment];
 
     match req.method.as_str() {
-        "initialize" => Ok(Some(RpcMessageResponse {
-            jsonrpc: "2.0".to_string(),
-            id: req.id,
-            result: serde_json::to_value(&InitializeResult {
-                capabilities: ServerCapabilities {
-                    text_document_sync: Some(TextDocumentSyncKind::Full),
-                    semantic_tokens_provider: Some(SemanticTokensOptions {
-                        legend: SemanticTokensLegend {
-                            token_types,
-                            token_modifiers: vec![],
-                        },
-                        range: None,
-                        full: Some(true),
-                    }),
-                    diagnostic_provider: Some(DiagnosticOptions {
-                        inter_file_dependencies: false,
-                        workspace_diagnostics: false,
-                    }),
-                },
-            })?,
-        })),
+        "initialize" => {
+            println!(
+                "Initialize! {}",
+                serde_json::to_string(&req.params).unwrap()
+            );
+
+            Ok(Some(RpcMessageResponse {
+                jsonrpc: "2.0".to_string(),
+                id: req.id,
+                result: serde_json::to_value(&InitializeResult {
+                    capabilities: ServerCapabilities {
+                        text_document_sync: Some(TextDocumentSyncKind::Full),
+                        declaration_provider: Some(true),
+                        definition_provider: Some(true),
+                        semantic_tokens_provider: Some(SemanticTokensOptions {
+                            legend: SemanticTokensLegend {
+                                token_types,
+                                token_modifiers: vec![],
+                            },
+                            range: None,
+                            full: Some(true),
+                        }),
+                        diagnostic_provider: Some(DiagnosticOptions {
+                            inter_file_dependencies: true,
+                            workspace_diagnostics: true,
+                        }),
+                    },
+                })?,
+            }))
+        }
         "initialized" => {
             println!("Initialized!");
 
@@ -461,6 +431,32 @@ async fn handle_request(
                     ),
                 })?,
             }))
+        }
+        "textDocument/declaration" => {
+            println!(
+                "Declaration! {}",
+                serde_json::to_string(&req.params).unwrap()
+            );
+
+            Ok(None)
+        }
+        "textDocument/definition" => {
+            let params = serde_json::from_value::<TextDocumentPositionParams>(req.params.clone())?;
+            println!("Definition! {:?}", params);
+
+            let input =
+                std::fs::read_to_string(params.text_document.uri.as_filepath().unwrap()).unwrap();
+            let parsed = compiler::Compiler::parse(input.clone()).unwrap();
+            let mut module = compiler::Compiler::create_module(parsed);
+
+            let position = compiler::Compiler::find_line_and_column(
+                &input,
+                params.position.line,
+                params.position.character,
+            );
+            compiler::Compiler::search_for_definition(&mut module, position).unwrap();
+
+            Ok(None)
         }
         _ => Ok(None),
     }

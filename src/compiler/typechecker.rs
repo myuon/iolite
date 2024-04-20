@@ -58,9 +58,16 @@ impl PartialEq for TypecheckerError {
     }
 }
 
+#[derive(Debug, Clone)]
+struct SearchDefinition {
+    position: usize,
+    found: Option<usize>,
+}
+
 pub struct Typechecker {
     pub types: HashMap<String, Type>,
     return_ty: Type,
+    search_def: Option<SearchDefinition>,
 }
 
 impl Typechecker {
@@ -68,6 +75,7 @@ impl Typechecker {
         Self {
             types: HashMap::new(),
             return_ty: Type::Unknown,
+            search_def: None,
         }
     }
 
@@ -477,6 +485,17 @@ impl Typechecker {
         }
 
         Ok(())
+    }
+
+    pub fn search_for_definition(&mut self, module: &mut Module, position: usize) -> Option<usize> {
+        self.search_def = Some(SearchDefinition {
+            position,
+            found: None,
+        });
+
+        self.module(module).unwrap();
+
+        self.search_def.clone().unwrap().found
     }
 }
 
