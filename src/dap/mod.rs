@@ -104,6 +104,7 @@ pub struct Capabilities {
     pub supports_read_memory_request: Option<bool>,
     pub supports_memory_event: Option<bool>,
     pub supports_disassemble_request: Option<bool>,
+    pub supports_breakpoint_locations_request: Option<bool>,
 }
 
 #[derive(Deserialize)]
@@ -385,4 +386,16 @@ pub struct Variable {
     pub named_variables: Option<usize>,
     pub indexed_variables: Option<usize>,
     pub memory_reference: Option<String>,
+}
+
+#[derive(Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct SetFunctionBreakpointArguments {
+    pub breakpoints: Vec<Value>,
+}
+
+#[derive(Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct SetFunctionBreakpointsResponse {
+    pub breakpoints: Vec<Value>,
 }

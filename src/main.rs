@@ -420,12 +420,13 @@ async fn dap_handler(
                 body: serde_json::to_value(InitializeResponseBody(Capabilities {
                     supports_configuration_done_request: Some(true),
                     supports_single_thread_execution_requests: Some(true),
-                    supports_function_breakpoints: Some(false),
-                    supports_conditional_breakpoints: Some(false),
+                    supports_function_breakpoints: Some(true),
+                    supports_conditional_breakpoints: Some(true),
                     supports_hit_conditional_breakpoints: Some(true),
                     supports_read_memory_request: Some(true),
-                    supports_memory_event: Some(false),
+                    supports_memory_event: Some(true),
                     supports_disassemble_request: Some(true),
+                    supports_breakpoint_locations_request: Some(true),
                 }))?,
             }
             .build(&req),
@@ -727,6 +728,12 @@ async fn dap_handler(
 
             Ok(vec![])
         }
+        "setFunctionBreakpoints" => Ok(vec![ProtocolMessageResponseBuilder {
+            body: serde_json::to_value(dap::SetFunctionBreakpointsResponse {
+                breakpoints: vec![],
+            })?,
+        }
+        .build(&req)]),
         _ => Ok(vec![]),
     }
 }
