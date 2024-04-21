@@ -434,7 +434,7 @@ pub struct SetBreakpointsArguments {
     pub source_modified: Option<bool>,
 }
 
-#[derive(Deserialize)]
+#[derive(Deserialize, Debug)]
 #[serde(rename_all = "camelCase")]
 pub struct SourceBreakpoint {
     pub line: usize,

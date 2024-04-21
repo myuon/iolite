@@ -1,5 +1,7 @@
 use proptest::prelude::*;
 
+use super::ast::Span;
+
 #[derive(Debug, Clone, PartialEq)]
 pub enum InstructionError {
     UnknownInstruction(u8),
@@ -54,6 +56,7 @@ pub enum Instruction {
         length: u64,
         data: Vec<u8>,
     },
+    SourceMap(Span),
 }
 
 impl Instruction {
@@ -112,7 +115,8 @@ impl Instruction {
             FloatToInt => vec![0x51],
 
             // Debug
-            Debug(_) => todo!(),
+            Debug(_) => vec![0x60],
+            SourceMap(_) => vec![0x61],
 
             // Labels
             Label(_) => todo!(),
@@ -173,6 +177,9 @@ impl Instruction {
             0x50 => Instruction::IntToFloat,
             0x51 => Instruction::FloatToInt,
 
+            0x60 => Instruction::Debug("".to_string()),
+            0x61 => Instruction::SourceMap(Span::unknown()),
+
             p => return Err(InstructionError::UnknownInstruction(p)),
         })
     }
@@ -221,6 +228,8 @@ impl Arbitrary for Instruction {
             Just(Instruction::IntToFloat),
             Just(Instruction::FloatToInt),
             Just(Instruction::Nop),
+            Just(Instruction::Debug("".to_string())),
+            Just(Instruction::SourceMap(Span::unknown())),
         ]
         .boxed()
     }

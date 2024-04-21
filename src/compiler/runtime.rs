@@ -6,6 +6,13 @@ pub enum RuntimeError {
     UnknownRegister(u8),
 }
 
+#[derive(Debug, Clone)]
+pub enum ControlFlow {
+    Continue,
+    Finish,
+    HitBreakpoint,
+}
+
 pub struct Runtime {
     pub(crate) memory: Vec<u8>,
     pub(crate) sp: usize,
@@ -13,6 +20,8 @@ pub struct Runtime {
     pub(crate) pc: usize,
     pub(crate) program: Vec<u8>,
     pub(crate) source_code: String,
+    pub(crate) breakpoints: Vec<usize>,
+    prev_source_map: (usize, usize),
 }
 
 impl Runtime {
@@ -28,6 +37,8 @@ impl Runtime {
             pc: 0,
             program,
             source_code: String::new(),
+            breakpoints: vec![],
+            prev_source_map: (0, 0),
         }
     }
 
@@ -38,6 +49,12 @@ impl Runtime {
         self.pc = 0;
         self.program = program;
         self.source_code = source_code;
+        self.breakpoints = vec![];
+        self.prev_source_map = (0, 0);
+    }
+
+    pub fn set_breakpoints(&mut self, breakpoints: Vec<usize>) {
+        self.breakpoints = breakpoints;
     }
 
     pub fn get_stack_frames(&self) -> Vec<usize> {
@@ -227,25 +244,35 @@ impl Runtime {
         code
     }
 
-    pub fn step(&mut self, print_stacks: bool) -> Result<bool, RuntimeError> {
+    fn consume_u64(&mut self) -> u64 {
+        u64::from_le_bytes([
+            self.consume(),
+            self.consume(),
+            self.consume(),
+            self.consume(),
+            self.consume(),
+            self.consume(),
+            self.consume(),
+            self.consume(),
+        ])
+    }
+
+    pub fn step(&mut self, print_stacks: bool) -> Result<ControlFlow, RuntimeError> {
         if print_stacks {
             self.print_stack();
+        }
+
+        for bp in &self.breakpoints {
+            if &self.pc == bp {
+                println!("breakpoint at {}", bp);
+            }
         }
 
         let inst = self.consume();
         match inst {
             // push
             0x01 => {
-                let imm = i64::from_le_bytes([
-                    self.consume(),
-                    self.consume(),
-                    self.consume(),
-                    self.consume(),
-                    self.consume(),
-                    self.consume(),
-                    self.consume(),
-                    self.consume(),
-                ]);
+                let imm = self.consume_u64() as i64;
                 self.push(imm);
             }
             // pop
@@ -278,26 +305,8 @@ impl Runtime {
             0x07 => {}
             // data
             0x08 => {
-                let offset = u64::from_le_bytes([
-                    self.consume(),
-                    self.consume(),
-                    self.consume(),
-                    self.consume(),
-                    self.consume(),
-                    self.consume(),
-                    self.consume(),
-                    self.consume(),
-                ]);
-                let length = u64::from_le_bytes([
-                    self.consume(),
-                    self.consume(),
-                    self.consume(),
-                    self.consume(),
-                    self.consume(),
-                    self.consume(),
-                    self.consume(),
-                    self.consume(),
-                ]);
+                let offset = self.consume_u64();
+                let length = self.consume_u64();
 
                 for i in 0..length {
                     let b = self.consume();
@@ -494,6 +503,24 @@ impl Runtime {
                 self.push(a as u8 as i64);
             }
 
+            // debug
+            // source map
+            0x61 => {
+                let start = self.consume_u64();
+                let end = self.consume_u64();
+
+                let mut hit = None;
+                for bp in &self.breakpoints {
+                    if *bp >= self.prev_source_map.1 && *bp < end as usize {
+                        hit = Some(bp);
+                    }
+                }
+
+                self.prev_source_map = (start as usize, end as usize);
+
+                return Ok(ControlFlow::HitBreakpoint);
+            }
+
             code => {
                 println!(
                     "{:x} {:x?} {:x?}",
@@ -505,11 +532,15 @@ impl Runtime {
             }
         }
 
-        Ok(self.pc < self.program.len() && self.pc < 0xffffffff)
+        Ok(if self.pc < self.program.len() && self.pc < 0xffffffff {
+            ControlFlow::Continue
+        } else {
+            ControlFlow::Finish
+        })
     }
 
     pub fn exec(&mut self, print_stacks: bool) -> Result<(), RuntimeError> {
-        while self.step(print_stacks)? {}
+        while !matches!(self.step(print_stacks)?, ControlFlow::Finish) {}
 
         Ok(())
     }

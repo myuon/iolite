@@ -25,7 +25,7 @@ use lsp::{
 use server::{FutureResult, ServerProcess};
 
 use crate::{
-    compiler::{ast::Module, vm::Instruction},
+    compiler::{ast::Module, runtime::ControlFlow, vm::Instruction},
     dap::{
         BreakpointLocation, Capabilities, InitializeResponseBody, OutputEvent, OutputEventKind,
         Source, Variable, VariablesArguments, VariablesResponse,
@@ -631,8 +631,11 @@ async fn dap_handler(
         "next" => {
             let mut runtime = ctx.0.lock().unwrap();
             let next = runtime.step(true).unwrap();
-            if !next {
+            if matches!(next, ControlFlow::Finish) {
                 return Ok(vec![]);
+            }
+            if matches!(next, ControlFlow::HitBreakpoint) {
+                todo!();
             }
 
             Ok(vec![
@@ -754,14 +757,42 @@ async fn dap_handler(
             let arg =
                 serde_json::from_value::<dap::SetBreakpointsArguments>(req.arguments.clone())?;
 
+            let std_content = compiler::Compiler::create_input(String::new());
+            let std_content_len = std_content.len();
+
+            let mut runtime = ctx.0.lock().unwrap();
+
+            let mut breakpoints = vec![];
+            if let Some(bps) = &arg.breakpoints {
+                for bp in bps {
+                    let position = compiler::Compiler::find_line_and_column(
+                        &runtime.source_code,
+                        bp.line,
+                        bp.column.unwrap_or(0),
+                    );
+
+                    println!(
+                        "find_position: {}, {} -> {}",
+                        bp.line,
+                        bp.column.unwrap_or(0),
+                        position
+                    );
+
+                    breakpoints.push(position + std_content_len);
+                }
+            }
+
+            runtime.set_breakpoints(breakpoints);
+
             Ok(vec![ProtocolMessageResponseBuilder {
                 body: serde_json::to_value(dap::SetBreakpointsResponse {
                     breakpoints: arg
                         .breakpoints
                         .unwrap_or(vec![])
                         .into_iter()
-                        .map(|bp| dap::Breakpoint {
-                            id: None,
+                        .enumerate()
+                        .map(|(i, bp)| dap::Breakpoint {
+                            id: Some(i),
                             verified: true,
                             message: None,
                             source: None,

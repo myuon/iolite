@@ -1,6 +1,4 @@
-
-
-use super::ast::Type;
+use super::ast::{Span, Type};
 
 #[derive(Debug, PartialEq, Clone)]
 pub enum IrOp {
@@ -70,6 +68,9 @@ pub enum IrTerm {
     Index {
         ptr: Box<IrTerm>,
         index: Box<IrTerm>,
+    },
+    SourceMap {
+        span: Span,
     },
 }
 

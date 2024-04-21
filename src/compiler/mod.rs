@@ -199,6 +199,10 @@ impl Compiler {
     pub fn compile(input: String) -> Result<Vec<u8>, CompilerError> {
         let input = Self::create_input(input);
 
+        Self::compile_bundled(input)
+    }
+
+    pub fn compile_bundled(input: String) -> Result<Vec<u8>, CompilerError> {
         let decls = Self::parse(input.clone())?;
         let mut module = Self::create_module(decls);
         let types = Self::typecheck(&mut module, &input)?;

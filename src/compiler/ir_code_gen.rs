@@ -464,6 +464,8 @@ impl IrCodeGenerator {
         let mut terms = vec![];
 
         for stmt in block.data.statements {
+            terms.push(IrTerm::SourceMap { span: stmt.span });
+
             match stmt.data {
                 Statement::Let(name, expr) => {
                     let ir = self.expr(expr)?;

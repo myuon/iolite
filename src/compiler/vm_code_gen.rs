@@ -184,6 +184,9 @@ impl VmCodeGenerator {
             Debug(_) => {}
             Nop => {}
             Data { .. } => {}
+            SourceMap(_) => {}
+            Call => todo!(),
+            Return => todo!(),
         }
 
         self.code.push(inst);
@@ -462,6 +465,9 @@ impl VmCodeGenerator {
                 self.emit(Instruction::Push(
                     Value::Pointer(*self.data_section.get(&id).unwrap() as u32).as_u64(),
                 ));
+            }
+            IrTerm::SourceMap { span } => {
+                self.emit(Instruction::SourceMap(span));
             }
         }
 

@@ -1,5 +1,7 @@
 use std::{collections::HashMap, io::Write, iter::repeat};
 
+use crate::compiler::ast::Span;
+
 use super::{ir::Value, vm::Instruction};
 
 #[derive(Debug)]
@@ -53,6 +55,11 @@ impl ByteCodeEmitter {
                     self.write(&val.to_le_bytes())?;
                 }
                 Debug(_) => {}
+                SourceMap(span) => {
+                    self.write(&Instruction::SourceMap(Span::unknown()).to_byte())?;
+                    self.write(&(span.start.unwrap_or(0xFFFFFFFF) as u64).to_le_bytes())?;
+                    self.write(&(span.end.unwrap_or(0xFFFFFFFF) as u64).to_le_bytes())?;
+                }
                 Data {
                     offset,
                     length,
