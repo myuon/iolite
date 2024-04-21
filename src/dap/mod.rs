@@ -105,7 +105,8 @@ pub struct Capabilities {
 #[derive(Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct LaunchRequestArguments {
-    no_debug: Option<bool>,
+    pub no_debug: Option<bool>,
+    pub source_file: Option<String>,
 }
 
 #[derive(Serialize)]

@@ -8,6 +8,7 @@ const debuggerDefaultConfig: vscode.DebugConfiguration = {
   name: "Iolite debugger",
   type: debugType,
   request: "launch",
+  sourceFile: "${file}",
 };
 
 let client: LanguageClient;

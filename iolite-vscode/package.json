@@ -43,7 +43,18 @@
         "label": "Iolite Debugger",
         "languages": [
           "iolite"
-        ]
+        ],
+        "configurationAttributes": {
+          "launch": {
+            "properties": {
+              "sourceFile": {
+                "type": "string",
+                "description": "The source file to debug.",
+                "default": "${file}"
+              }
+            }
+          }
+        }
       }
     ]
   },

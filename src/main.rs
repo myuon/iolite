@@ -1,11 +1,15 @@
-use std::{error::Error, io::Read, sync::Arc};
+use std::{
+    error::Error,
+    io::Read,
+    sync::{Arc, Mutex},
+};
 
 use clap::{Parser, Subcommand};
 use compiler::{lexer::Lexeme, runtime::Runtime, CompilerError};
 use dap::{
     server::{Dap, DapServer},
-    ConfigurationDoneResponse, InitializedEvent, LaunchResponse, NextResponse,
-    ProtocolMessageEventBuilder, ProtocolMessageEventKind, ProtocolMessageRequest,
+    ConfigurationDoneResponse, InitializedEvent, LaunchRequestArguments, LaunchResponse,
+    NextResponse, ProtocolMessageEventBuilder, ProtocolMessageEventKind, ProtocolMessageRequest,
     ProtocolMessageResponse, ProtocolMessageResponseBuilder, Scope, ScopesResponse,
     SetExceptionBreakpointsResponse, SourceResponse, StackFrame, StackTraceResponse, StoppedEvent,
     StoppedEventReason, Thread, ThreadsResponse,
@@ -130,7 +134,10 @@ async fn main() {
         }
         CliCommands::Dap {} => {
             Dap::new(DapImpl)
-                .start(DapContext(Arc::new(Runtime::new(1024, vec![]))), 3031)
+                .start(
+                    DapContext(Arc::new(Mutex::new(Runtime::new(1024, vec![])))),
+                    3031,
+                )
                 .await
                 .unwrap();
         }
@@ -395,7 +402,7 @@ impl LspServer for LspImpl {
 struct DapImpl;
 
 #[derive(Clone)]
-struct DapContext(Arc<Runtime>);
+struct DapContext(Arc<Mutex<Runtime>>);
 
 async fn dap_handler(
     ctx: DapContext,
@@ -419,10 +426,18 @@ async fn dap_handler(
             }
             .build(),
         ]),
-        "launch" => Ok(vec![ProtocolMessageResponseBuilder {
-            body: serde_json::to_value(LaunchResponse {})?,
+        "launch" => {
+            let arg = serde_json::from_value::<LaunchRequestArguments>(req.arguments.clone())?;
+            let content = std::fs::read_to_string(arg.source_file.unwrap())?;
+            let program = compiler::Compiler::compile(content).unwrap();
+
+            ctx.0.lock().unwrap().init(1024, program);
+
+            Ok(vec![ProtocolMessageResponseBuilder {
+                body: serde_json::to_value(LaunchResponse {})?,
+            }
+            .build(&req)])
         }
-        .build(&req)]),
         "setExceptionBreakpoints" => Ok(vec![ProtocolMessageResponseBuilder {
             body: serde_json::to_value(SetExceptionBreakpointsResponse { breakpoints: None })?,
         }
@@ -462,24 +477,33 @@ async fn dap_handler(
             })?,
         }
         .build(&req)]),
-        "stackTrace" => Ok(vec![ProtocolMessageResponseBuilder {
-            body: serde_json::to_value(StackTraceResponse {
-                stack_frames: vec![StackFrame {
-                    id: 1,
-                    name: "<main>".to_string(),
-                    source: None,
-                    line: 0,
-                    column: 0,
-                    end_line: None,
-                    end_column: None,
-                    can_restart: None,
-                    module_id: None,
-                    presentation_hint: None,
-                }],
-                total_frames: 2,
-            })?,
+        "stackTrace" => {
+            let runtime = ctx.0.lock().unwrap();
+            let frames = runtime.get_stack_frames();
+
+            Ok(vec![ProtocolMessageResponseBuilder {
+                body: serde_json::to_value(StackTraceResponse {
+                    stack_frames: frames
+                        .into_iter()
+                        .enumerate()
+                        .map(|(i, frame)| StackFrame {
+                            id: i,
+                            name: "<stackframe>".to_string(),
+                            source: None,
+                            line: 0,
+                            column: 0,
+                            end_line: None,
+                            end_column: None,
+                            can_restart: None,
+                            module_id: Some(frame),
+                            presentation_hint: None,
+                        })
+                        .collect(),
+                    total_frames: 2,
+                })?,
+            }
+            .build(&req)])
         }
-        .build(&req)]),
         "scopes" => Ok(vec![ProtocolMessageResponseBuilder {
             body: serde_json::to_value(ScopesResponse {
                 scopes: vec![Scope {
@@ -498,10 +522,33 @@ async fn dap_handler(
             })?,
         }
         .build(&req)]),
-        "next" => Ok(vec![ProtocolMessageResponseBuilder {
-            body: serde_json::to_value(NextResponse {})?,
+        "next" => {
+            let mut runtime = ctx.0.lock().unwrap();
+            let next = runtime.step(true).unwrap();
+            if !next {
+                return Ok(vec![]);
+            }
+
+            Ok(vec![
+                ProtocolMessageResponseBuilder {
+                    body: serde_json::to_value(NextResponse {})?,
+                }
+                .build(&req),
+                ProtocolMessageEventBuilder {
+                    body: serde_json::to_value(StoppedEvent {
+                        reason: StoppedEventReason::Step,
+                        description: None,
+                        thread_id: Some(1),
+                        preserve_focus_hint: None,
+                        text: None,
+                        all_threads_stopped: None,
+                        hit_breakpoint_ids: None,
+                    })?,
+                    event: ProtocolMessageEventKind::Stopped,
+                }
+                .build(),
+            ])
         }
-        .build(&req)]),
         _ => Ok(vec![]),
     }
 }
