@@ -518,7 +518,9 @@ impl Runtime {
 
                 self.prev_source_map = (start as usize, end as usize);
 
-                return Ok(ControlFlow::HitBreakpoint);
+                if hit.is_some() {
+                    return Ok(ControlFlow::HitBreakpoint);
+                }
             }
 
             code => {
