@@ -1,6 +1,8 @@
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 
+pub mod server;
+
 #[derive(Serialize, Deserialize)]
 pub enum ProtocolMessageTypePredefined {
     Request,

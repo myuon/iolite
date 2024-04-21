@@ -3,6 +3,8 @@ use std::collections::HashMap;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 
+pub mod server;
+
 #[derive(Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct RpcMessageRequest {

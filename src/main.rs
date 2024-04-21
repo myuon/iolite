@@ -1,17 +1,16 @@
-use std::{error::Error, future::Future, io::Read, pin::Pin};
+use std::{error::Error, io::Read};
 
 use clap::{Parser, Subcommand};
 use compiler::{lexer::Lexeme, CompilerError};
+use dap::server::{Dap, DapServer};
 use lsp::{
+    server::{Lsp, LspServer},
     Diagnostic, DiagnosticOptions, DocumentDiagnosticReportKind, FullDocumentDiagnosticReport,
     InitializeResult, Position, Range, RelatedFullDocumentDiagnosticReport, RpcMessageRequest,
     RpcMessageResponse, SemanticTokenTypes, SemanticTokens, SemanticTokensData,
     SemanticTokensLegend, SemanticTokensOptions, ServerCapabilities, TextDocumentSyncKind,
 };
-use tokio::{
-    io::{AsyncReadExt, AsyncWriteExt},
-    net::{TcpListener, TcpStream},
-};
+use server::{FutureResult, ServerProcess};
 
 use crate::{
     compiler::{ast::Module, vm::Instruction},
@@ -21,6 +20,8 @@ use crate::{
 mod compiler;
 mod dap;
 mod lsp;
+mod net;
+mod server;
 
 #[derive(Parser, Debug)]
 #[clap(name = "iolite")]
@@ -117,185 +118,20 @@ async fn main() {
             println!("result: {}", result);
         }
         CliCommands::Lsp {} => {
-            run_server(3030, Lsp).await.unwrap();
+            Lsp::new(LspImpl).start(3030).await.unwrap();
         }
         CliCommands::Dap {} => {
-            run_server(3031, Lsp).await.unwrap();
+            Dap::new(DapImpl).start(3031).await.unwrap();
         }
     }
 }
 
-trait ServerProcess {
-    fn handle(
-        &self,
-        stream: TcpStream,
-    ) -> Pin<Box<dyn Future<Output = Result<(), Box<dyn Error>>> + Send>>;
-}
+#[derive(Clone)]
+struct LspImpl;
 
-struct Lsp;
-impl ServerProcess for Lsp {
-    fn handle(
-        &self,
-        stream: TcpStream,
-    ) -> Pin<Box<dyn Future<Output = Result<(), Box<dyn Error>>> + Send>> {
-        let (mut reader, mut writer) = tokio::io::split(stream);
-
-        tokio::spawn(async move {
-            println!("tokio:spawn");
-
-            loop {
-                if let Err(err) = process_stream(&mut reader, &mut writer).await {
-                    eprintln!("failed to process stream; err = {:?}", err);
-                    break;
-                }
-            }
-
-            println!("tokio:spawn end");
-        });
-
-        Box::pin(async { Ok(()) })
-    }
-}
-
-struct Dap;
-impl ServerProcess for Dap {
-    fn handle(
-        &self,
-        stream: TcpStream,
-    ) -> Pin<Box<dyn Future<Output = Result<(), Box<dyn Error>>> + Send>> {
-        let (mut reader, mut writer) = tokio::io::split(stream);
-
-        tokio::spawn(async move {
-            println!("[dap] tokio:spawn");
-
-            loop {
-                if let Err(err) = process_stream(&mut reader, &mut writer).await {
-                    eprintln!("failed to process stream; err = {:?}", err);
-                    break;
-                }
-            }
-
-            println!("[dap] tokio:spawn end");
-        });
-
-        Box::pin(async { Ok(()) })
-    }
-}
-
-async fn run_server(
-    port: usize,
-    process_fn: impl ServerProcess + Send + Sync + 'static,
-) -> Result<(), Box<dyn Error>> {
-    let listener = TcpListener::bind(format!("127.0.0.1:{}", port)).await?;
-    println!("Listening on http://127.0.0.1:{}", port);
-
-    loop {
-        let (stream, _) = listener.accept().await?;
-        process_fn.handle(stream).await?;
-    }
-}
-
-async fn read_headers(
-    reader: &mut (impl AsyncReadExt + Unpin),
-) -> Result<Vec<(String, String)>, Box<dyn Error + Sync + Send>> {
-    let mut data = vec![];
-    while !data.ends_with("\r\n\r\n".as_bytes()) {
-        let mut buf = vec![0; 1];
-        let n = reader.read(&mut buf).await?;
-        if n == 0 {
-            return Err("UnexpectedEof".into());
-        }
-
-        data.push(buf[0]);
-    }
-
-    Ok(parse_headers(&String::from_utf8(data)?))
-}
-
-async fn process_stream(
-    reader: &mut (impl AsyncReadExt + Unpin),
-    writer: &mut (impl AsyncWriteExt + Unpin),
-) -> Result<(), Box<dyn Error + Sync + Send>> {
-    let headers = read_headers(reader).await?;
-    let length = headers
-        .into_iter()
-        .find(|(key, _)| key == "Content-Length")
-        .ok_or("Content-Length is not found in headers".to_string())?
-        .1
-        .parse::<usize>()
-        .map_err(|err| format!("Cannot parse content-length: {}", err))?;
-
-    let mut content = vec![0; length];
-    reader.read(&mut content).await?;
-
-    let content_part = String::from_utf8(content)?;
-    println!(
-        "!content={}",
-        if content_part.len() > 100 {
-            format!("{}..", content_part[..100].to_string())
-        } else {
-            format!("{}", content_part)
-        },
-    );
-
-    let req = serde_json::from_str::<RpcMessageRequest>(&content_part)?;
-
-    let resp = handle_request(req).await.unwrap();
-    if let Some(resp) = resp {
-        let resp_body = serde_json::to_string(&resp)?;
-        let rcp_resp = format!("Content-Length: {}\r\n\r\n{}", resp_body.len(), resp_body);
-        writer.write(rcp_resp.as_bytes()).await?;
-
-        println!("ok; resp={}", resp_body);
-    }
-
-    Ok::<_, Box<dyn Error + Sync + Send>>(())
-}
-
-fn parse_headers(headers: &str) -> Vec<(String, String)> {
-    headers
-        .split("\r\n")
-        .filter(|line| !line.is_empty())
-        .map(|line| {
-            let mut parts = line.split(": ");
-            let key = parts.next().unwrap().to_string();
-            let value = parts.next().unwrap().to_string();
-
-            (key, value)
-        })
-        .collect()
-}
-
-#[test]
-fn test_parse_headers() {
-    let cases = vec![
-        (
-            "Content-Length: 10\r\nContent-Type: application/json",
-            vec![
-                ("Content-Length".to_string(), "10".to_string()),
-                ("Content-Type".to_string(), "application/json".to_string()),
-            ],
-        ),
-        (
-            "Content-Length: 10\r\nContent-Type: application/vscode-jsonrpc; charset=utf-8\r\n",
-            vec![
-                ("Content-Length".to_string(), "10".to_string()),
-                (
-                    "Content-Type".to_string(),
-                    "application/vscode-jsonrpc; charset=utf-8".to_string(),
-                ),
-            ],
-        ),
-    ];
-
-    for (input, expected) in cases {
-        assert_eq!(parse_headers(input), expected);
-    }
-}
-
-async fn handle_request(
+async fn handle_request_impl(
     req: RpcMessageRequest,
-) -> Result<Option<RpcMessageResponse>, Box<dyn Error>> {
+) -> Result<Option<RpcMessageResponse>, Box<dyn Error + Sync + Send + 'static>> {
     let token_types = vec![SemanticTokenTypes::Keyword, SemanticTokenTypes::Comment];
 
     match req.method.as_str() {
@@ -535,5 +371,20 @@ async fn handle_request(
             Ok(None)
         }
         _ => Ok(None),
+    }
+}
+
+impl LspServer for LspImpl {
+    fn handle_request(req: RpcMessageRequest) -> FutureResult<Option<RpcMessageResponse>> {
+        Box::pin(handle_request_impl(req))
+    }
+}
+
+#[derive(Clone)]
+struct DapImpl;
+
+impl DapServer for DapImpl {
+    fn handle_request(_req: ()) -> FutureResult<Option<()>> {
+        Box::pin(async { Ok(None) })
     }
 }
