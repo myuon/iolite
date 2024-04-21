@@ -12,6 +12,7 @@ pub struct Runtime {
     pub(crate) bp: usize,
     pub(crate) pc: usize,
     pub(crate) program: Vec<u8>,
+    pub(crate) source_code: String,
 }
 
 impl Runtime {
@@ -26,15 +27,17 @@ impl Runtime {
             bp,
             pc: 0,
             program,
+            source_code: String::new(),
         }
     }
 
-    pub fn init(&mut self, size: usize, program: Vec<u8>) {
+    pub fn init(&mut self, size: usize, program: Vec<u8>, source_code: String) {
         self.memory = vec![0; size];
         self.bp = self.memory.len();
         self.sp = self.bp;
         self.pc = 0;
         self.program = program;
+        self.source_code = source_code;
     }
 
     pub fn get_stack_frames(&self) -> Vec<usize> {

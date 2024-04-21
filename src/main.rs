@@ -26,7 +26,10 @@ use server::{FutureResult, ServerProcess};
 
 use crate::{
     compiler::{ast::Module, vm::Instruction},
-    dap::{Capabilities, InitializeResponseBody, OutputEvent, OutputEventKind},
+    dap::{
+        Capabilities, InitializeResponseBody, OutputEvent, OutputEventKind, Source, Variable,
+        VariablesArguments, VariablesResponse,
+    },
     lsp::{Location, TextDocumentPositionParams},
 };
 
@@ -422,6 +425,7 @@ async fn dap_handler(
                     supports_hit_conditional_breakpoints: Some(true),
                     supports_read_memory_request: Some(true),
                     supports_memory_event: Some(false),
+                    supports_disassemble_request: Some(true),
                 }))?,
             }
             .build(&req),
@@ -434,9 +438,9 @@ async fn dap_handler(
         "launch" => {
             let arg = serde_json::from_value::<LaunchRequestArguments>(req.arguments.clone())?;
             let content = std::fs::read_to_string(arg.source_file.unwrap())?;
-            let program = compiler::Compiler::compile(content).unwrap();
+            let program = compiler::Compiler::compile(content.clone()).unwrap();
 
-            ctx.0.lock().unwrap().init(1024, program);
+            ctx.0.lock().unwrap().init(1024, program, content);
 
             Ok(vec![ProtocolMessageResponseBuilder {
                 body: serde_json::to_value(LaunchResponse {})?,
@@ -516,13 +520,12 @@ async fn dap_handler(
 
             Ok(vec![ProtocolMessageResponseBuilder {
                 body: serde_json::to_value(ScopesResponse {
-                    scopes: values
-                        .into_iter()
-                        .map(|value| Scope {
-                            name: format!("{:?}", value),
+                    scopes: vec![
+                        Scope {
+                            name: "Runtime Values".to_string(),
                             presentation_hint: None,
-                            variables_reference: 0,
-                            named_variables: None,
+                            variables_reference: 1,
+                            named_variables: Some(3),
                             indexed_variables: None,
                             expensive: false,
                             source: None,
@@ -530,11 +533,95 @@ async fn dap_handler(
                             column: None,
                             end_line: None,
                             end_column: None,
-                        })
-                        .collect(),
+                        },
+                        Scope {
+                            name: "Locals".to_string(),
+                            presentation_hint: None,
+                            variables_reference: arg.frame_id + 2,
+                            named_variables: Some(values.len()),
+                            indexed_variables: None,
+                            expensive: false,
+                            source: None,
+                            line: None,
+                            column: None,
+                            end_line: None,
+                            end_column: None,
+                        },
+                    ],
                 })?,
             }
             .build(&req)])
+        }
+        "variables" => {
+            let arg = serde_json::from_value::<VariablesArguments>(req.arguments.clone())?;
+            let runtime = ctx.0.lock().unwrap();
+
+            match arg.variables_reference {
+                1 => Ok(vec![ProtocolMessageResponseBuilder {
+                    body: serde_json::to_value(VariablesResponse {
+                        variables: vec![
+                            Variable {
+                                name: "pc".to_string(),
+                                value: runtime.pc.to_string(),
+                                type_: Some("int".to_string()),
+                                presentation_hint: None,
+                                evaluate_name: None,
+                                variables_reference: 0,
+                                named_variables: None,
+                                indexed_variables: None,
+                                memory_reference: None,
+                            },
+                            Variable {
+                                name: "sp".to_string(),
+                                value: runtime.sp.to_string(),
+                                type_: Some("int".to_string()),
+                                presentation_hint: None,
+                                evaluate_name: None,
+                                variables_reference: 0,
+                                named_variables: None,
+                                indexed_variables: None,
+                                memory_reference: None,
+                            },
+                            Variable {
+                                name: "bp".to_string(),
+                                value: runtime.bp.to_string(),
+                                type_: Some("int".to_string()),
+                                presentation_hint: None,
+                                evaluate_name: None,
+                                variables_reference: 0,
+                                named_variables: None,
+                                indexed_variables: None,
+                                memory_reference: None,
+                            },
+                        ],
+                    })?,
+                }
+                .build(&req)]),
+                _ => {
+                    let values = runtime.get_stack_values(arg.variables_reference - 2);
+
+                    Ok(vec![ProtocolMessageResponseBuilder {
+                        body: serde_json::to_value(VariablesResponse {
+                            variables: values
+                                .into_iter()
+                                .enumerate()
+                                .map(|(i, value)| Variable {
+                                    name: format!("#{}", i),
+                                    value: format!("{:?}", value),
+                                    type_: Some("int".to_string()),
+                                    presentation_hint: None,
+                                    evaluate_name: None,
+                                    variables_reference: 0,
+                                    named_variables: None,
+                                    indexed_variables: None,
+                                    memory_reference: None,
+                                })
+                                .collect(),
+                        })?,
+                    }
+                    .build(&req)])
+                }
+            }
         }
         "next" => {
             let mut runtime = ctx.0.lock().unwrap();
@@ -628,6 +715,13 @@ async fn dap_handler(
                 })?,
             }
             .build(&req)])
+        }
+        "disassemble" => {
+            let arg = serde_json::from_value::<dap::DisassembleArguments>(req.arguments.clone())?;
+
+            println!("disassemble: {:?}", arg);
+
+            Ok(vec![])
         }
         _ => Ok(vec![]),
     }

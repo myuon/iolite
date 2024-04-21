@@ -103,6 +103,7 @@ pub struct Capabilities {
     pub supports_single_thread_execution_requests: Option<bool>,
     pub supports_read_memory_request: Option<bool>,
     pub supports_memory_event: Option<bool>,
+    pub supports_disassemble_request: Option<bool>,
 }
 
 #[derive(Deserialize)]
@@ -322,4 +323,66 @@ pub enum OutputEventKind {
     Stdout,
     Stderr,
     Telemetry,
+}
+
+#[derive(Deserialize, Debug)]
+#[serde(rename_all = "camelCase")]
+pub struct DisassembleArguments {
+    pub memory_reference: String,
+    pub offset: Option<usize>,
+    pub instruction_count: usize,
+    pub instruction_offset: Option<usize>,
+    pub resolve_symbols: Option<bool>,
+}
+
+#[derive(Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct DisassembleResponse {
+    pub instructions: Vec<DisassembledInstruction>,
+}
+
+#[derive(Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct DisassembledInstruction {
+    address: String,
+    instruction_bytes: Option<String>,
+    instruction: String,
+    symbol: Option<String>,
+    location: Option<Source>,
+    line: Option<usize>,
+    column: Option<usize>,
+    end_line: Option<usize>,
+    end_column: Option<usize>,
+    presentation_hint: Option<String>,
+}
+
+#[derive(Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct VariablesArguments {
+    pub variables_reference: usize,
+    pub filter: Option<String>,
+    pub start: Option<usize>,
+    pub count: Option<usize>,
+    pub format: Option<Value>,
+}
+
+#[derive(Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct VariablesResponse {
+    pub variables: Vec<Variable>,
+}
+
+#[derive(Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct Variable {
+    pub name: String,
+    pub value: String,
+    #[serde(rename = "type")]
+    pub type_: Option<String>,
+    pub presentation_hint: Option<Value>,
+    pub evaluate_name: Option<String>,
+    pub variables_reference: usize,
+    pub named_variables: Option<usize>,
+    pub indexed_variables: Option<usize>,
+    pub memory_reference: Option<String>,
 }
