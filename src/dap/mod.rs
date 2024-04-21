@@ -87,6 +87,7 @@ pub enum ProtocolMessageEventKind {
     Initialized,
     Stopped,
     Output,
+    Exited,
 }
 
 #[derive(Serialize)]
@@ -449,4 +450,10 @@ pub struct SourceBreakpoint {
 #[serde(rename_all = "camelCase")]
 pub struct SetBreakpointsResponse {
     pub breakpoints: Vec<Breakpoint>,
+}
+
+#[derive(Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ExitedEvent {
+    pub exit_code: usize,
 }

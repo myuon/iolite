@@ -27,8 +27,8 @@ use server::{FutureResult, ServerProcess};
 use crate::{
     compiler::{ast::Module, runtime::ControlFlow, vm::Instruction},
     dap::{
-        BreakpointLocation, Capabilities, InitializeResponseBody, OutputEvent, OutputEventKind,
-        Source, Variable, VariablesArguments, VariablesResponse,
+        BreakpointLocation, Capabilities, ExitedEvent, InitializeResponseBody, OutputEvent,
+        OutputEventKind, Source, Variable, VariablesArguments, VariablesResponse,
     },
     lsp::{Location, TextDocumentPositionParams},
 };
@@ -630,83 +630,113 @@ async fn dap_handler(
         }
         "next" => {
             let mut runtime = ctx.0.lock().unwrap();
-            let next = runtime.step(true).unwrap();
-            if matches!(next, ControlFlow::Finish) {
-                return Ok(vec![]);
-            }
-            if matches!(next, ControlFlow::HitBreakpoint) {
-                todo!();
-            }
+            let control = runtime.step(true).unwrap();
 
-            Ok(vec![
-                ProtocolMessageResponseBuilder {
-                    body: serde_json::to_value(NextResponse {})?,
-                }
-                .build(&req),
-                ProtocolMessageEventBuilder {
-                    body: serde_json::to_value(StoppedEvent {
-                        reason: StoppedEventReason::Step,
-                        description: Some(format!(
-                            "pc: {}, next: {:?}",
-                            runtime.pc,
-                            runtime.show_next_instruction()
-                        )),
-                        thread_id: Some(MAIN_THREAD_ID),
-                        preserve_focus_hint: None,
-                        text: None,
-                        all_threads_stopped: None,
-                        hit_breakpoint_ids: None,
-                    })?,
-                    event: ProtocolMessageEventKind::Stopped,
-                }
-                .build(),
-                ProtocolMessageEventBuilder {
-                    body: serde_json::to_value(OutputEvent {
-                        category: Some(OutputEventKind::Console),
-                        output: format!(
-                            "pc: {}, next: {:?}\n",
-                            runtime.pc,
-                            runtime.show_next_instruction()
-                        ),
-                        group: Some("start".to_string()),
-                        variable_reference: None,
-                        source: None,
-                        line: None,
-                        column: None,
-                        data: None,
-                    })?,
-                    event: ProtocolMessageEventKind::Output,
-                }
-                .build(),
-                ProtocolMessageEventBuilder {
-                    body: serde_json::to_value(OutputEvent {
-                        category: Some(OutputEventKind::Console),
-                        output: runtime.show_stacks(),
-                        group: None,
-                        variable_reference: None,
-                        source: None,
-                        line: None,
-                        column: None,
-                        data: None,
-                    })?,
-                    event: ProtocolMessageEventKind::Output,
-                }
-                .build(),
-                ProtocolMessageEventBuilder {
-                    body: serde_json::to_value(OutputEvent {
-                        category: Some(OutputEventKind::Console),
-                        output: "".to_string(),
-                        group: Some("end".to_string()),
-                        variable_reference: None,
-                        source: None,
-                        line: None,
-                        column: None,
-                        data: None,
-                    })?,
-                    event: ProtocolMessageEventKind::Output,
-                }
-                .build(),
-            ])
+            match control {
+                ControlFlow::Finish => Ok(vec![
+                    ProtocolMessageResponseBuilder {
+                        body: serde_json::to_value(NextResponse {})?,
+                    }
+                    .build(&req),
+                    ProtocolMessageEventBuilder {
+                        body: serde_json::to_value(ExitedEvent { exit_code: 0 })?,
+                        event: ProtocolMessageEventKind::Exited,
+                    }
+                    .build(),
+                ]),
+                ControlFlow::HitBreakpoint => Ok(vec![
+                    ProtocolMessageResponseBuilder {
+                        body: serde_json::to_value(NextResponse {})?,
+                    }
+                    .build(&req),
+                    ProtocolMessageEventBuilder {
+                        body: serde_json::to_value(StoppedEvent {
+                            reason: StoppedEventReason::Breakpoint,
+                            description: Some(format!(
+                                "pc: {}, next: {:?}",
+                                runtime.pc,
+                                runtime.show_next_instruction()
+                            )),
+                            thread_id: Some(MAIN_THREAD_ID),
+                            preserve_focus_hint: None,
+                            text: None,
+                            all_threads_stopped: None,
+                            hit_breakpoint_ids: None,
+                        })?,
+                        event: ProtocolMessageEventKind::Stopped,
+                    }
+                    .build(),
+                ]),
+                ControlFlow::Continue => Ok(vec![
+                    ProtocolMessageResponseBuilder {
+                        body: serde_json::to_value(NextResponse {})?,
+                    }
+                    .build(&req),
+                    ProtocolMessageEventBuilder {
+                        body: serde_json::to_value(StoppedEvent {
+                            reason: StoppedEventReason::Step,
+                            description: Some(format!(
+                                "pc: {}, next: {:?}",
+                                runtime.pc,
+                                runtime.show_next_instruction()
+                            )),
+                            thread_id: Some(MAIN_THREAD_ID),
+                            preserve_focus_hint: None,
+                            text: None,
+                            all_threads_stopped: None,
+                            hit_breakpoint_ids: None,
+                        })?,
+                        event: ProtocolMessageEventKind::Stopped,
+                    }
+                    .build(),
+                    ProtocolMessageEventBuilder {
+                        body: serde_json::to_value(OutputEvent {
+                            category: Some(OutputEventKind::Console),
+                            output: format!(
+                                "pc: {}, next: {:?}\n",
+                                runtime.pc,
+                                runtime.show_next_instruction()
+                            ),
+                            group: Some("start".to_string()),
+                            variable_reference: None,
+                            source: None,
+                            line: None,
+                            column: None,
+                            data: None,
+                        })?,
+                        event: ProtocolMessageEventKind::Output,
+                    }
+                    .build(),
+                    ProtocolMessageEventBuilder {
+                        body: serde_json::to_value(OutputEvent {
+                            category: Some(OutputEventKind::Console),
+                            output: runtime.show_stacks(),
+                            group: None,
+                            variable_reference: None,
+                            source: None,
+                            line: None,
+                            column: None,
+                            data: None,
+                        })?,
+                        event: ProtocolMessageEventKind::Output,
+                    }
+                    .build(),
+                    ProtocolMessageEventBuilder {
+                        body: serde_json::to_value(OutputEvent {
+                            category: Some(OutputEventKind::Console),
+                            output: "".to_string(),
+                            group: Some("end".to_string()),
+                            variable_reference: None,
+                            source: None,
+                            line: None,
+                            column: None,
+                            data: None,
+                        })?,
+                        event: ProtocolMessageEventKind::Output,
+                    }
+                    .build(),
+                ]),
+            }
         }
         "readMemory" => {
             let arg = serde_json::from_value::<dap::ReadMemoryArguments>(req.arguments.clone())?;
