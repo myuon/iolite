@@ -26,7 +26,7 @@ use server::{FutureResult, ServerProcess};
 
 use crate::{
     compiler::{ast::Module, vm::Instruction},
-    dap::{Capabilities, InitializeResponseBody},
+    dap::{Capabilities, InitializeResponseBody, OutputEvent, OutputEventKind},
     lsp::{Location, TextDocumentPositionParams},
 };
 
@@ -563,6 +563,52 @@ async fn dap_handler(
                         hit_breakpoint_ids: None,
                     })?,
                     event: ProtocolMessageEventKind::Stopped,
+                }
+                .build(),
+                ProtocolMessageEventBuilder {
+                    body: serde_json::to_value(OutputEvent {
+                        category: Some(OutputEventKind::Console),
+                        output: format!(
+                            "pc: {}, next: {:?}\n",
+                            runtime.pc,
+                            runtime.show_next_instruction()
+                        ),
+                        group: Some("start".to_string()),
+                        variable_reference: None,
+                        source: None,
+                        line: None,
+                        column: None,
+                        data: None,
+                    })?,
+                    event: ProtocolMessageEventKind::Output,
+                }
+                .build(),
+                ProtocolMessageEventBuilder {
+                    body: serde_json::to_value(OutputEvent {
+                        category: Some(OutputEventKind::Console),
+                        output: runtime.show_stacks(),
+                        group: None,
+                        variable_reference: None,
+                        source: None,
+                        line: None,
+                        column: None,
+                        data: None,
+                    })?,
+                    event: ProtocolMessageEventKind::Output,
+                }
+                .build(),
+                ProtocolMessageEventBuilder {
+                    body: serde_json::to_value(OutputEvent {
+                        category: Some(OutputEventKind::Console),
+                        output: "".to_string(),
+                        group: Some("end".to_string()),
+                        variable_reference: None,
+                        source: None,
+                        line: None,
+                        column: None,
+                        data: None,
+                    })?,
+                    event: ProtocolMessageEventKind::Output,
                 }
                 .build(),
             ])

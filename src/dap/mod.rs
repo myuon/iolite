@@ -86,6 +86,7 @@ impl ProtocolMessageEventBuilder {
 pub enum ProtocolMessageEventKind {
     Initialized,
     Stopped,
+    Output,
 }
 
 #[derive(Serialize)]
@@ -298,4 +299,27 @@ pub struct ReadMemoryResponse {
     pub address: String,
     pub unreadable_bytes: Option<usize>,
     pub data: Option<String>,
+}
+
+#[derive(Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct OutputEvent {
+    pub category: Option<OutputEventKind>,
+    pub output: String,
+    pub group: Option<String>,
+    pub variable_reference: Option<usize>,
+    pub source: Option<Source>,
+    pub line: Option<usize>,
+    pub column: Option<usize>,
+    pub data: Option<Value>,
+}
+
+#[derive(Serialize)]
+#[serde(rename_all = "camelCase")]
+pub enum OutputEventKind {
+    Console,
+    Important,
+    Stdout,
+    Stderr,
+    Telemetry,
 }

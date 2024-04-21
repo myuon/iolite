@@ -176,6 +176,27 @@ impl Runtime {
         }
     }
 
+    pub fn show_stacks(&self) -> String {
+        let mut result = String::new();
+        let mut p = self.memory.len() - 8;
+        result.push_str("|");
+
+        while p >= self.sp {
+            let val = Value::from_u64(self.load_i64(p as u64) as u64);
+
+            if p == self.sp {
+                result.push_str(&format!(" {:?} S", val));
+            } else if p == self.bp {
+                result.push_str(&format!(" {:?} B", val));
+            } else {
+                result.push_str(&format!(" {:?} |", val));
+            }
+            p -= 8;
+        }
+
+        result
+    }
+
     fn print_stack(&self) {
         let mut p = self.memory.len() - 8;
         print!("[{}] |", self.pc);
