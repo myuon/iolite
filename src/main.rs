@@ -409,6 +409,8 @@ async fn dap_handler(
     ctx: DapContext,
     req: ProtocolMessageRequest,
 ) -> Result<Vec<ProtocolMessageResponse>, Box<dyn Error + Sync + Send>> {
+    const MAIN_THREAD_ID: usize = 1;
+
     match req.command.as_str() {
         "initialize" => Ok(vec![
             ProtocolMessageResponseBuilder {
@@ -448,7 +450,7 @@ async fn dap_handler(
         "threads" => Ok(vec![ProtocolMessageResponseBuilder {
             body: serde_json::to_value(ThreadsResponse {
                 threads: vec![Thread {
-                    id: 1,
+                    id: MAIN_THREAD_ID,
                     name: "main".to_string(),
                 }],
             })?,
@@ -463,7 +465,7 @@ async fn dap_handler(
                 body: serde_json::to_value(StoppedEvent {
                     reason: StoppedEventReason::Pause,
                     description: None,
-                    thread_id: Some(1),
+                    thread_id: Some(MAIN_THREAD_ID),
                     preserve_focus_hint: None,
                     text: None,
                     all_threads_stopped: None,
@@ -486,6 +488,7 @@ async fn dap_handler(
 
             Ok(vec![ProtocolMessageResponseBuilder {
                 body: serde_json::to_value(StackTraceResponse {
+                    total_frames: frames.len(),
                     stack_frames: frames
                         .into_iter()
                         .enumerate()
@@ -502,7 +505,6 @@ async fn dap_handler(
                             presentation_hint: None,
                         })
                         .collect(),
-                    total_frames: 2,
                 })?,
             }
             .build(&req)])
@@ -550,7 +552,7 @@ async fn dap_handler(
                     body: serde_json::to_value(StoppedEvent {
                         reason: StoppedEventReason::Step,
                         description: None,
-                        thread_id: Some(1),
+                        thread_id: Some(MAIN_THREAD_ID),
                         preserve_focus_hint: None,
                         text: None,
                         all_threads_stopped: None,
