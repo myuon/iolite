@@ -594,6 +594,15 @@ mod tests {
             }"#,
                 Value::Int(17).as_u64() as i64,
             ),
+            (
+                r#"
+            fun main() {
+                let t = "ABC";
+
+                return t.(1);
+            }"#,
+                Value::Byte(66).as_u64() as i64,
+            ),
         ];
 
         for (input, expected) in cases {

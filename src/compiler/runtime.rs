@@ -216,6 +216,34 @@ impl Runtime {
                 }
                 // nop
                 0x07 => {}
+                // data
+                0x08 => {
+                    let offset = u64::from_le_bytes([
+                        self.consume(),
+                        self.consume(),
+                        self.consume(),
+                        self.consume(),
+                        self.consume(),
+                        self.consume(),
+                        self.consume(),
+                        self.consume(),
+                    ]);
+                    let length = u64::from_le_bytes([
+                        self.consume(),
+                        self.consume(),
+                        self.consume(),
+                        self.consume(),
+                        self.consume(),
+                        self.consume(),
+                        self.consume(),
+                        self.consume(),
+                    ]);
+
+                    for i in 0..length {
+                        let b = self.consume();
+                        self.memory[offset as usize + i as usize] = b;
+                    }
+                }
 
                 // add
                 0x10 => {

@@ -118,6 +118,7 @@ impl IrCodeGenerator {
             name: module.name,
             decls,
             data_section,
+            global_offset: offset,
         })
     }
 

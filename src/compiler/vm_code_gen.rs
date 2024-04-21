@@ -28,6 +28,7 @@ pub struct VmCodeGenerator {
     stack_pointer: usize,
     pub code: Vec<Instruction>,
     data_section: HashMap<String, usize>,
+    global_offset: usize,
 }
 
 impl VmCodeGenerator {
@@ -39,6 +40,7 @@ impl VmCodeGenerator {
             stack_pointer: 0,
             code: vec![],
             data_section: HashMap::new(),
+            global_offset: 0,
         }
     }
 
@@ -113,7 +115,9 @@ impl VmCodeGenerator {
                 self.globals.push(name.clone());
                 self.globals.len() - 1
             });
-        self.push_value(Value::Int(index as i32 * Value::size()));
+        self.push_value(Value::Int(
+            self.global_offset as i32 + index as i32 * Value::size(),
+        ));
     }
 
     fn is_global(&self, name: &str) -> bool {
@@ -179,7 +183,7 @@ impl VmCodeGenerator {
             }
             Debug(_) => {}
             Nop => {}
-            Data(_, _) => {}
+            Data { .. } => {}
         }
 
         self.code.push(inst);
@@ -489,13 +493,8 @@ impl VmCodeGenerator {
         Ok(())
     }
 
-    pub fn module(&mut self, module: IrModule) -> Result<(), VmCodeGeneratorError> {
-        for (id, offset, value) in module.data_section {
-            self.data_section.insert(id, offset);
-            self.emit(Instruction::Data(offset as u64, value));
-        }
-
-        for decl in module.decls {
+    pub fn module(&mut self, decls: Vec<IrDecl>) -> Result<(), VmCodeGeneratorError> {
+        for decl in decls {
             self.decl(decl)?;
         }
 
@@ -505,9 +504,21 @@ impl VmCodeGenerator {
     pub fn program(&mut self, module: IrModule) -> Result<(), VmCodeGeneratorError> {
         self.emit(Instruction::Push(0)); // 1 word for the return value
         self.emit(Instruction::Push(Value::Pointer(0xffffffff).as_u64())); // return address
+
+        self.global_offset = module.global_offset;
+
+        for (id, offset, value) in module.data_section {
+            self.data_section.insert(id, offset);
+            self.emit(Instruction::Data {
+                offset: offset as u64,
+                length: value.len() as u64,
+                data: value,
+            });
+        }
+
         self.emit(Instruction::JumpTo("main".to_string()));
 
-        self.module(module)?;
+        self.module(module.decls)?;
 
         self.emit(Instruction::Label("exit".to_string()));
 

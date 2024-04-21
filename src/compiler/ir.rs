@@ -90,6 +90,7 @@ pub struct IrModule {
     pub name: String,
     pub decls: Vec<IrDecl>,
     pub data_section: Vec<(String, usize, Vec<u8>)>,
+    pub global_offset: usize,
 }
 
 #[derive(Debug, PartialEq, Clone)]

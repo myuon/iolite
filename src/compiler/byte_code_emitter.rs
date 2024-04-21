@@ -53,6 +53,23 @@ impl ByteCodeEmitter {
                     self.write(&val.to_le_bytes())?;
                 }
                 Debug(_) => {}
+                Data {
+                    offset,
+                    length,
+                    data,
+                } => {
+                    self.write(
+                        &Instruction::Data {
+                            offset,
+                            length,
+                            data: vec![],
+                        }
+                        .to_byte(),
+                    )?;
+                    self.write(&offset.to_le_bytes())?;
+                    self.write(&length.to_le_bytes())?;
+                    self.write(&data)?;
+                }
                 Label(label) => {
                     labels.insert(label, self.position);
                 }
