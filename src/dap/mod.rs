@@ -150,7 +150,7 @@ pub struct Breakpoint {
     pub reason: Option<String>,
 }
 
-#[derive(Serialize)]
+#[derive(Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct Source {
     pub name: Option<String>,
@@ -398,4 +398,55 @@ pub struct SetFunctionBreakpointArguments {
 #[serde(rename_all = "camelCase")]
 pub struct SetFunctionBreakpointsResponse {
     pub breakpoints: Vec<Value>,
+}
+
+#[derive(Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct BreakpointLocationsArguments {
+    pub source: Source,
+    pub line: usize,
+    pub column: Option<usize>,
+    pub end_line: Option<usize>,
+    pub end_column: Option<usize>,
+}
+
+#[derive(Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct BreakpointLocationsResponse {
+    pub breakpoints: Vec<BreakpointLocation>,
+}
+
+#[derive(Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct BreakpointLocation {
+    pub line: usize,
+    pub column: Option<usize>,
+    pub end_line: Option<usize>,
+    pub end_column: Option<usize>,
+}
+
+#[derive(Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct SetBreakpointsArguments {
+    pub source: Source,
+    pub breakpoints: Option<Vec<SourceBreakpoint>>,
+    pub lines: Option<Vec<usize>>,
+    pub source_modified: Option<bool>,
+}
+
+#[derive(Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct SourceBreakpoint {
+    pub line: usize,
+    pub column: Option<usize>,
+    pub condition: Option<String>,
+    pub hit_condition: Option<String>,
+    pub log_message: Option<String>,
+    pub mode: Option<String>,
+}
+
+#[derive(Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct SetBreakpointsResponse {
+    pub breakpoints: Vec<Breakpoint>,
 }

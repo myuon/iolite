@@ -27,8 +27,8 @@ use server::{FutureResult, ServerProcess};
 use crate::{
     compiler::{ast::Module, vm::Instruction},
     dap::{
-        Capabilities, InitializeResponseBody, OutputEvent, OutputEventKind, Source, Variable,
-        VariablesArguments, VariablesResponse,
+        BreakpointLocation, Capabilities, InitializeResponseBody, OutputEvent, OutputEventKind,
+        Source, Variable, VariablesArguments, VariablesResponse,
     },
     lsp::{Location, TextDocumentPositionParams},
 };
@@ -420,9 +420,9 @@ async fn dap_handler(
                 body: serde_json::to_value(InitializeResponseBody(Capabilities {
                     supports_configuration_done_request: Some(true),
                     supports_single_thread_execution_requests: Some(true),
-                    supports_function_breakpoints: Some(true),
-                    supports_conditional_breakpoints: Some(true),
-                    supports_hit_conditional_breakpoints: Some(true),
+                    supports_function_breakpoints: Some(false),
+                    supports_conditional_breakpoints: Some(false),
+                    supports_hit_conditional_breakpoints: Some(false),
                     supports_read_memory_request: Some(true),
                     supports_memory_event: Some(true),
                     supports_disassemble_request: Some(true),
@@ -734,6 +734,50 @@ async fn dap_handler(
             })?,
         }
         .build(&req)]),
+        "breakpointLocations" => {
+            let arg =
+                serde_json::from_value::<dap::BreakpointLocationsArguments>(req.arguments.clone())?;
+
+            Ok(vec![ProtocolMessageResponseBuilder {
+                body: serde_json::to_value(dap::BreakpointLocationsResponse {
+                    breakpoints: vec![BreakpointLocation {
+                        line: arg.line,
+                        column: arg.column,
+                        end_line: arg.end_line,
+                        end_column: arg.end_column,
+                    }],
+                })?,
+            }
+            .build(&req)])
+        }
+        "setBreakpoints" => {
+            let arg =
+                serde_json::from_value::<dap::SetBreakpointsArguments>(req.arguments.clone())?;
+
+            Ok(vec![ProtocolMessageResponseBuilder {
+                body: serde_json::to_value(dap::SetBreakpointsResponse {
+                    breakpoints: arg
+                        .breakpoints
+                        .unwrap_or(vec![])
+                        .into_iter()
+                        .map(|bp| dap::Breakpoint {
+                            id: None,
+                            verified: true,
+                            message: None,
+                            source: None,
+                            line: Some(bp.line),
+                            column: bp.column,
+                            end_line: None,
+                            end_column: None,
+                            instruction_reference: None,
+                            offset: None,
+                            reason: None,
+                        })
+                        .collect(),
+                })?,
+            }
+            .build(&req)])
+        }
         _ => Ok(vec![]),
     }
 }
