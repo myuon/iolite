@@ -2,7 +2,13 @@ use std::{error::Error, io::Read};
 
 use clap::{Parser, Subcommand};
 use compiler::{lexer::Lexeme, CompilerError};
-use dap::server::{Dap, DapServer};
+use dap::{
+    server::{Dap, DapServer},
+    ConfigurationDoneResponse, InitializedEvent, LaunchResponse, ProtocolMessageEventBuilder,
+    ProtocolMessageEventKind, ProtocolMessageRequest, ProtocolMessageResponse,
+    ProtocolMessageResponseBuilder, SetExceptionBreakpointsResponse, SourceResponse, StoppedEvent,
+    StoppedEventReason, Thread, ThreadsResponse,
+};
 use lsp::{
     server::{Lsp, LspServer},
     Diagnostic, DiagnosticOptions, DocumentDiagnosticReportKind, FullDocumentDiagnosticReport,
@@ -14,6 +20,7 @@ use server::{FutureResult, ServerProcess};
 
 use crate::{
     compiler::{ast::Module, vm::Instruction},
+    dap::{Capabilities, InitializeResponseBody},
     lsp::{Location, TextDocumentPositionParams},
 };
 
@@ -129,7 +136,7 @@ async fn main() {
 #[derive(Clone)]
 struct LspImpl;
 
-async fn handle_request_impl(
+async fn lsp_handler(
     req: RpcMessageRequest,
 ) -> Result<Option<RpcMessageResponse>, Box<dyn Error + Sync + Send + 'static>> {
     let token_types = vec![SemanticTokenTypes::Keyword, SemanticTokenTypes::Comment];
@@ -376,15 +383,80 @@ async fn handle_request_impl(
 
 impl LspServer for LspImpl {
     fn handle_request(req: RpcMessageRequest) -> FutureResult<Option<RpcMessageResponse>> {
-        Box::pin(handle_request_impl(req))
+        Box::pin(lsp_handler(req))
     }
 }
 
 #[derive(Clone)]
 struct DapImpl;
 
+async fn dap_handler(
+    req: ProtocolMessageRequest,
+) -> Result<Vec<ProtocolMessageResponse>, Box<dyn Error + Sync + Send>> {
+    match req.command.as_str() {
+        "initialize" => Ok(vec![
+            ProtocolMessageResponseBuilder {
+                body: serde_json::to_value(InitializeResponseBody(Capabilities {
+                    supports_configuration_done_request: Some(true),
+                    supports_single_thread_execution_requests: Some(true),
+                }))?,
+            }
+            .build(&req),
+            ProtocolMessageEventBuilder {
+                body: serde_json::to_value(InitializedEvent {})?,
+                event: ProtocolMessageEventKind::Initialized,
+            }
+            .build(),
+        ]),
+        "launch" => Ok(vec![ProtocolMessageResponseBuilder {
+            body: serde_json::to_value(LaunchResponse {})?,
+        }
+        .build(&req)]),
+        "setExceptionBreakpoints" => Ok(vec![ProtocolMessageResponseBuilder {
+            body: serde_json::to_value(SetExceptionBreakpointsResponse { breakpoints: None })?,
+        }
+        .build(&req)]),
+        "threads" => Ok(vec![ProtocolMessageResponseBuilder {
+            body: serde_json::to_value(ThreadsResponse {
+                threads: vec![Thread {
+                    id: 1,
+                    name: "main".to_string(),
+                }],
+            })?,
+        }
+        .build(&req)]),
+        "configurationDone" => Ok(vec![
+            ProtocolMessageResponseBuilder {
+                body: serde_json::to_value(ConfigurationDoneResponse {})?,
+            }
+            .build(&req),
+            ProtocolMessageEventBuilder {
+                body: serde_json::to_value(StoppedEvent {
+                    reason: StoppedEventReason::Pause,
+                    description: None,
+                    thread_id: None,
+                    preserve_focus_hint: None,
+                    text: None,
+                    all_threads_stopped: None,
+                    hit_breakpoint_ids: None,
+                })?,
+                event: ProtocolMessageEventKind::Stopped,
+            }
+            .build(),
+        ]),
+        "source" => Ok(vec![ProtocolMessageResponseBuilder {
+            body: serde_json::to_value(SourceResponse {
+                content: "<<source code>>".to_string(),
+                mime_type: None,
+            })?,
+        }
+        .build(&req)]),
+        _ => Ok(vec![]),
+    }
+}
+
 impl DapServer for DapImpl {
-    fn handle_request(_req: ()) -> FutureResult<Option<()>> {
-        Box::pin(async { Ok(None) })
+    fn handle_request(req: ProtocolMessageRequest) -> FutureResult<Vec<ProtocolMessageResponse>> {
+        Box::pin(dap_handler(req))
     }
 }

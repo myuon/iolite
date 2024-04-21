@@ -10,6 +10,8 @@ use crate::{
     server::{FutureResult, ServerProcess},
 };
 
+use super::{ProtocolMessageRequest, ProtocolMessageResponse};
+
 #[derive(Clone)]
 pub struct Dap<I>(I);
 
@@ -20,7 +22,7 @@ impl<I> Dap<I> {
 }
 
 pub trait DapServer {
-    fn handle_request(req: ()) -> FutureResult<Option<()>>;
+    fn handle_request(req: ProtocolMessageRequest) -> FutureResult<Vec<ProtocolMessageResponse>>;
 }
 
 impl<I: DapServer + Sync + Send + Clone + 'static> ServerProcess for Dap<I> {
@@ -47,19 +49,13 @@ impl<I: DapServer + Sync + Send + Clone + 'static> ServerProcess for Dap<I> {
                     reader.read(&mut content).await.unwrap();
 
                     let content_part = String::from_utf8(content).unwrap();
-                    println!(
-                        "!content={}",
-                        if content_part.len() > 100 {
-                            format!("{}..", content_part[..100].to_string())
-                        } else {
-                            format!("{}", content_part)
-                        },
-                    );
+                    println!("!content={}", content_part);
 
-                    let req = serde_json::from_str::<()>(&content_part).unwrap();
+                    let req =
+                        serde_json::from_str::<ProtocolMessageRequest>(&content_part).unwrap();
 
-                    let resp = I::handle_request(req).await.unwrap();
-                    if let Some(resp) = resp {
+                    let resps = I::handle_request(req).await.unwrap();
+                    for resp in resps {
                         let resp_body = serde_json::to_string(&resp).unwrap();
                         let rcp_resp =
                             format!("Content-Length: {}\r\n\r\n{}", resp_body.len(), resp_body);

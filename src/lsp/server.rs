@@ -1,7 +1,7 @@
 use std::error::Error;
 
 use tokio::{
-    io::{AsyncReadExt, AsyncWriteExt},
+    io::{AsyncReadExt, AsyncWriteExt, WriteHalf},
     net::TcpStream,
 };
 

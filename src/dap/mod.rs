@@ -4,28 +4,205 @@ use serde_json::Value;
 pub mod server;
 
 #[derive(Serialize, Deserialize)]
-pub enum ProtocolMessageTypePredefined {
+#[serde(rename_all = "snake_case")]
+pub enum ProtocolMessageType {
     Request,
     Response,
     Event,
 }
 
 #[derive(Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
 pub struct ProtocolMessageRequest {
     #[serde(rename = "type")]
-    ty: String, // "request"
-    seq: usize,
-    command: String,
-    arguments: Value,
+    pub ty: ProtocolMessageType, // "request"
+    pub seq: usize,
+    pub command: String,
+    #[serde(default)]
+    pub arguments: Value,
 }
 
-#[derive(Serialize, Deserialize)]
+#[derive(Serialize)]
+#[serde(rename_all = "snake_case")]
 pub struct ProtocolMessageResponse {
     #[serde(rename = "type")]
-    ty: String, // "response"
-    request_seq: usize,
-    success: bool,
-    command: String,
-    message: String,
-    body: Value,
+    pub ty: ProtocolMessageType, // "response"
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub request_seq: Option<usize>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub success: Option<bool>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub command: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub event: Option<ProtocolMessageEventKind>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub message: Option<String>,
+    pub body: Value,
+}
+
+#[derive(Serialize)]
+#[serde(rename_all = "snake_case")]
+pub struct ProtocolMessageResponseBuilder {
+    pub body: Value,
+}
+
+impl ProtocolMessageResponseBuilder {
+    pub fn build(self, req: &ProtocolMessageRequest) -> ProtocolMessageResponse {
+        ProtocolMessageResponse {
+            ty: ProtocolMessageType::Response,
+            request_seq: Some(req.seq),
+            success: Some(true),
+            command: Some(req.command.clone()),
+            event: None,
+            message: None,
+            body: self.body,
+        }
+    }
+}
+
+#[derive(Serialize)]
+#[serde(rename_all = "snake_case")]
+pub struct ProtocolMessageEventBuilder {
+    pub event: ProtocolMessageEventKind,
+    pub body: Value,
+}
+
+impl ProtocolMessageEventBuilder {
+    pub fn build(self) -> ProtocolMessageResponse {
+        ProtocolMessageResponse {
+            ty: ProtocolMessageType::Event,
+            request_seq: None,
+            success: None,
+            command: None,
+            message: None,
+            event: Some(self.event.clone()),
+            body: self.body,
+        }
+    }
+}
+
+#[derive(Serialize, Clone)]
+#[serde(rename_all = "snake_case")]
+pub enum ProtocolMessageEventKind {
+    Initialized,
+    Stopped,
+}
+
+#[derive(Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct InitializeResponseBody(pub Capabilities);
+
+#[derive(Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct Capabilities {
+    pub supports_configuration_done_request: Option<bool>,
+    pub supports_single_thread_execution_requests: Option<bool>,
+}
+
+#[derive(Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct LaunchRequestArguments {
+    no_debug: Option<bool>,
+}
+
+#[derive(Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct LaunchResponse {}
+
+#[derive(Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct InitializedEvent {}
+
+#[derive(Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct SetExceptionBreakpointsArguments {
+    pub filters: Vec<String>,
+}
+
+#[derive(Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct SetExceptionBreakpointsResponse {
+    pub breakpoints: Option<Vec<Breakpoint>>,
+}
+
+#[derive(Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct Breakpoint {
+    pub id: Option<usize>,
+    pub verified: bool,
+    pub message: Option<String>,
+    pub source: Option<Source>,
+    pub line: Option<usize>,
+    pub column: Option<usize>,
+    pub end_line: Option<usize>,
+    pub end_column: Option<usize>,
+    pub instruction_reference: Option<String>,
+    pub offset: Option<usize>,
+    pub reason: Option<String>,
+}
+
+#[derive(Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct Source {
+    pub name: Option<String>,
+    pub path: Option<String>,
+    pub source_reference: Option<usize>,
+    pub presentation_hint: Option<String>,
+    pub origin: Option<String>,
+    pub sources: Option<Vec<Source>>,
+    pub adapter_data: Option<Value>,
+    pub checksums: Option<Vec<Value>>,
+}
+
+#[derive(Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ThreadsResponse {
+    pub threads: Vec<Thread>,
+}
+
+#[derive(Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct Thread {
+    pub id: usize,
+    pub name: String,
+}
+
+#[derive(Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct StoppedEvent {
+    pub reason: StoppedEventReason,
+    pub description: Option<String>,
+    pub thread_id: Option<usize>,
+    pub preserve_focus_hint: Option<bool>,
+    pub text: Option<String>,
+    pub all_threads_stopped: Option<bool>,
+    pub hit_breakpoint_ids: Option<Vec<usize>>,
+}
+
+#[derive(Serialize)]
+#[serde(rename_all = "camelCase")]
+pub enum StoppedEventReason {
+    Step,
+    Breakpoint,
+    Exception,
+    Pause,
+    Entry,
+    Goto,
+    #[serde(rename = "function breakpoint")]
+    FunctionBreakpoint,
+    #[serde(rename = "data breakpoint")]
+    DataBreakpoint,
+    #[serde(rename = "instruction breakpoint")]
+    InstructionBreakpoint,
+}
+
+#[derive(Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ConfigurationDoneResponse {}
+
+#[derive(Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct SourceResponse {
+    pub content: String,
+    pub mime_type: Option<String>,
 }
