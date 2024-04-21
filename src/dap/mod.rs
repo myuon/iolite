@@ -96,6 +96,9 @@ pub struct InitializeResponseBody(pub Capabilities);
 #[serde(rename_all = "camelCase")]
 pub struct Capabilities {
     pub supports_configuration_done_request: Option<bool>,
+    pub supports_function_breakpoints: Option<bool>,
+    pub supports_conditional_breakpoints: Option<bool>,
+    pub supports_hit_conditional_breakpoints: Option<bool>,
     pub supports_single_thread_execution_requests: Option<bool>,
 }
 
@@ -206,3 +209,74 @@ pub struct SourceResponse {
     pub content: String,
     pub mime_type: Option<String>,
 }
+
+#[derive(Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct StackTraceArguments {
+    pub thread_id: usize,
+    pub start_frame: Option<usize>,
+    pub levels: Option<usize>,
+    pub format: Option<Value>,
+}
+
+#[derive(Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct StackTraceResponse {
+    pub stack_frames: Vec<StackFrame>,
+    pub total_frames: usize,
+}
+
+#[derive(Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct StackFrame {
+    pub id: usize,
+    pub name: String,
+    pub source: Option<Source>,
+    pub line: usize,
+    pub column: usize,
+    pub end_line: Option<usize>,
+    pub end_column: Option<usize>,
+    pub can_restart: Option<bool>,
+    pub module_id: Option<usize>,
+    pub presentation_hint: Option<String>,
+}
+
+#[derive(Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ScopesArguments {
+    pub frame_id: usize,
+}
+
+#[derive(Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ScopesResponse {
+    pub scopes: Vec<Scope>,
+}
+
+#[derive(Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct Scope {
+    pub name: String,
+    pub presentation_hint: Option<String>,
+    pub variables_reference: usize,
+    pub named_variables: Option<usize>,
+    pub indexed_variables: Option<usize>,
+    pub expensive: bool,
+    pub source: Option<Source>,
+    pub line: Option<usize>,
+    pub column: Option<usize>,
+    pub end_line: Option<usize>,
+    pub end_column: Option<usize>,
+}
+
+#[derive(Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct NextArguments {
+    pub thread_id: usize,
+    pub single_thread: Option<bool>,
+    pub granularity: Option<Value>,
+}
+
+#[derive(Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct NextResponse {}

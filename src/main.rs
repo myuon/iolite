@@ -4,9 +4,10 @@ use clap::{Parser, Subcommand};
 use compiler::{lexer::Lexeme, CompilerError};
 use dap::{
     server::{Dap, DapServer},
-    ConfigurationDoneResponse, InitializedEvent, LaunchResponse, ProtocolMessageEventBuilder,
-    ProtocolMessageEventKind, ProtocolMessageRequest, ProtocolMessageResponse,
-    ProtocolMessageResponseBuilder, SetExceptionBreakpointsResponse, SourceResponse, StoppedEvent,
+    ConfigurationDoneResponse, InitializedEvent, LaunchResponse, NextResponse,
+    ProtocolMessageEventBuilder, ProtocolMessageEventKind, ProtocolMessageRequest,
+    ProtocolMessageResponse, ProtocolMessageResponseBuilder, Scope, ScopesResponse,
+    SetExceptionBreakpointsResponse, SourceResponse, StackFrame, StackTraceResponse, StoppedEvent,
     StoppedEventReason, Thread, ThreadsResponse,
 };
 use lsp::{
@@ -399,6 +400,9 @@ async fn dap_handler(
                 body: serde_json::to_value(InitializeResponseBody(Capabilities {
                     supports_configuration_done_request: Some(true),
                     supports_single_thread_execution_requests: Some(true),
+                    supports_function_breakpoints: Some(false),
+                    supports_conditional_breakpoints: Some(false),
+                    supports_hit_conditional_breakpoints: Some(true),
                 }))?,
             }
             .build(&req),
@@ -434,7 +438,7 @@ async fn dap_handler(
                 body: serde_json::to_value(StoppedEvent {
                     reason: StoppedEventReason::Pause,
                     description: None,
-                    thread_id: None,
+                    thread_id: Some(1),
                     preserve_focus_hint: None,
                     text: None,
                     all_threads_stopped: None,
@@ -449,6 +453,46 @@ async fn dap_handler(
                 content: "<<source code>>".to_string(),
                 mime_type: None,
             })?,
+        }
+        .build(&req)]),
+        "stackTrace" => Ok(vec![ProtocolMessageResponseBuilder {
+            body: serde_json::to_value(StackTraceResponse {
+                stack_frames: vec![StackFrame {
+                    id: 1,
+                    name: "<main>".to_string(),
+                    source: None,
+                    line: 0,
+                    column: 0,
+                    end_line: None,
+                    end_column: None,
+                    can_restart: None,
+                    module_id: None,
+                    presentation_hint: None,
+                }],
+                total_frames: 2,
+            })?,
+        }
+        .build(&req)]),
+        "scopes" => Ok(vec![ProtocolMessageResponseBuilder {
+            body: serde_json::to_value(ScopesResponse {
+                scopes: vec![Scope {
+                    name: "var".to_string(),
+                    presentation_hint: None,
+                    variables_reference: 0,
+                    named_variables: None,
+                    indexed_variables: None,
+                    expensive: false,
+                    source: None,
+                    line: None,
+                    column: None,
+                    end_line: None,
+                    end_column: None,
+                }],
+            })?,
+        }
+        .build(&req)]),
+        "next" => Ok(vec![ProtocolMessageResponseBuilder {
+            body: serde_json::to_value(NextResponse {})?,
         }
         .build(&req)]),
         _ => Ok(vec![]),
