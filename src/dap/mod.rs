@@ -100,6 +100,8 @@ pub struct Capabilities {
     pub supports_conditional_breakpoints: Option<bool>,
     pub supports_hit_conditional_breakpoints: Option<bool>,
     pub supports_single_thread_execution_requests: Option<bool>,
+    pub supports_read_memory_request: Option<bool>,
+    pub supports_memory_event: Option<bool>,
 }
 
 #[derive(Deserialize)]
@@ -281,3 +283,19 @@ pub struct NextArguments {
 #[derive(Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct NextResponse {}
+
+#[derive(Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ReadMemoryArguments {
+    pub memory_reference: String,
+    pub offset: Option<usize>,
+    pub count: usize,
+}
+
+#[derive(Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ReadMemoryResponse {
+    pub address: String,
+    pub unreadable_bytes: Option<usize>,
+    pub data: Option<String>,
+}

@@ -4,14 +4,15 @@ use std::{
     sync::{Arc, Mutex},
 };
 
+use base64::prelude::*;
 use clap::{Parser, Subcommand};
 use compiler::{lexer::Lexeme, runtime::Runtime, CompilerError};
 use dap::{
     server::{Dap, DapServer},
     ConfigurationDoneResponse, InitializedEvent, LaunchRequestArguments, LaunchResponse,
     NextResponse, ProtocolMessageEventBuilder, ProtocolMessageEventKind, ProtocolMessageRequest,
-    ProtocolMessageResponse, ProtocolMessageResponseBuilder, Scope, ScopesArguments,
-    ScopesResponse, SetExceptionBreakpointsResponse, SourceResponse, StackFrame,
+    ProtocolMessageResponse, ProtocolMessageResponseBuilder, ReadMemoryResponse, Scope,
+    ScopesArguments, ScopesResponse, SetExceptionBreakpointsResponse, SourceResponse, StackFrame,
     StackTraceResponse, StoppedEvent, StoppedEventReason, Thread, ThreadsResponse,
 };
 use lsp::{
@@ -417,6 +418,8 @@ async fn dap_handler(
                     supports_function_breakpoints: Some(false),
                     supports_conditional_breakpoints: Some(false),
                     supports_hit_conditional_breakpoints: Some(true),
+                    supports_read_memory_request: Some(true),
+                    supports_memory_event: Some(false),
                 }))?,
             }
             .build(&req),
@@ -557,6 +560,22 @@ async fn dap_handler(
                 }
                 .build(),
             ])
+        }
+        "readMemory" => {
+            let arg = serde_json::from_value::<dap::ReadMemoryArguments>(req.arguments.clone())?;
+            let runtime = ctx.0.lock().unwrap();
+
+            Ok(vec![ProtocolMessageResponseBuilder {
+                body: serde_json::to_value(ReadMemoryResponse {
+                    address: "0x0".to_string(),
+                    data: Some(
+                        BASE64_STANDARD
+                            .encode(&runtime.memory[0..arg.count.min(runtime.memory.len())]),
+                    ),
+                    unreadable_bytes: None,
+                })?,
+            }
+            .build(&req)])
         }
         _ => Ok(vec![]),
     }
