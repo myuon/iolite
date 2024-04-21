@@ -28,7 +28,7 @@ use crate::{
     compiler::{ast::Module, runtime::ControlFlow, vm::Instruction},
     dap::{
         BreakpointLocation, Capabilities, ExitedEvent, InitializeResponseBody, OutputEvent,
-        OutputEventKind, Source, Variable, VariablesArguments, VariablesResponse,
+        OutputEventKind, Variable, VariablesArguments, VariablesResponse,
     },
     lsp::{Location, TextDocumentPositionParams},
 };
@@ -799,13 +799,6 @@ async fn dap_handler(
                         &runtime.source_code,
                         bp.line,
                         bp.column.unwrap_or(0),
-                    );
-
-                    println!(
-                        "find_position: {}, {} -> {}",
-                        bp.line,
-                        bp.column.unwrap_or(0),
-                        position
                     );
 
                     breakpoints.push(position + std_content_len);
