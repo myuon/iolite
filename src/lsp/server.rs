@@ -1,7 +1,7 @@
 use std::error::Error;
 
 use tokio::{
-    io::{AsyncReadExt, AsyncWriteExt, WriteHalf},
+    io::{AsyncReadExt, AsyncWriteExt},
     net::TcpStream,
 };
 
@@ -26,8 +26,8 @@ pub trait LspServer {
     fn handle_request(req: RpcMessageRequest) -> FutureResult<Option<RpcMessageResponse>>;
 }
 
-impl<I: LspServer + Sync + Send + Clone + 'static> ServerProcess for Lsp<I> {
-    fn handle(self, stream: TcpStream) -> FutureResult<()> {
+impl<C: Clone, I: LspServer + Sync + Send + Clone + 'static> ServerProcess<C> for Lsp<I> {
+    fn handle(self, ctx: C, stream: TcpStream) -> FutureResult<()> {
         let (mut reader, mut writer) = tokio::io::split(stream);
 
         tokio::spawn(async move {

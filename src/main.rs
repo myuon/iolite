@@ -1,7 +1,7 @@
-use std::{error::Error, io::Read};
+use std::{error::Error, io::Read, sync::Arc};
 
 use clap::{Parser, Subcommand};
-use compiler::{lexer::Lexeme, CompilerError};
+use compiler::{lexer::Lexeme, runtime::Runtime, CompilerError};
 use dap::{
     server::{Dap, DapServer},
     ConfigurationDoneResponse, InitializedEvent, LaunchResponse, NextResponse,
@@ -126,10 +126,13 @@ async fn main() {
             println!("result: {}", result);
         }
         CliCommands::Lsp {} => {
-            Lsp::new(LspImpl).start(3030).await.unwrap();
+            Lsp::new(LspImpl).start((), 3030).await.unwrap();
         }
         CliCommands::Dap {} => {
-            Dap::new(DapImpl).start(3031).await.unwrap();
+            Dap::new(DapImpl)
+                .start(DapContext(Arc::new(Runtime::new(1024, vec![]))), 3031)
+                .await
+                .unwrap();
         }
     }
 }
@@ -391,7 +394,11 @@ impl LspServer for LspImpl {
 #[derive(Clone)]
 struct DapImpl;
 
+#[derive(Clone)]
+struct DapContext(Arc<Runtime>);
+
 async fn dap_handler(
+    ctx: DapContext,
     req: ProtocolMessageRequest,
 ) -> Result<Vec<ProtocolMessageResponse>, Box<dyn Error + Sync + Send>> {
     match req.command.as_str() {
@@ -499,8 +506,11 @@ async fn dap_handler(
     }
 }
 
-impl DapServer for DapImpl {
-    fn handle_request(req: ProtocolMessageRequest) -> FutureResult<Vec<ProtocolMessageResponse>> {
-        Box::pin(dap_handler(req))
+impl DapServer<DapContext> for DapImpl {
+    fn handle_request(
+        ctx: DapContext,
+        req: ProtocolMessageRequest,
+    ) -> FutureResult<Vec<ProtocolMessageResponse>> {
+        Box::pin(dap_handler(ctx, req))
     }
 }

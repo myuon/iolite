@@ -21,12 +21,17 @@ impl<I> Dap<I> {
     }
 }
 
-pub trait DapServer {
-    fn handle_request(req: ProtocolMessageRequest) -> FutureResult<Vec<ProtocolMessageResponse>>;
+pub trait DapServer<C> {
+    fn handle_request(
+        context: C,
+        req: ProtocolMessageRequest,
+    ) -> FutureResult<Vec<ProtocolMessageResponse>>;
 }
 
-impl<I: DapServer + Sync + Send + Clone + 'static> ServerProcess for Dap<I> {
-    fn handle(self, stream: TcpStream) -> FutureResult<()> {
+impl<C: Sync + Send + Clone + 'static, I: DapServer<C> + Sync + Send + Clone + 'static>
+    ServerProcess<C> for Dap<I>
+{
+    fn handle(self, ctx: C, stream: TcpStream) -> FutureResult<()> {
         let (mut reader, mut writer) = tokio::io::split(stream);
 
         tokio::spawn(async move {
@@ -54,7 +59,7 @@ impl<I: DapServer + Sync + Send + Clone + 'static> ServerProcess for Dap<I> {
                     let req =
                         serde_json::from_str::<ProtocolMessageRequest>(&content_part).unwrap();
 
-                    let resps = I::handle_request(req).await.unwrap();
+                    let resps = I::handle_request(ctx.clone(), req).await.unwrap();
                     for resp in resps {
                         let resp_body = serde_json::to_string(&resp).unwrap();
                         let rcp_resp =
