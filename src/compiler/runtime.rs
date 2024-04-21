@@ -10,7 +10,7 @@ pub struct Runtime {
     pub(crate) memory: Vec<u8>,
     pub(crate) sp: usize,
     pub(crate) bp: usize,
-    pc: usize,
+    pub(crate) pc: usize,
     pub(crate) program: Vec<u8>,
 }
 
@@ -155,7 +155,28 @@ impl Runtime {
         Value::from_u64(value as u64)
     }
 
-    fn print_stack(&self, next: &Instruction) {
+    pub fn show_next_instruction(&self) -> Instruction {
+        let inst = Instruction::from_byte(&self.program[self.pc..]).unwrap_or(Instruction::Nop);
+
+        match inst {
+            Instruction::Push(_) => Instruction::Push(
+                Value::from_u64(u64::from_le_bytes([
+                    self.program[self.pc + 1],
+                    self.program[self.pc + 2],
+                    self.program[self.pc + 3],
+                    self.program[self.pc + 4],
+                    self.program[self.pc + 5],
+                    self.program[self.pc + 6],
+                    self.program[self.pc + 7],
+                    self.program[self.pc + 8],
+                ]))
+                .as_u64(),
+            ),
+            _ => inst,
+        }
+    }
+
+    fn print_stack(&self) {
         let mut p = self.memory.len() - 8;
         print!("[{}] |", self.pc);
         while p >= self.sp {
@@ -171,13 +192,7 @@ impl Runtime {
             p -= 8;
         }
 
-        println!(
-            " >> next: {}",
-            match next {
-                Instruction::Push(val) => format!("Push({:?})", val),
-                _ => format!("{:?}", next),
-            },
-        );
+        println!(" >> next: {:?}", self.show_next_instruction());
     }
 
     fn consume(&mut self) -> u8 {
@@ -189,27 +204,7 @@ impl Runtime {
 
     pub fn step(&mut self, print_stacks: bool) -> Result<bool, RuntimeError> {
         if print_stacks {
-            self.print_stack(&{
-                let inst =
-                    Instruction::from_byte(&self.program[self.pc..]).unwrap_or(Instruction::Nop);
-
-                match inst {
-                    Instruction::Push(_) => Instruction::Push(
-                        Value::from_u64(u64::from_le_bytes([
-                            self.program[self.pc + 1],
-                            self.program[self.pc + 2],
-                            self.program[self.pc + 3],
-                            self.program[self.pc + 4],
-                            self.program[self.pc + 5],
-                            self.program[self.pc + 6],
-                            self.program[self.pc + 7],
-                            self.program[self.pc + 8],
-                        ]))
-                        .as_u64(),
-                    ),
-                    _ => inst,
-                }
-            });
+            self.print_stack();
         }
 
         let inst = self.consume();

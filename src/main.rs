@@ -551,7 +551,11 @@ async fn dap_handler(
                 ProtocolMessageEventBuilder {
                     body: serde_json::to_value(StoppedEvent {
                         reason: StoppedEventReason::Step,
-                        description: None,
+                        description: Some(format!(
+                            "pc: {}, next: {:?}",
+                            runtime.pc,
+                            runtime.show_next_instruction()
+                        )),
                         thread_id: Some(MAIN_THREAD_ID),
                         preserve_focus_hint: None,
                         text: None,
