@@ -43,9 +43,10 @@ impl Runtime {
     pub fn get_stack_frames(&self) -> Vec<usize> {
         let mut frames = vec![];
         let mut bp = self.bp;
+        frames.push(bp);
         while bp > 0 && bp < self.memory.len() {
-            frames.push(bp);
             bp = self.load_i64(bp as u64) as usize;
+            frames.push(bp);
         }
 
         frames

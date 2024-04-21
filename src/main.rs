@@ -479,13 +479,17 @@ async fn dap_handler(
             }
             .build(),
         ]),
-        "source" => Ok(vec![ProtocolMessageResponseBuilder {
-            body: serde_json::to_value(SourceResponse {
-                content: "<<source code>>".to_string(),
-                mime_type: None,
-            })?,
+        "source" => {
+            let runtime = ctx.0.lock().unwrap();
+
+            Ok(vec![ProtocolMessageResponseBuilder {
+                body: serde_json::to_value(SourceResponse {
+                    content: runtime.source_code.clone(),
+                    mime_type: None,
+                })?,
+            }
+            .build(&req)])
         }
-        .build(&req)]),
         "stackTrace" => {
             let runtime = ctx.0.lock().unwrap();
             let frames = runtime.get_stack_frames();
