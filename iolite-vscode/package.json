@@ -36,6 +36,15 @@
         "command": "iolite.helloworld",
         "title": "Iolite: say hello!"
       }
+    ],
+    "debuggers": [
+      {
+        "type": "iolite-debugger",
+        "label": "Iolite Debugger",
+        "languages": [
+          "iolite"
+        ]
+      }
     ]
   },
   "devDependencies": {

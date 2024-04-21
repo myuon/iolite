@@ -1,4 +1,4 @@
-use std::{error::Error, io::Read};
+use std::{error::Error, future::Future, io::Read, pin::Pin};
 
 use clap::{Parser, Subcommand};
 use compiler::{lexer::Lexeme, CompilerError};
@@ -10,7 +10,7 @@ use lsp::{
 };
 use tokio::{
     io::{AsyncReadExt, AsyncWriteExt},
-    net::TcpListener,
+    net::{TcpListener, TcpStream},
 };
 
 use crate::{
@@ -19,6 +19,7 @@ use crate::{
 };
 
 mod compiler;
+mod dap;
 mod lsp;
 
 #[derive(Parser, Debug)]
@@ -45,6 +46,7 @@ enum CliCommands {
         print_stacks: bool,
     },
     Lsp {},
+    Dap {},
 }
 
 fn compile(input: String) -> Vec<u8> {
@@ -115,17 +117,27 @@ async fn main() {
             println!("result: {}", result);
         }
         CliCommands::Lsp {} => {
-            run_server().await.unwrap();
+            run_server(3030, Lsp).await.unwrap();
+        }
+        CliCommands::Dap {} => {
+            run_server(3031, Lsp).await.unwrap();
         }
     }
 }
 
-async fn run_server() -> Result<(), Box<dyn Error + Sync + Send>> {
-    let listener = TcpListener::bind("127.0.0.1:3030").await?;
-    println!("Listening on http://127.0.0.1:3030");
+trait ServerProcess {
+    fn handle(
+        &self,
+        stream: TcpStream,
+    ) -> Pin<Box<dyn Future<Output = Result<(), Box<dyn Error>>> + Send>>;
+}
 
-    loop {
-        let (stream, _) = listener.accept().await?;
+struct Lsp;
+impl ServerProcess for Lsp {
+    fn handle(
+        &self,
+        stream: TcpStream,
+    ) -> Pin<Box<dyn Future<Output = Result<(), Box<dyn Error>>> + Send>> {
         let (mut reader, mut writer) = tokio::io::split(stream);
 
         tokio::spawn(async move {
@@ -140,6 +152,46 @@ async fn run_server() -> Result<(), Box<dyn Error + Sync + Send>> {
 
             println!("tokio:spawn end");
         });
+
+        Box::pin(async { Ok(()) })
+    }
+}
+
+struct Dap;
+impl ServerProcess for Dap {
+    fn handle(
+        &self,
+        stream: TcpStream,
+    ) -> Pin<Box<dyn Future<Output = Result<(), Box<dyn Error>>> + Send>> {
+        let (mut reader, mut writer) = tokio::io::split(stream);
+
+        tokio::spawn(async move {
+            println!("[dap] tokio:spawn");
+
+            loop {
+                if let Err(err) = process_stream(&mut reader, &mut writer).await {
+                    eprintln!("failed to process stream; err = {:?}", err);
+                    break;
+                }
+            }
+
+            println!("[dap] tokio:spawn end");
+        });
+
+        Box::pin(async { Ok(()) })
+    }
+}
+
+async fn run_server(
+    port: usize,
+    process_fn: impl ServerProcess + Send + Sync + 'static,
+) -> Result<(), Box<dyn Error>> {
+    let listener = TcpListener::bind(format!("127.0.0.1:{}", port)).await?;
+    println!("Listening on http://127.0.0.1:{}", port);
+
+    loop {
+        let (stream, _) = listener.accept().await?;
+        process_fn.handle(stream).await?;
     }
 }
 
