@@ -132,6 +132,7 @@ impl Typechecker {
                 Literal::Bool(_) => Type::Bool,
                 Literal::Integer(_) => Type::Int,
                 Literal::Float(_) => Type::Float,
+                Literal::String(_) => Type::Array(Box::new(Type::Byte)),
             }),
             Expr::BinOp {
                 ty: expr_ty,

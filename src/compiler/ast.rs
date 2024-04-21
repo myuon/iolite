@@ -70,6 +70,7 @@ pub enum Literal {
     Bool(Source<bool>),
     Integer(Source<i32>),
     Float(Source<f32>),
+    String(Source<String>),
 }
 
 #[derive(Debug, PartialEq, Clone)]

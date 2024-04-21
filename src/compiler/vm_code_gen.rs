@@ -1,3 +1,5 @@
+use std::collections::HashMap;
+
 use nanoid::nanoid;
 
 use super::{
@@ -25,6 +27,7 @@ pub struct VmCodeGenerator {
     globals: Vec<String>,
     stack_pointer: usize,
     pub code: Vec<Instruction>,
+    data_section: HashMap<String, usize>,
 }
 
 impl VmCodeGenerator {
@@ -35,6 +38,7 @@ impl VmCodeGenerator {
             globals: vec![],
             stack_pointer: 0,
             code: vec![],
+            data_section: HashMap::new(),
         }
     }
 
@@ -175,6 +179,7 @@ impl VmCodeGenerator {
             }
             Debug(_) => {}
             Nop => {}
+            Data(_, _) => {}
         }
 
         self.code.push(inst);
@@ -449,6 +454,11 @@ impl VmCodeGenerator {
                 self.term(*index)?;
                 self.emit(Instruction::AddInt);
             }
+            IrTerm::DataPointer(id) => {
+                self.emit(Instruction::Push(
+                    Value::Pointer(*self.data_section.get(&id).unwrap() as u32).as_u64(),
+                ));
+            }
         }
 
         Ok(())
@@ -480,6 +490,11 @@ impl VmCodeGenerator {
     }
 
     pub fn module(&mut self, module: IrModule) -> Result<(), VmCodeGeneratorError> {
+        for (id, offset, value) in module.data_section {
+            self.data_section.insert(id, offset);
+            self.emit(Instruction::Data(offset as u64, value));
+        }
+
         for decl in module.decls {
             self.decl(decl)?;
         }

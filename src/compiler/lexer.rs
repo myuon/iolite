@@ -109,7 +109,7 @@ impl Lexer {
             }
 
             if let Some(m) = STRING.find(&self.input[self.position..]) {
-                let lexeme = Lexeme::String(m.as_str().to_string());
+                let lexeme = Lexeme::String(m.as_str().trim_matches('"').to_string());
                 tokens.push(self.new_token(lexeme, m.end()));
                 self.position += m.end();
                 continue;

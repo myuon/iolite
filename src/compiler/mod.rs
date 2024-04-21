@@ -573,6 +573,27 @@ mod tests {
             }"#,
                 21,
             ),
+            (
+                r#"
+            fun main() {
+                let s = "Hello, World!";
+
+                return s.length;
+            }"#,
+                Value::Int(13).as_u64() as i64,
+            ),
+            (
+                r#"
+            let global1 = 10;
+            let global2 = 20;
+            
+            fun main() {
+                let s = "Hello, World!";
+
+                return global1 + global2 - s.length;
+            }"#,
+                Value::Int(17).as_u64() as i64,
+            ),
         ];
 
         for (input, expected) in cases {

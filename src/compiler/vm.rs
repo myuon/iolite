@@ -49,6 +49,7 @@ pub enum Instruction {
     CallLabel(String),
     Debug(String),
     Nop,
+    Data(u64, Vec<u8>),
 }
 
 impl Instruction {
@@ -64,6 +65,7 @@ impl Instruction {
             Jump => vec![0x05],
             JumpIf => vec![0x06],
             Nop => vec![0x07],
+            Data(_, _) => vec![0x08],
 
             // Arithmetic
             AddInt => vec![0x10],

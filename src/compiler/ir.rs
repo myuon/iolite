@@ -1,3 +1,5 @@
+use std::collections::HashMap;
+
 use super::ast::Type;
 
 #[derive(Debug, PartialEq, Clone)]
@@ -32,6 +34,7 @@ pub enum IrTerm {
     Int(i32),
     Float(f32),
     Ident(String),
+    DataPointer(String),
     Let {
         name: String,
         value: Box<IrTerm>,
@@ -86,6 +89,7 @@ pub enum IrDecl {
 pub struct IrModule {
     pub name: String,
     pub decls: Vec<IrDecl>,
+    pub data_section: Vec<(String, usize, Vec<u8>)>,
 }
 
 #[derive(Debug, PartialEq, Clone)]

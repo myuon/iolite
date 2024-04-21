@@ -919,8 +919,16 @@ impl Parser {
                     token.span,
                 ))
             }
-            Lexeme::String(_) => {
-                todo!()
+            Lexeme::String(s) => {
+                self.consume()?;
+
+                Ok(Source::span(
+                    Expr::Lit(Source::span(
+                        Literal::String(Source::span(s.clone(), token.span.clone())),
+                        token.span.clone(),
+                    )),
+                    token.span,
+                ))
             }
             Lexeme::True => {
                 self.consume()?;

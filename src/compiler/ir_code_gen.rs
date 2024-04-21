@@ -15,6 +15,7 @@ pub struct IrCodeGenerator {
     init_function: Vec<IrTerm>,
     globals: Vec<String>,
     types: HashMap<String, Source<Type>>,
+    data: HashMap<String, Vec<u8>>,
 }
 
 impl IrCodeGenerator {
@@ -23,6 +24,7 @@ impl IrCodeGenerator {
             init_function: vec![],
             globals: vec![],
             types: HashMap::new(),
+            data: HashMap::new(),
         }
     }
 
@@ -81,13 +83,24 @@ impl IrCodeGenerator {
             }
         }
 
+        let mut offset = 0;
+        let mut data_section = vec![];
+
+        // data section
+        for (name, value) in self.data.clone() {
+            data_section.push((name, offset, value.clone()));
+            offset += value.len() + 8; // NOTE: 8 bytes for length
+        }
+
         // NOTE: update heap_ptr
         self.init_function.push(IrTerm::Store {
             size: Value::size() as usize,
             address: Box::new(IrTerm::Ident("heap_ptr".to_string())),
             value: Box::new(IrTerm::Op {
                 op: IrOp::Cast(TypeTag::Pointer),
-                args: vec![IrTerm::Int(self.globals.len() as i32 * Value::size())],
+                args: vec![IrTerm::Int(
+                    offset as i32 + self.globals.len() as i32 * Value::size(),
+                )],
             }),
         });
 
@@ -104,6 +117,7 @@ impl IrCodeGenerator {
         Ok(IrModule {
             name: module.name,
             decls,
+            data_section,
         })
     }
 
@@ -149,13 +163,23 @@ impl IrCodeGenerator {
         }
     }
 
-    pub fn expr(&self, expr: Source<Expr>) -> Result<IrTerm, IrCodeGeneratorError> {
+    pub fn expr(&mut self, expr: Source<Expr>) -> Result<IrTerm, IrCodeGeneratorError> {
         match expr.data {
             Expr::Lit(lit) => match lit.data {
                 Literal::Nil => Ok(IrTerm::Nil),
                 Literal::Integer(i) => Ok(IrTerm::Int(i.data)),
                 Literal::Float(f) => Ok(IrTerm::Float(f.data)),
                 Literal::Bool(b) => Ok(IrTerm::Bool(b.data)),
+                Literal::String(s) => {
+                    let str_id = format!("str_{}", nanoid!());
+                    self.data
+                        .insert(str_id.clone(), s.data.clone().into_bytes());
+
+                    Ok(self.slice(vec![
+                        IrTerm::DataPointer(str_id),
+                        IrTerm::Int(s.data.len() as i32),
+                    ]))
+                }
             },
             Expr::BinOp {
                 ty,
@@ -368,7 +392,7 @@ impl IrCodeGenerator {
         }
     }
 
-    fn expr_left_value(&self, expr: Source<Expr>) -> Result<IrTerm, IrCodeGeneratorError> {
+    fn expr_left_value(&mut self, expr: Source<Expr>) -> Result<IrTerm, IrCodeGeneratorError> {
         match expr.data {
             Expr::Ident(name) => Ok(IrTerm::Ident(name.data)),
             Expr::Index { ty, ptr, index } => {
@@ -435,7 +459,7 @@ impl IrCodeGenerator {
         }
     }
 
-    pub fn block(&self, block: Source<Block>) -> Result<IrTerm, IrCodeGeneratorError> {
+    pub fn block(&mut self, block: Source<Block>) -> Result<IrTerm, IrCodeGeneratorError> {
         let mut terms = vec![];
 
         for stmt in block.data.statements {
@@ -551,14 +575,14 @@ mod tests {
             ),
         ];
 
-        let gen = IrCodeGenerator::new();
-
         for (input, expected) in cases {
             let mut lexer = Lexer::new(input.to_string());
             let mut parser = Parser::new(lexer.run().unwrap());
             let mut expr = parser.expr(true).unwrap();
             let mut typechecker = Typechecker::new();
             typechecker.expr(&mut expr).unwrap();
+            let mut gen = IrCodeGenerator::new();
+
             let ir = gen.expr(expr).unwrap();
 
             assert_eq!(ir, expected);
@@ -640,14 +664,14 @@ mod tests {
             ),
         ];
 
-        let gen = IrCodeGenerator::new();
-
         for (input, expected) in cases {
             let mut lexer = Lexer::new(input.to_string());
             let mut parser = Parser::new(lexer.run().unwrap());
             let mut block = parser.block(None).unwrap();
             let mut typechecker = Typechecker::new();
             typechecker.block(&mut block).unwrap();
+
+            let mut gen = IrCodeGenerator::new();
 
             let ir = gen.block(block).unwrap();
 
