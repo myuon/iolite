@@ -10,9 +10,9 @@ use dap::{
     server::{Dap, DapServer},
     ConfigurationDoneResponse, InitializedEvent, LaunchRequestArguments, LaunchResponse,
     NextResponse, ProtocolMessageEventBuilder, ProtocolMessageEventKind, ProtocolMessageRequest,
-    ProtocolMessageResponse, ProtocolMessageResponseBuilder, Scope, ScopesResponse,
-    SetExceptionBreakpointsResponse, SourceResponse, StackFrame, StackTraceResponse, StoppedEvent,
-    StoppedEventReason, Thread, ThreadsResponse,
+    ProtocolMessageResponse, ProtocolMessageResponseBuilder, Scope, ScopesArguments,
+    ScopesResponse, SetExceptionBreakpointsResponse, SourceResponse, StackFrame,
+    StackTraceResponse, StoppedEvent, StoppedEventReason, Thread, ThreadsResponse,
 };
 use lsp::{
     server::{Lsp, LspServer},
@@ -488,14 +488,14 @@ async fn dap_handler(
                         .enumerate()
                         .map(|(i, frame)| StackFrame {
                             id: i,
-                            name: "<stackframe>".to_string(),
+                            name: format!("<stackframe:#{:x?}>", frame),
                             source: None,
                             line: 0,
                             column: 0,
                             end_line: None,
                             end_column: None,
                             can_restart: None,
-                            module_id: Some(frame),
+                            module_id: None,
                             presentation_hint: None,
                         })
                         .collect(),
@@ -504,24 +504,33 @@ async fn dap_handler(
             }
             .build(&req)])
         }
-        "scopes" => Ok(vec![ProtocolMessageResponseBuilder {
-            body: serde_json::to_value(ScopesResponse {
-                scopes: vec![Scope {
-                    name: "var".to_string(),
-                    presentation_hint: None,
-                    variables_reference: 0,
-                    named_variables: None,
-                    indexed_variables: None,
-                    expensive: false,
-                    source: None,
-                    line: None,
-                    column: None,
-                    end_line: None,
-                    end_column: None,
-                }],
-            })?,
+        "scopes" => {
+            let arg = serde_json::from_value::<ScopesArguments>(req.arguments.clone())?;
+            let runtime = ctx.0.lock().unwrap();
+            let values = runtime.get_stack_values(arg.frame_id);
+
+            Ok(vec![ProtocolMessageResponseBuilder {
+                body: serde_json::to_value(ScopesResponse {
+                    scopes: values
+                        .into_iter()
+                        .map(|value| Scope {
+                            name: format!("{:?}", value),
+                            presentation_hint: None,
+                            variables_reference: 0,
+                            named_variables: None,
+                            indexed_variables: None,
+                            expensive: false,
+                            source: None,
+                            line: None,
+                            column: None,
+                            end_line: None,
+                            end_column: None,
+                        })
+                        .collect(),
+                })?,
+            }
+            .build(&req)])
         }
-        .build(&req)]),
         "next" => {
             let mut runtime = ctx.0.lock().unwrap();
             let next = runtime.step(true).unwrap();

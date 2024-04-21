@@ -48,6 +48,27 @@ impl Runtime {
         frames
     }
 
+    pub fn get_stack_values(&self, frame_id: usize) -> Vec<Value> {
+        let frames = self.get_stack_frames();
+        let frame_top = frames[frame_id];
+
+        let mut values = vec![];
+
+        for i in (frame_top
+            ..frames
+                .get(frame_id + 1)
+                .cloned()
+                .unwrap_or(self.memory.len()))
+            .step_by(8)
+        {
+            let val = self.load_i64(i as u64);
+
+            values.push(Value::from_u64(val as u64));
+        }
+
+        values
+    }
+
     pub fn memory_view_64(&self) -> Vec<u64> {
         let mut view = vec![];
         for i in (self.sp..self.memory.len()).step_by(8) {

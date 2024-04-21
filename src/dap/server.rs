@@ -54,10 +54,10 @@ impl<C: Sync + Send + Clone + 'static, I: DapServer<C> + Sync + Send + Clone + '
                     reader.read(&mut content).await.unwrap();
 
                     let content_part = String::from_utf8(content).unwrap();
-                    println!("!content={}", content_part);
 
                     let req =
                         serde_json::from_str::<ProtocolMessageRequest>(&content_part).unwrap();
+                    println!("!command={}, content={}", req.command, content_part);
 
                     let resps = I::handle_request(ctx.clone(), req).await.unwrap();
                     for resp in resps {
