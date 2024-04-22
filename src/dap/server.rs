@@ -62,7 +62,7 @@ impl<C: Sync + Send + Clone + 'static, I: DapServer<C> + Sync + Send + Clone + '
 
                     let req =
                         serde_json::from_str::<ProtocolMessageRequest>(&content_part).unwrap();
-                    println!("!command={}, content={}", req.command, content_part);
+                    println!("> received: {}", req.command);
 
                     let resps = I::handle_request(ctx.clone(), sender.clone(), req)
                         .await
@@ -73,7 +73,7 @@ impl<C: Sync + Send + Clone + 'static, I: DapServer<C> + Sync + Send + Clone + '
                             format!("Content-Length: {}\r\n\r\n{}", resp_body.len(), resp_body);
                         writer.write(rcp_resp.as_bytes()).await.unwrap();
 
-                        println!("ok; resp={}", resp_body);
+                        println!("< respond: {}", resp.command.unwrap());
                     }
 
                     Ok::<_, Box<dyn Error + Sync + Send>>(())
@@ -88,7 +88,7 @@ impl<C: Sync + Send + Clone + 'static, I: DapServer<C> + Sync + Send + Clone + '
                         format!("Content-Length: {}\r\n\r\n{}", event_body.len(), event_body);
                     writer.write(rcp_event.as_bytes()).await.unwrap();
 
-                    println!("ok; event={}", event_body);
+                    println!("+ send: {}", event.event.to_string());
                 }
             }
 

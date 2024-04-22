@@ -181,6 +181,10 @@ impl Runtime {
     }
 
     pub fn show_next_instruction(&self) -> Instruction {
+        if self.pc >= self.program.len() {
+            return Instruction::Nop;
+        }
+
         let inst = Instruction::from_byte(&self.program[self.pc..]).unwrap_or(Instruction::Nop);
 
         match inst {

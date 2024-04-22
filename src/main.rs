@@ -407,6 +407,60 @@ async fn dap_handler(
 ) -> Result<Vec<ProtocolMessageResponse>> {
     const MAIN_THREAD_ID: usize = 1;
 
+    fn runtime_start(ctx: DapContext, sender: Sender<ProtocolMessageEventBuilder>) {
+        tokio::spawn(async move {
+            let (flow, pc, next) = {
+                let mut runtime = ctx.0.lock().unwrap();
+
+                let mut flow = ControlFlow::Continue;
+                while matches!(flow, ControlFlow::Continue) {
+                    flow = runtime.step(false).unwrap();
+                }
+
+                (flow, runtime.pc, runtime.show_next_instruction())
+            };
+
+            println!("Runtime stopped with {:?}", flow);
+
+            match flow {
+                ControlFlow::HitBreakpoint => {
+                    sender
+                        .send(ProtocolMessageEventBuilder {
+                            body: serde_json::to_value(StoppedEvent {
+                                reason: StoppedEventReason::Breakpoint,
+                                description: Some(format!("pc: {}, next: {:?}", pc, next)),
+                                thread_id: Some(MAIN_THREAD_ID),
+                                preserve_focus_hint: None,
+                                text: None,
+                                all_threads_stopped: None,
+                                hit_breakpoint_ids: None,
+                            })?,
+                            event: ProtocolMessageEventKind::Stopped,
+                        })
+                        .await?;
+                    println!("sender!!");
+                }
+                ControlFlow::Finish => {
+                    sender
+                        .send(ProtocolMessageEventBuilder {
+                            body: serde_json::to_value(dap::TerminatedEvent { restart: None })?,
+                            event: ProtocolMessageEventKind::Terminated,
+                        })
+                        .await?;
+                    sender
+                        .send(ProtocolMessageEventBuilder {
+                            body: serde_json::to_value(ExitedEvent { exit_code: 0 })?,
+                            event: ProtocolMessageEventKind::Exited,
+                        })
+                        .await?;
+                }
+                _ => (),
+            };
+
+            Ok::<(), anyhow::Error>(())
+        });
+    }
+
     match req.command.as_str() {
         "initialize" => {
             tokio::spawn(async move {
@@ -441,6 +495,21 @@ async fn dap_handler(
             let program = compiler::Compiler::compile(content.clone())?;
 
             ctx.0.lock().unwrap().init(1024, program, content);
+
+            sender
+                .send(ProtocolMessageEventBuilder {
+                    body: serde_json::to_value(StoppedEvent {
+                        reason: StoppedEventReason::Entry,
+                        description: Some("Entry".to_string()),
+                        thread_id: Some(MAIN_THREAD_ID),
+                        preserve_focus_hint: None,
+                        text: None,
+                        all_threads_stopped: None,
+                        hit_breakpoint_ids: None,
+                    })?,
+                    event: ProtocolMessageEventKind::Stopped,
+                })
+                .await?;
 
             Ok(vec![ProtocolMessageResponseBuilder {
                 body: serde_json::to_value(LaunchResponse {})?,
@@ -764,6 +833,15 @@ async fn dap_handler(
             let arg =
                 serde_json::from_value::<dap::BreakpointLocationsArguments>(req.arguments.clone())?;
 
+            let mut runtime = ctx.0.lock().unwrap();
+            let position = compiler::Compiler::find_line_and_column(
+                &runtime.source_code,
+                arg.line,
+                arg.column.unwrap_or(0),
+            );
+
+            runtime.set_breakpoints(vec![position]);
+
             Ok(vec![ProtocolMessageResponseBuilder {
                 body: serde_json::to_value(dap::BreakpointLocationsResponse {
                     breakpoints: vec![BreakpointLocation {
@@ -833,55 +911,7 @@ async fn dap_handler(
             }
             .build(&req);
 
-            tokio::spawn(async move {
-                let (flow, pc, next) = {
-                    let mut runtime = ctx.0.lock().unwrap();
-
-                    let mut flow = ControlFlow::Continue;
-                    while matches!(flow, ControlFlow::Continue) {
-                        flow = runtime.step(false).unwrap();
-                    }
-
-                    (flow, runtime.pc, runtime.show_next_instruction())
-                };
-
-                match flow {
-                    ControlFlow::HitBreakpoint => {
-                        sender
-                            .send(ProtocolMessageEventBuilder {
-                                body: serde_json::to_value(StoppedEvent {
-                                    reason: StoppedEventReason::Breakpoint,
-                                    description: Some(format!("pc: {}, next: {:?}", pc, next)),
-                                    thread_id: Some(MAIN_THREAD_ID),
-                                    preserve_focus_hint: None,
-                                    text: None,
-                                    all_threads_stopped: None,
-                                    hit_breakpoint_ids: None,
-                                })?,
-                                event: ProtocolMessageEventKind::Stopped,
-                            })
-                            .await?;
-                        println!("sender!!");
-                    }
-                    ControlFlow::Finish => {
-                        sender
-                            .send(ProtocolMessageEventBuilder {
-                                body: serde_json::to_value(dap::TerminatedEvent { restart: None })?,
-                                event: ProtocolMessageEventKind::Terminated,
-                            })
-                            .await?;
-                        sender
-                            .send(ProtocolMessageEventBuilder {
-                                body: serde_json::to_value(ExitedEvent { exit_code: 0 })?,
-                                event: ProtocolMessageEventKind::Exited,
-                            })
-                            .await?;
-                    }
-                    _ => (),
-                };
-
-                Ok::<(), anyhow::Error>(())
-            });
+            runtime_start(ctx, sender);
 
             Ok(vec![resp])
         }

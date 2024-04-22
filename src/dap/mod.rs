@@ -91,6 +91,16 @@ pub enum ProtocolMessageEventKind {
     Terminated,
 }
 
+impl ProtocolMessageEventKind {
+    pub fn to_string(&self) -> String {
+        serde_json::to_value(self)
+            .unwrap()
+            .as_str()
+            .unwrap()
+            .to_string()
+    }
+}
+
 #[derive(Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct InitializeResponseBody(pub Capabilities);
