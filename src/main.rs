@@ -24,19 +24,20 @@ use compiler::{lexer::Lexeme, runtime::Runtime, CompilerError};
 use dap::server::{Dap, DapServer, SimpleSender};
 use lsp::{
     server::{Lsp, LspServer},
-    Diagnostic, DiagnosticOptions, DocumentDiagnosticReportKind, FullDocumentDiagnosticReport,
-    InitializeResult, Position, Range, RelatedFullDocumentDiagnosticReport, RpcMessageRequest,
-    RpcMessageResponse, SemanticTokenTypes, SemanticTokens, SemanticTokensData,
-    SemanticTokensLegend, SemanticTokensOptions, ServerCapabilities, TextDocumentSyncKind,
+    RpcMessageRequest, RpcMessageResponse,
 };
 
+use lsp_types::{
+    DeclarationCapability, Diagnostic, DiagnosticOptions, DiagnosticServerCapabilities,
+    FullDocumentDiagnosticReport, InitializeResult, Location, OneOf, Position, Range,
+    RelatedFullDocumentDiagnosticReport, SemanticToken, SemanticTokenType, SemanticTokens,
+    SemanticTokensFullOptions, SemanticTokensLegend, SemanticTokensOptions, SemanticTokensParams,
+    SemanticTokensServerCapabilities, ServerCapabilities, TextDocumentPositionParams,
+    TextDocumentSyncCapability, TextDocumentSyncKind, WorkDoneProgressOptions,
+};
 use server::{FutureResult, ServerProcess};
-use tokio::sync::mpsc::Sender;
 
-use crate::{
-    compiler::{ast::Module, runtime::ControlFlow, vm::Instruction},
-    lsp::{Location, TextDocumentPositionParams},
-};
+use crate::compiler::{ast::Module, runtime::ControlFlow, vm::Instruction};
 
 mod compiler;
 mod dap;
@@ -158,7 +159,7 @@ async fn main() -> Result<()> {
 struct LspImpl;
 
 async fn lsp_handler(req: RpcMessageRequest) -> Result<Option<RpcMessageResponse>> {
-    let token_types = vec![SemanticTokenTypes::Keyword, SemanticTokenTypes::Comment];
+    let token_types = vec![SemanticTokenType::KEYWORD, SemanticTokenType::COMMENT];
 
     match req.method.as_str() {
         "initialize" => {
@@ -169,22 +170,66 @@ async fn lsp_handler(req: RpcMessageRequest) -> Result<Option<RpcMessageResponse
                 id: req.id,
                 result: serde_json::to_value(&InitializeResult {
                     capabilities: ServerCapabilities {
-                        text_document_sync: Some(TextDocumentSyncKind::Full),
-                        declaration_provider: Some(true),
-                        definition_provider: Some(true),
-                        semantic_tokens_provider: Some(SemanticTokensOptions {
-                            legend: SemanticTokensLegend {
-                                token_types,
-                                token_modifiers: vec![],
+                        text_document_sync: Some(TextDocumentSyncCapability::Kind(
+                            TextDocumentSyncKind::FULL,
+                        )),
+                        declaration_provider: Some(DeclarationCapability::Simple(true)),
+                        definition_provider: Some(OneOf::Left(true)),
+                        semantic_tokens_provider: Some(
+                            SemanticTokensServerCapabilities::SemanticTokensOptions(
+                                SemanticTokensOptions {
+                                    legend: SemanticTokensLegend {
+                                        token_types,
+                                        token_modifiers: vec![],
+                                    },
+                                    range: None,
+                                    full: Some(SemanticTokensFullOptions::Bool(true)),
+                                    work_done_progress_options: WorkDoneProgressOptions {
+                                        work_done_progress: None,
+                                    },
+                                },
+                            ),
+                        ),
+                        diagnostic_provider: Some(DiagnosticServerCapabilities::Options(
+                            DiagnosticOptions {
+                                identifier: None,
+                                inter_file_dependencies: false,
+                                workspace_diagnostics: false,
+                                work_done_progress_options: WorkDoneProgressOptions {
+                                    work_done_progress: None,
+                                },
                             },
-                            range: None,
-                            full: Some(true),
-                        }),
-                        diagnostic_provider: Some(DiagnosticOptions {
-                            inter_file_dependencies: true,
-                            workspace_diagnostics: true,
-                        }),
+                        )),
+                        position_encoding: None,
+                        selection_range_provider: None,
+                        hover_provider: None,
+                        completion_provider: None,
+                        signature_help_provider: None,
+                        type_definition_provider: None,
+                        implementation_provider: None,
+                        references_provider: None,
+                        document_highlight_provider: None,
+                        document_symbol_provider: None,
+                        workspace_symbol_provider: None,
+                        code_action_provider: None,
+                        code_lens_provider: None,
+                        document_formatting_provider: None,
+                        document_range_formatting_provider: None,
+                        document_on_type_formatting_provider: None,
+                        rename_provider: None,
+                        document_link_provider: None,
+                        color_provider: None,
+                        folding_range_provider: None,
+                        execute_command_provider: None,
+                        workspace: None,
+                        call_hierarchy_provider: None,
+                        moniker_provider: None,
+                        linked_editing_range_provider: None,
+                        inline_value_provider: None,
+                        inlay_hint_provider: None,
+                        experimental: None,
                     },
+                    server_info: None,
                 })?,
             }))
         }
@@ -195,8 +240,8 @@ async fn lsp_handler(req: RpcMessageRequest) -> Result<Option<RpcMessageResponse
         }
         // it seems not working
         "textDocument/semanticTokens/full" => {
-            let params = serde_json::from_value::<lsp::SemanticTokensParams>(req.params.clone())?;
-            let filepath = params.text_document.uri.as_filepath().unwrap();
+            let params = serde_json::from_value::<SemanticTokensParams>(req.params.clone())?;
+            let filepath = params.text_document.uri.path();
             let content = std::fs::read_to_string(filepath)?;
 
             let tokens = compiler::Compiler::run_lexer(content.clone())?;
@@ -208,11 +253,19 @@ async fn lsp_handler(req: RpcMessageRequest) -> Result<Option<RpcMessageResponse
                         (Some(start), Some(end)) => {
                             let (line, col) = compiler::Compiler::find_position(&content, start);
 
-                            token_data.push(SemanticTokensData {
-                                line_delta: line - prev.0,
-                                char_delta: if line == prev.0 { col - prev.1 } else { col },
-                                ty: SemanticTokenTypes::Keyword,
-                                length: end - start,
+                            token_data.push(SemanticToken {
+                                delta_line: (line - prev.0) as u32,
+                                delta_start: if line == prev.0 {
+                                    (col - prev.1) as u32
+                                } else {
+                                    col as u32
+                                },
+                                token_type: token_types
+                                    .iter()
+                                    .position(|t| t == &SemanticTokenType::KEYWORD)
+                                    .unwrap() as u32,
+                                length: (end - start) as u32,
+                                token_modifiers_bitset: 0,
                             });
 
                             prev = (line, col);
@@ -223,11 +276,19 @@ async fn lsp_handler(req: RpcMessageRequest) -> Result<Option<RpcMessageResponse
                         (Some(start), Some(end)) => {
                             let (line, col) = compiler::Compiler::find_position(&content, start);
 
-                            token_data.push(SemanticTokensData {
-                                line_delta: line - prev.0,
-                                char_delta: if line == prev.0 { col - prev.1 } else { col },
-                                ty: SemanticTokenTypes::Comment,
-                                length: end - start,
+                            token_data.push(SemanticToken {
+                                delta_line: (line - prev.0) as u32,
+                                delta_start: if line == prev.0 {
+                                    (col - prev.1) as u32
+                                } else {
+                                    col as u32
+                                },
+                                token_type: token_types
+                                    .iter()
+                                    .position(|t| t == &SemanticTokenType::COMMENT)
+                                    .unwrap() as u32,
+                                length: (end - start) as u32,
+                                token_modifiers_bitset: 0,
                             });
 
                             prev = (line, col);
@@ -241,17 +302,17 @@ async fn lsp_handler(req: RpcMessageRequest) -> Result<Option<RpcMessageResponse
             Ok(Some(RpcMessageResponse {
                 jsonrpc: "2.0".to_string(),
                 id: req.id,
-                result: serde_json::to_value(&SemanticTokens::encode_data(
-                    token_data,
-                    token_types,
-                ))?,
+                result: serde_json::to_value(&SemanticTokens {
+                    result_id: None,
+                    data: token_data,
+                })?,
             }))
         }
         "textDocument/diagnostic" => {
-            let params = serde_json::from_value::<lsp::SemanticTokensParams>(req.params.clone())?;
+            let params = serde_json::from_value::<SemanticTokensParams>(req.params.clone())?;
 
             let input = compiler::Compiler::create_input(std::fs::read_to_string(
-                params.text_document.uri.as_filepath().unwrap(),
+                params.text_document.uri.path(),
             )?);
             let parsed = match compiler::Compiler::parse(input.clone()) {
                 Ok(parsed) => parsed,
@@ -260,29 +321,30 @@ async fn lsp_handler(req: RpcMessageRequest) -> Result<Option<RpcMessageResponse
                         jsonrpc: "2.0".to_string(),
                         id: req.id,
                         result: serde_json::to_value(RelatedFullDocumentDiagnosticReport {
-                            related_documents: Some(
-                                vec![(
-                                    params.text_document.uri,
-                                    FullDocumentDiagnosticReport {
-                                        kind: DocumentDiagnosticReportKind::Full,
-                                        items: vec![Diagnostic {
-                                            range: Range {
-                                                start: Position {
-                                                    line: 0,
-                                                    character: 0,
-                                                },
-                                                end: Position {
-                                                    line: 1,
-                                                    character: 1,
-                                                },
-                                            },
-                                            message: format!("{:?}", err),
-                                        }],
+                            related_documents: None,
+                            full_document_diagnostic_report: FullDocumentDiagnosticReport {
+                                items: vec![Diagnostic {
+                                    range: Range {
+                                        start: Position {
+                                            line: 0,
+                                            character: 0,
+                                        },
+                                        end: Position {
+                                            line: 1,
+                                            character: 1,
+                                        },
                                     },
-                                )]
-                                .into_iter()
-                                .collect(),
-                            ),
+                                    message: format!("{:?}", err),
+                                    severity: None,
+                                    code: None,
+                                    code_description: None,
+                                    source: None,
+                                    related_information: None,
+                                    tags: None,
+                                    data: None,
+                                }],
+                                result_id: None,
+                            },
                         })?,
                     }));
                 }
@@ -296,29 +358,30 @@ async fn lsp_handler(req: RpcMessageRequest) -> Result<Option<RpcMessageResponse
                         jsonrpc: "2.0".to_string(),
                         id: req.id,
                         result: serde_json::to_value(RelatedFullDocumentDiagnosticReport {
-                            related_documents: Some(
-                                vec![(
-                                    params.text_document.uri,
-                                    FullDocumentDiagnosticReport {
-                                        kind: DocumentDiagnosticReportKind::Full,
-                                        items: vec![Diagnostic {
-                                            range: Range {
-                                                start: Position {
-                                                    line: 0,
-                                                    character: 0,
-                                                },
-                                                end: Position {
-                                                    line: 1,
-                                                    character: 1,
-                                                },
-                                            },
-                                            message: format!("{:?}", err),
-                                        }],
+                            related_documents: None,
+                            full_document_diagnostic_report: FullDocumentDiagnosticReport {
+                                items: vec![Diagnostic {
+                                    range: Range {
+                                        start: Position {
+                                            line: 0,
+                                            character: 0,
+                                        },
+                                        end: Position {
+                                            line: 1,
+                                            character: 1,
+                                        },
                                     },
-                                )]
-                                .into_iter()
-                                .collect(),
-                            ),
+                                    message: format!("{:?}", err),
+                                    severity: None,
+                                    code: None,
+                                    code_description: None,
+                                    source: None,
+                                    related_information: None,
+                                    tags: None,
+                                    data: None,
+                                }],
+                                result_id: None,
+                            },
                         })?,
                     }));
                 }
@@ -329,17 +392,11 @@ async fn lsp_handler(req: RpcMessageRequest) -> Result<Option<RpcMessageResponse
                 jsonrpc: "2.0".to_string(),
                 id: req.id,
                 result: serde_json::to_value(RelatedFullDocumentDiagnosticReport {
-                    related_documents: Some(
-                        vec![(
-                            params.text_document.uri,
-                            FullDocumentDiagnosticReport {
-                                kind: DocumentDiagnosticReportKind::Full,
-                                items: vec![],
-                            },
-                        )]
-                        .into_iter()
-                        .collect(),
-                    ),
+                    related_documents: None,
+                    full_document_diagnostic_report: FullDocumentDiagnosticReport {
+                        items: vec![],
+                        result_id: None,
+                    },
                 })?,
             }))
         }
@@ -350,14 +407,14 @@ async fn lsp_handler(req: RpcMessageRequest) -> Result<Option<RpcMessageResponse
         }
         "textDocument/definition" => {
             let params = serde_json::from_value::<TextDocumentPositionParams>(req.params.clone())?;
-            let input = std::fs::read_to_string(params.text_document.uri.as_filepath().unwrap())?;
+            let input = std::fs::read_to_string(params.text_document.uri.path())?;
             let parsed = compiler::Compiler::parse(input.clone())?;
             let mut module = compiler::Compiler::create_module(parsed);
 
             let position = compiler::Compiler::find_line_and_column(
                 &input,
-                params.position.line,
-                params.position.character,
+                params.position.line as usize,
+                params.position.character as usize,
             );
             let def_position = compiler::Compiler::search_for_definition(&mut module, position)?;
 
@@ -374,12 +431,12 @@ async fn lsp_handler(req: RpcMessageRequest) -> Result<Option<RpcMessageResponse
                         uri: params.text_document.uri,
                         range: Range {
                             start: Position {
-                                line: start_position.0,
-                                character: start_position.1,
+                                line: start_position.0 as u32,
+                                character: start_position.1 as u32,
                             },
                             end: Position {
-                                line: end_position.0,
-                                character: end_position.1,
+                                line: end_position.0 as u32,
+                                character: end_position.1 as u32,
                             },
                         },
                     })?,
