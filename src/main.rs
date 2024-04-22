@@ -20,7 +20,11 @@ use ::dap::{
 use anyhow::Result;
 use base64::prelude::*;
 use clap::{Parser, Subcommand};
-use compiler::{lexer::Lexeme, runtime::Runtime, CompilerError};
+use compiler::{
+    ast::{AstWalker, AST_WALKER_FIELD, AST_WALKER_FUNCTION, AST_WALKER_METHOD, AST_WALKER_TYPE},
+    runtime::Runtime,
+    CompilerError,
+};
 use dap::server::{Dap, DapServer, SimpleSender};
 use lsp::{
     server::{Lsp, LspServer},
@@ -77,7 +81,7 @@ enum CliCommands {
 }
 
 fn compile(input: String) -> Result<Vec<u8>> {
-    let decls = compiler::Compiler::parse(compiler::Compiler::create_input(input.clone()))?;
+    let decls = compiler::Compiler::parse_decls(compiler::Compiler::create_input(input.clone()))?;
     let mut module = Module {
         name: "main".to_string(),
         declarations: decls,
@@ -163,7 +167,12 @@ async fn main() -> Result<()> {
 struct LspImpl;
 
 async fn lsp_handler(req: RpcMessageRequest) -> Result<Option<RpcMessageResponse>> {
-    let token_types = vec![SemanticTokenType::KEYWORD, SemanticTokenType::COMMENT];
+    let token_types = vec![
+        SemanticTokenType::FUNCTION,
+        SemanticTokenType::PROPERTY,
+        SemanticTokenType::METHOD,
+        SemanticTokenType::TYPE,
+    ];
 
     match req.method.as_str() {
         Initialize::METHOD => {
@@ -246,57 +255,46 @@ async fn lsp_handler(req: RpcMessageRequest) -> Result<Option<RpcMessageResponse
             let filepath = params.text_document.uri.path();
             let content = std::fs::read_to_string(filepath)?;
 
-            let tokens = compiler::Compiler::run_lexer(content.clone())?;
+            let module = compiler::Compiler::parse(content.clone())?;
+            let mut walker = AstWalker::new();
+            walker.module(&module);
+
             let mut token_data = vec![];
             let mut prev = (0, 0);
-            for token in tokens {
-                match &token.lexeme {
-                    Lexeme::Let => match (token.span.start, token.span.end) {
-                        (Some(start), Some(end)) => {
-                            let (line, col) = compiler::Compiler::find_position(&content, start);
 
-                            token_data.push(SemanticToken {
-                                delta_line: (line - prev.0) as u32,
-                                delta_start: if line == prev.0 {
-                                    (col - prev.1) as u32
-                                } else {
-                                    col as u32
-                                },
-                                token_type: token_types
-                                    .iter()
-                                    .position(|t| t == &SemanticTokenType::KEYWORD)
-                                    .unwrap() as u32,
-                                length: (end - start) as u32,
-                                token_modifiers_bitset: 0,
-                            });
+            let mut tokens = walker.tokens;
+            tokens.sort_by(|a, b| a.1.start.unwrap().cmp(&b.1.start.unwrap()));
 
-                            prev = (line, col);
-                        }
-                        _ => {}
-                    },
-                    Lexeme::Comment(_) => match (token.span.start, token.span.end) {
-                        (Some(start), Some(end)) => {
-                            let (line, col) = compiler::Compiler::find_position(&content, start);
+            for (ty, span) in tokens {
+                match (span.start, span.end) {
+                    (Some(start), Some(end)) => {
+                        let (line, col) = compiler::Compiler::find_position(&content, start);
 
-                            token_data.push(SemanticToken {
-                                delta_line: (line - prev.0) as u32,
-                                delta_start: if line == prev.0 {
-                                    (col - prev.1) as u32
-                                } else {
-                                    col as u32
-                                },
-                                token_type: token_types
-                                    .iter()
-                                    .position(|t| t == &SemanticTokenType::COMMENT)
-                                    .unwrap() as u32,
-                                length: (end - start) as u32,
-                                token_modifiers_bitset: 0,
-                            });
+                        token_data.push(SemanticToken {
+                            delta_line: (line - prev.0) as u32,
+                            delta_start: if line == prev.0 {
+                                (col - prev.1) as u32
+                            } else {
+                                col as u32
+                            },
+                            token_type: token_types
+                                .iter()
+                                .position(|t| {
+                                    t == &match ty.as_str() {
+                                        AST_WALKER_FUNCTION => SemanticTokenType::FUNCTION,
+                                        AST_WALKER_FIELD => SemanticTokenType::PROPERTY,
+                                        AST_WALKER_METHOD => SemanticTokenType::METHOD,
+                                        AST_WALKER_TYPE => SemanticTokenType::TYPE,
+                                        _ => todo!(),
+                                    }
+                                })
+                                .unwrap() as u32,
+                            length: (end - start) as u32,
+                            token_modifiers_bitset: 0,
+                        });
 
-                            prev = (line, col);
-                        }
-                        _ => {}
-                    },
+                        prev = (line, col);
+                    }
                     _ => {}
                 }
             }
@@ -315,7 +313,7 @@ async fn lsp_handler(req: RpcMessageRequest) -> Result<Option<RpcMessageResponse
             let input = compiler::Compiler::create_input(std::fs::read_to_string(
                 params.text_document.uri.path(),
             )?);
-            let parsed = match compiler::Compiler::parse(input.clone()) {
+            let parsed = match compiler::Compiler::parse_decls(input.clone()) {
                 Ok(parsed) => parsed,
                 Err(CompilerError::ParseError(err)) => {
                     return Ok(Some(RpcMessageResponse::new(
@@ -401,7 +399,7 @@ async fn lsp_handler(req: RpcMessageRequest) -> Result<Option<RpcMessageResponse
         GotoDefinition::METHOD => {
             let params = serde_json::from_value::<TextDocumentPositionParams>(req.params.clone())?;
             let input = std::fs::read_to_string(params.text_document.uri.path())?;
-            let parsed = compiler::Compiler::parse(input.clone())?;
+            let parsed = compiler::Compiler::parse_decls(input.clone())?;
             let mut module = compiler::Compiler::create_module(parsed);
 
             let position = compiler::Compiler::find_line_and_column(

@@ -89,7 +89,13 @@ impl Compiler {
         Ok(lexer.run().map_err(CompilerError::LexerError)?)
     }
 
-    pub fn parse(input: String) -> Result<Vec<Source<Declaration>>, CompilerError> {
+    pub fn parse(input: String) -> Result<Module, CompilerError> {
+        let decls = Self::parse_decls(input.clone())?;
+
+        Ok(Self::create_module(decls))
+    }
+
+    pub fn parse_decls(input: String) -> Result<Vec<Source<Declaration>>, CompilerError> {
         let mut lexer = lexer::Lexer::new(input.clone());
         let mut parser = parser::Parser::new(lexer.run().map_err(CompilerError::LexerError)?);
         let expr = match parser.decls() {
@@ -209,7 +215,7 @@ impl Compiler {
     }
 
     pub fn compile_bundled(input: String) -> Result<Vec<u8>, CompilerError> {
-        let decls = Self::parse(input.clone())?;
+        let decls = Self::parse_decls(input.clone())?;
         let mut module = Self::create_module(decls);
         let types = Self::typecheck(&mut module, &input)?;
 

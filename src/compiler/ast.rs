@@ -266,3 +266,133 @@ impl Type {
         }
     }
 }
+
+#[derive(Debug, PartialEq, Clone)]
+pub struct AstWalker {
+    pub(crate) tokens: Vec<(String, Span)>,
+}
+
+pub const AST_WALKER_FUNCTION: &'static str = "FUNCTION";
+pub const AST_WALKER_FIELD: &'static str = "FIELD";
+pub const AST_WALKER_METHOD: &'static str = "METHOD";
+pub const AST_WALKER_TYPE: &'static str = "TYPE";
+
+impl AstWalker {
+    pub fn new() -> Self {
+        Self { tokens: vec![] }
+    }
+
+    pub fn module(&mut self, module: &Module) {
+        for decl in &module.declarations {
+            self.decl(decl);
+        }
+    }
+
+    fn decl(&mut self, decl: &Source<Declaration>) {
+        match &decl.data {
+            Declaration::Function { name, params, body } => {
+                self.tokens
+                    .push((AST_WALKER_FUNCTION.to_string(), name.span.clone()));
+                self.block(body);
+            }
+            Declaration::Let { name, value, .. } => {
+                self.expr(value);
+            }
+            Declaration::Struct { fields, .. } => {}
+        }
+    }
+
+    fn block(&mut self, block: &Source<Block>) {
+        for stmt in &block.data.statements {
+            self.stmt(stmt);
+        }
+        if let Some(expr) = &block.data.expr {
+            self.expr(expr);
+        }
+    }
+
+    fn stmt(&mut self, stmt: &Source<Statement>) {
+        match &stmt.data {
+            Statement::Let(_, value) => self.expr(value),
+            Statement::Return(expr) => self.expr(expr),
+            Statement::Expr(expr) => self.expr(expr),
+            Statement::Assign(lhs, rhs) => {
+                self.expr(lhs);
+                self.expr(rhs);
+            }
+            Statement::While { cond, body } => {
+                self.expr(cond);
+                self.block(body);
+            }
+            Statement::If { cond, then, else_ } => {
+                self.expr(cond);
+                self.block(then);
+                if let Some(else_) = else_ {
+                    self.block(else_);
+                }
+            }
+            Statement::Block(block) => self.block(block),
+        }
+    }
+
+    fn expr(&mut self, expr: &Source<Expr>) {
+        match &expr.data {
+            Expr::Ident(_) => {}
+            Expr::Lit(_) => {}
+            Expr::Negate { expr, .. } => self.expr(expr),
+            Expr::BinOp { left, right, .. } => {
+                self.expr(left);
+                self.expr(right);
+            }
+            Expr::Call { args, name } => {
+                self.tokens
+                    .push((AST_WALKER_FUNCTION.to_string(), name.span.clone()));
+                for arg in args {
+                    self.expr(arg);
+                }
+            }
+            Expr::MethodCall {
+                expr, args, name, ..
+            } => {
+                self.tokens
+                    .push((AST_WALKER_METHOD.to_string(), name.span.clone()));
+                self.expr(expr);
+                for arg in args {
+                    self.expr(arg);
+                }
+            }
+            Expr::Match { cond, cases } => {
+                self.expr(cond);
+                for case in cases {
+                    self.expr(case);
+                }
+            }
+            Expr::New { ty, argument, .. } => {
+                self.tokens
+                    .push((AST_WALKER_TYPE.to_string(), ty.span.clone()));
+
+                self.expr(argument)
+            }
+            Expr::Index { ptr, index, .. } => {
+                self.expr(ptr);
+                self.expr(index);
+            }
+            Expr::Block(block) => self.block(block),
+            Expr::Struct { fields, .. } => {
+                for (_, expr) in fields {
+                    self.expr(expr);
+                }
+            }
+            Expr::Project { expr, field, .. } => {
+                self.tokens
+                    .push((AST_WALKER_FIELD.to_string(), field.span.clone()));
+                self.expr(expr)
+            }
+            Expr::As { expr, ty, .. } => {
+                self.tokens
+                    .push((AST_WALKER_TYPE.to_string(), ty.span.clone()));
+                self.expr(expr)
+            }
+        }
+    }
+}
