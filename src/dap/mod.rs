@@ -457,3 +457,16 @@ pub struct SetBreakpointsResponse {
 pub struct ExitedEvent {
     pub exit_code: usize,
 }
+
+#[derive(Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ContinueArguments {
+    pub thread_id: usize,
+    pub single_thread: Option<bool>,
+}
+
+#[derive(Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ContinueResponse {
+    pub all_threads_continued: Option<bool>,
+}

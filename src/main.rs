@@ -832,6 +832,61 @@ async fn dap_handler(
             }
             .build(&req)])
         }
+        "continue" => {
+            let mut runtime = ctx.0.lock().unwrap();
+            runtime.exec(false).unwrap();
+
+            let mut flow = ControlFlow::Continue;
+            while matches!(flow, ControlFlow::Continue) {
+                flow = runtime.step(false).unwrap();
+            }
+
+            let mut resps = vec![];
+            match flow {
+                ControlFlow::HitBreakpoint => {
+                    resps.push(
+                        ProtocolMessageEventBuilder {
+                            body: serde_json::to_value(StoppedEvent {
+                                reason: StoppedEventReason::Breakpoint,
+                                description: Some(format!(
+                                    "pc: {}, next: {:?}",
+                                    runtime.pc,
+                                    runtime.show_next_instruction()
+                                )),
+                                thread_id: Some(MAIN_THREAD_ID),
+                                preserve_focus_hint: None,
+                                text: None,
+                                all_threads_stopped: None,
+                                hit_breakpoint_ids: None,
+                            })?,
+                            event: ProtocolMessageEventKind::Stopped,
+                        }
+                        .build(),
+                    );
+                }
+                ControlFlow::Finish => {
+                    resps.push(
+                        ProtocolMessageEventBuilder {
+                            body: serde_json::to_value(ExitedEvent { exit_code: 0 })?,
+                            event: ProtocolMessageEventKind::Exited,
+                        }
+                        .build(),
+                    );
+                }
+                _ => (),
+            }
+
+            resps.push(
+                ProtocolMessageResponseBuilder {
+                    body: serde_json::to_value(dap::ContinueResponse {
+                        all_threads_continued: None,
+                    })?,
+                }
+                .build(&req),
+            );
+
+            Ok(resps)
+        }
         _ => Ok(vec![]),
     }
 }
