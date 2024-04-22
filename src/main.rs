@@ -834,7 +834,6 @@ async fn dap_handler(
         }
         "continue" => {
             let mut runtime = ctx.0.lock().unwrap();
-            runtime.exec(false).unwrap();
 
             let mut flow = ControlFlow::Continue;
             while matches!(flow, ControlFlow::Continue) {
@@ -842,6 +841,15 @@ async fn dap_handler(
             }
 
             let mut resps = vec![];
+            resps.push(
+                ProtocolMessageResponseBuilder {
+                    body: serde_json::to_value(dap::ContinueResponse {
+                        all_threads_continued: None,
+                    })?,
+                }
+                .build(&req),
+            );
+
             match flow {
                 ControlFlow::HitBreakpoint => {
                     resps.push(
@@ -875,15 +883,6 @@ async fn dap_handler(
                 }
                 _ => (),
             }
-
-            resps.push(
-                ProtocolMessageResponseBuilder {
-                    body: serde_json::to_value(dap::ContinueResponse {
-                        all_threads_continued: None,
-                    })?,
-                }
-                .build(&req),
-            );
 
             Ok(resps)
         }
