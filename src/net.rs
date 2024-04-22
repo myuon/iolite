@@ -1,16 +1,15 @@
-use std::error::Error;
-
+use anyhow::{bail, Result};
 use tokio::io::AsyncReadExt;
 
 pub async fn read_headers(
     reader: &mut (impl AsyncReadExt + Unpin),
-) -> Result<Vec<(String, String)>, Box<dyn Error + Sync + Send>> {
+) -> Result<Vec<(String, String)>> {
     let mut data = vec![];
     while !data.ends_with("\r\n\r\n".as_bytes()) {
         let mut buf = vec![0; 1];
         let n = reader.read(&mut buf).await?;
         if n == 0 {
-            return Err("UnexpectedEof".into());
+            bail!("UnexpectedEof");
         }
 
         data.push(buf[0]);

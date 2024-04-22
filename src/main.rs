@@ -558,7 +558,7 @@ async fn dap_handler(
         }
         Command::DataBreakpointInfo(_) => todo!(),
         Command::Disassemble(_) => todo!(),
-        Command::Disconnect(_) => todo!(),
+        Command::Disconnect(_) => Ok(ResponseBody::Disconnect),
         Command::Evaluate(_) => todo!(),
         Command::ExceptionInfo(_) => todo!(),
         Command::Goto(_) => todo!(),

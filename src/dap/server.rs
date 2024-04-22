@@ -1,5 +1,6 @@
 use std::{error::Error, sync::Arc};
 
+use anyhow::anyhow;
 use dap::{
     base_message::Sendable,
     events::Event,
@@ -67,8 +68,6 @@ impl<C: Sync + Send + Clone + 'static, I: DapServer<C> + Sync + Send + Clone + '
         let (mut reader, mut writer) = tokio::io::split(stream);
 
         tokio::spawn(async move {
-            println!("tokio:spawn");
-
             let (sender, mut receiver) = tokio::sync::mpsc::channel::<Sendable>(100);
             tokio::spawn(async move {
                 while let Some(sendable) = receiver.recv().await {
@@ -99,23 +98,21 @@ impl<C: Sync + Send + Clone + 'static, I: DapServer<C> + Sync + Send + Clone + '
 
             loop {
                 if let Err(err) = {
-                    let headers = read_headers(&mut reader).await.unwrap();
+                    let headers = read_headers(&mut reader).await?;
                     let length = headers
                         .into_iter()
                         .find(|(key, _)| key == "Content-Length")
-                        .ok_or("Content-Length is not found in headers".to_string())
-                        .unwrap()
+                        .ok_or(anyhow!("Content-Length is not found in headers"))?
                         .1
                         .parse::<usize>()
-                        .map_err(|err| format!("Cannot parse content-length: {}", err))
-                        .unwrap();
+                        .map_err(|err| anyhow!("Cannot parse content-length: {}", err))?;
 
                     let mut content = vec![0; length];
-                    reader.read(&mut content).await.unwrap();
+                    reader.read(&mut content).await?;
 
-                    let content_part = String::from_utf8(content).unwrap();
+                    let content_part = String::from_utf8(content)?;
 
-                    let req = serde_json::from_str::<Request>(&content_part).unwrap();
+                    let req = serde_json::from_str::<Request>(&content_part)?;
                     println!(
                         "> received: {}..",
                         content_part.chars().take(80).collect::<String>()
@@ -123,22 +120,17 @@ impl<C: Sync + Send + Clone + 'static, I: DapServer<C> + Sync + Send + Clone + '
 
                     let resp =
                         I::handle_request(ctx.clone(), simple_sender.clone(), req.command.clone())
-                            .await
-                            .unwrap();
+                            .await?;
 
                     println!(
                         "< respond: {}..",
-                        serde_json::to_string(&resp)
-                            .unwrap()
+                        serde_json::to_string(&resp)?
                             .chars()
                             .take(80)
                             .collect::<String>()
                     );
 
-                    sender
-                        .send(Sendable::Response(req.success(resp)))
-                        .await
-                        .unwrap();
+                    sender.send(Sendable::Response(req.success(resp))).await?;
 
                     Ok::<_, Box<dyn Error + Sync + Send>>(())
                 } {
@@ -147,7 +139,7 @@ impl<C: Sync + Send + Clone + 'static, I: DapServer<C> + Sync + Send + Clone + '
                 }
             }
 
-            println!("tokio:spawn end");
+            Ok::<_, anyhow::Error>(())
         });
 
         Box::pin(async { Ok(()) })
