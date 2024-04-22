@@ -23,6 +23,7 @@ use lsp::{
     SemanticTokensLegend, SemanticTokensOptions, ServerCapabilities, TextDocumentSyncKind,
 };
 use server::{FutureResult, ServerProcess};
+use tokio::sync::mpsc::Sender;
 
 use crate::{
     compiler::{ast::Module, runtime::ControlFlow, vm::Instruction},
@@ -401,13 +402,25 @@ struct DapContext(Arc<Mutex<Runtime>>);
 
 async fn dap_handler(
     ctx: DapContext,
+    sender: Sender<ProtocolMessageEventBuilder>,
     req: ProtocolMessageRequest,
 ) -> Result<Vec<ProtocolMessageResponse>> {
     const MAIN_THREAD_ID: usize = 1;
 
     match req.command.as_str() {
-        "initialize" => Ok(vec![
-            ProtocolMessageResponseBuilder {
+        "initialize" => {
+            tokio::spawn(async move {
+                sender
+                    .send(ProtocolMessageEventBuilder {
+                        body: serde_json::to_value(InitializedEvent {})?,
+                        event: ProtocolMessageEventKind::Initialized,
+                    })
+                    .await?;
+
+                Ok::<(), anyhow::Error>(())
+            });
+
+            Ok(vec![ProtocolMessageResponseBuilder {
                 body: serde_json::to_value(InitializeResponseBody(Capabilities {
                     supports_configuration_done_request: Some(true),
                     supports_single_thread_execution_requests: Some(true),
@@ -420,13 +433,8 @@ async fn dap_handler(
                     supports_breakpoint_locations_request: Some(true),
                 }))?,
             }
-            .build(&req),
-            ProtocolMessageEventBuilder {
-                body: serde_json::to_value(InitializedEvent {})?,
-                event: ProtocolMessageEventKind::Initialized,
-            }
-            .build(),
-        ]),
+            .build(&req)])
+        }
         "launch" => {
             let arg = serde_json::from_value::<LaunchRequestArguments>(req.arguments.clone())?;
             let content = std::fs::read_to_string(arg.source_file.unwrap())?;
@@ -452,25 +460,10 @@ async fn dap_handler(
             })?,
         }
         .build(&req)]),
-        "configurationDone" => Ok(vec![
-            ProtocolMessageResponseBuilder {
-                body: serde_json::to_value(ConfigurationDoneResponse {})?,
-            }
-            .build(&req),
-            ProtocolMessageEventBuilder {
-                body: serde_json::to_value(StoppedEvent {
-                    reason: StoppedEventReason::Pause,
-                    description: None,
-                    thread_id: Some(MAIN_THREAD_ID),
-                    preserve_focus_hint: None,
-                    text: None,
-                    all_threads_stopped: None,
-                    hit_breakpoint_ids: None,
-                })?,
-                event: ProtocolMessageEventKind::Stopped,
-            }
-            .build(),
-        ]),
+        "configurationDone" => Ok(vec![ProtocolMessageResponseBuilder {
+            body: serde_json::to_value(ConfigurationDoneResponse {})?,
+        }
+        .build(&req)]),
         "source" => {
             let runtime = ctx.0.lock().unwrap();
 
@@ -833,65 +826,64 @@ async fn dap_handler(
             .build(&req)])
         }
         "continue" => {
-            let mut runtime = ctx.0.lock().unwrap();
-
-            let mut flow = ControlFlow::Continue;
-            while matches!(flow, ControlFlow::Continue) {
-                flow = runtime.step(false).unwrap();
+            let resp = ProtocolMessageResponseBuilder {
+                body: serde_json::to_value(dap::ContinueResponse {
+                    all_threads_continued: None,
+                })?,
             }
+            .build(&req);
 
-            let mut resps = vec![];
-            resps.push(
-                ProtocolMessageResponseBuilder {
-                    body: serde_json::to_value(dap::ContinueResponse {
-                        all_threads_continued: None,
-                    })?,
-                }
-                .build(&req),
-            );
+            tokio::spawn(async move {
+                let (flow, pc, next) = {
+                    let mut runtime = ctx.0.lock().unwrap();
 
-            match flow {
-                ControlFlow::HitBreakpoint => {
-                    resps.push(
-                        ProtocolMessageEventBuilder {
-                            body: serde_json::to_value(StoppedEvent {
-                                reason: StoppedEventReason::Breakpoint,
-                                description: Some(format!(
-                                    "pc: {}, next: {:?}",
-                                    runtime.pc,
-                                    runtime.show_next_instruction()
-                                )),
-                                thread_id: Some(MAIN_THREAD_ID),
-                                preserve_focus_hint: None,
-                                text: None,
-                                all_threads_stopped: None,
-                                hit_breakpoint_ids: None,
-                            })?,
-                            event: ProtocolMessageEventKind::Stopped,
-                        }
-                        .build(),
-                    );
-                }
-                ControlFlow::Finish => {
-                    resps.push(
-                        ProtocolMessageEventBuilder {
-                            body: serde_json::to_value(dap::TerminatedEvent { restart: None })?,
-                            event: ProtocolMessageEventKind::Terminated,
-                        }
-                        .build(),
-                    );
-                    resps.push(
-                        ProtocolMessageEventBuilder {
-                            body: serde_json::to_value(ExitedEvent { exit_code: 0 })?,
-                            event: ProtocolMessageEventKind::Exited,
-                        }
-                        .build(),
-                    );
-                }
-                _ => (),
-            }
+                    let mut flow = ControlFlow::Continue;
+                    while matches!(flow, ControlFlow::Continue) {
+                        flow = runtime.step(false).unwrap();
+                    }
 
-            Ok(resps)
+                    (flow, runtime.pc, runtime.show_next_instruction())
+                };
+
+                match flow {
+                    ControlFlow::HitBreakpoint => {
+                        sender
+                            .send(ProtocolMessageEventBuilder {
+                                body: serde_json::to_value(StoppedEvent {
+                                    reason: StoppedEventReason::Breakpoint,
+                                    description: Some(format!("pc: {}, next: {:?}", pc, next)),
+                                    thread_id: Some(MAIN_THREAD_ID),
+                                    preserve_focus_hint: None,
+                                    text: None,
+                                    all_threads_stopped: None,
+                                    hit_breakpoint_ids: None,
+                                })?,
+                                event: ProtocolMessageEventKind::Stopped,
+                            })
+                            .await?;
+                        println!("sender!!");
+                    }
+                    ControlFlow::Finish => {
+                        sender
+                            .send(ProtocolMessageEventBuilder {
+                                body: serde_json::to_value(dap::TerminatedEvent { restart: None })?,
+                                event: ProtocolMessageEventKind::Terminated,
+                            })
+                            .await?;
+                        sender
+                            .send(ProtocolMessageEventBuilder {
+                                body: serde_json::to_value(ExitedEvent { exit_code: 0 })?,
+                                event: ProtocolMessageEventKind::Exited,
+                            })
+                            .await?;
+                    }
+                    _ => (),
+                };
+
+                Ok::<(), anyhow::Error>(())
+            });
+
+            Ok(vec![resp])
         }
         _ => Ok(vec![]),
     }
@@ -900,8 +892,9 @@ async fn dap_handler(
 impl DapServer<DapContext> for DapImpl {
     fn handle_request(
         ctx: DapContext,
+        sender: Sender<ProtocolMessageEventBuilder>,
         req: ProtocolMessageRequest,
     ) -> FutureResult<Vec<ProtocolMessageResponse>> {
-        Box::pin(dap_handler(ctx, req))
+        Box::pin(dap_handler(ctx, sender, req))
     }
 }

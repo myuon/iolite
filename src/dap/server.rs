@@ -3,6 +3,7 @@ use std::error::Error;
 use tokio::{
     io::{AsyncReadExt, AsyncWriteExt},
     net::TcpStream,
+    sync::mpsc::Sender,
 };
 
 use crate::{
@@ -10,7 +11,7 @@ use crate::{
     server::{FutureResult, ServerProcess},
 };
 
-use super::{ProtocolMessageRequest, ProtocolMessageResponse};
+use super::{ProtocolMessageEventBuilder, ProtocolMessageRequest, ProtocolMessageResponse};
 
 #[derive(Clone)]
 pub struct Dap<I>(I);
@@ -24,6 +25,7 @@ impl<I> Dap<I> {
 pub trait DapServer<C> {
     fn handle_request(
         context: C,
+        sender: Sender<ProtocolMessageEventBuilder>,
         req: ProtocolMessageRequest,
     ) -> FutureResult<Vec<ProtocolMessageResponse>>;
 }
@@ -36,6 +38,9 @@ impl<C: Sync + Send + Clone + 'static, I: DapServer<C> + Sync + Send + Clone + '
 
         tokio::spawn(async move {
             println!("tokio:spawn");
+
+            let (sender, mut receiver) =
+                tokio::sync::mpsc::channel::<ProtocolMessageEventBuilder>(100);
 
             loop {
                 if let Err(err) = {
@@ -59,7 +64,9 @@ impl<C: Sync + Send + Clone + 'static, I: DapServer<C> + Sync + Send + Clone + '
                         serde_json::from_str::<ProtocolMessageRequest>(&content_part).unwrap();
                     println!("!command={}, content={}", req.command, content_part);
 
-                    let resps = I::handle_request(ctx.clone(), req).await.unwrap();
+                    let resps = I::handle_request(ctx.clone(), sender.clone(), req)
+                        .await
+                        .unwrap();
                     for resp in resps {
                         let resp_body = serde_json::to_string(&resp).unwrap();
                         let rcp_resp =
@@ -73,6 +80,15 @@ impl<C: Sync + Send + Clone + 'static, I: DapServer<C> + Sync + Send + Clone + '
                 } {
                     eprintln!("failed to process stream; err = {:?}", err);
                     break;
+                }
+
+                while let Ok(event) = receiver.try_recv() {
+                    let event_body = serde_json::to_string(&event).unwrap();
+                    let rcp_event =
+                        format!("Content-Length: {}\r\n\r\n{}", event_body.len(), event_body);
+                    writer.write(rcp_event.as_bytes()).await.unwrap();
+
+                    println!("ok; event={}", event_body);
                 }
             }
 

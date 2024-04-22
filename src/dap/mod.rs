@@ -60,7 +60,7 @@ impl ProtocolMessageResponseBuilder {
     }
 }
 
-#[derive(Serialize)]
+#[derive(Serialize, Debug)]
 #[serde(rename_all = "snake_case")]
 pub struct ProtocolMessageEventBuilder {
     pub event: ProtocolMessageEventKind,
@@ -81,7 +81,7 @@ impl ProtocolMessageEventBuilder {
     }
 }
 
-#[derive(Serialize, Clone)]
+#[derive(Serialize, Clone, Debug)]
 #[serde(rename_all = "snake_case")]
 pub enum ProtocolMessageEventKind {
     Initialized,
