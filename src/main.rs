@@ -28,7 +28,7 @@ use crate::{
     compiler::{ast::Module, runtime::ControlFlow, vm::Instruction},
     dap::{
         BreakpointLocation, Capabilities, ExitedEvent, InitializeResponseBody, OutputEvent,
-        OutputEventKind, Variable, VariablesArguments, VariablesResponse,
+        OutputEventKind, Source, Variable, VariablesArguments, VariablesResponse,
     },
     lsp::{Location, TextDocumentPositionParams},
 };
@@ -504,12 +504,21 @@ async fn dap_handler(
                         .map(|(i, frame)| StackFrame {
                             id: i,
                             name: format!("<stackframe:#{:x?}>", frame),
-                            source: None,
-                            line: 0,
+                            source: Some(Source {
+                                name: None,
+                                path: None,
+                                source_reference: None,
+                                presentation_hint: None,
+                                origin: None,
+                                sources: None,
+                                adapter_data: None,
+                                checksums: None,
+                            }),
+                            line: 4,
                             column: 0,
                             end_line: None,
                             end_column: None,
-                            can_restart: None,
+                            can_restart: Some(true),
                             module_id: None,
                             presentation_hint: None,
                         })
