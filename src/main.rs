@@ -28,7 +28,7 @@ use crate::{
     compiler::{ast::Module, runtime::ControlFlow, vm::Instruction},
     dap::{
         BreakpointLocation, Capabilities, ExitedEvent, InitializeResponseBody, OutputEvent,
-        OutputEventKind, Source, Variable, VariablesArguments, VariablesResponse,
+        OutputEventKind, Source, TerminatedEvent, Variable, VariablesArguments, VariablesResponse,
     },
     lsp::{Location, TextDocumentPositionParams},
 };
@@ -882,6 +882,13 @@ async fn dap_handler(
                     );
                 }
                 ControlFlow::Finish => {
+                    resps.push(
+                        ProtocolMessageEventBuilder {
+                            body: serde_json::to_value(dap::TerminatedEvent { restart: None })?,
+                            event: ProtocolMessageEventKind::Terminated,
+                        }
+                        .build(),
+                    );
                     resps.push(
                         ProtocolMessageEventBuilder {
                             body: serde_json::to_value(ExitedEvent { exit_code: 0 })?,

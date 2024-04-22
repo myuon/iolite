@@ -88,6 +88,7 @@ pub enum ProtocolMessageEventKind {
     Stopped,
     Output,
     Exited,
+    Terminated,
 }
 
 #[derive(Serialize)]
@@ -469,4 +470,10 @@ pub struct ContinueArguments {
 #[serde(rename_all = "camelCase")]
 pub struct ContinueResponse {
     pub all_threads_continued: Option<bool>,
+}
+
+#[derive(Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct TerminatedEvent {
+    pub restart: Option<Value>,
 }
