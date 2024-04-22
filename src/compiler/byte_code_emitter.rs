@@ -1,12 +1,16 @@
 use std::{collections::HashMap, io::Write, iter::repeat};
 
+use thiserror::Error;
+
 use crate::compiler::ast::Span;
 
 use super::{ir::Value, vm::Instruction};
 
-#[derive(Debug)]
+#[derive(Debug, Error)]
 pub enum ByteCodeEmitterError {
+    #[error("Label not found: {0}")]
     LabelNotFound(String),
+    #[error("IO error: {0}")]
     IoError(std::io::Error),
 }
 

@@ -1,9 +1,9 @@
 use std::{
-    error::Error,
     io::Read,
     sync::{Arc, Mutex},
 };
 
+use anyhow::Result;
 use base64::prelude::*;
 use clap::{Parser, Subcommand};
 use compiler::{lexer::Lexeme, runtime::Runtime, CompilerError};
@@ -28,7 +28,7 @@ use crate::{
     compiler::{ast::Module, runtime::ControlFlow, vm::Instruction},
     dap::{
         BreakpointLocation, Capabilities, ExitedEvent, InitializeResponseBody, OutputEvent,
-        OutputEventKind, Source, TerminatedEvent, Variable, VariablesArguments, VariablesResponse,
+        OutputEventKind, Source, Variable, VariablesArguments, VariablesResponse,
     },
     lsp::{Location, TextDocumentPositionParams},
 };
@@ -66,8 +66,8 @@ enum CliCommands {
     Dap {},
 }
 
-fn compile(input: String) -> Vec<u8> {
-    let decls = compiler::Compiler::parse(compiler::Compiler::create_input(input.clone())).unwrap();
+fn compile(input: String) -> Result<Vec<u8>> {
+    let decls = compiler::Compiler::parse(compiler::Compiler::create_input(input.clone()))?;
     let mut module = Module {
         name: "main".to_string(),
         declarations: decls,
@@ -96,11 +96,11 @@ fn compile(input: String) -> Vec<u8> {
     println!("= BYTE_CODE_GEN");
     println!("{:x?}", binary);
 
-    binary
+    Ok(binary)
 }
 
 #[tokio::main]
-async fn main() {
+async fn main() -> Result<()> {
     let cli = Cli::parse();
 
     match cli.command {
@@ -109,12 +109,12 @@ async fn main() {
                 let mut buf = Vec::new();
                 std::io::stdin().read_to_end(&mut buf).unwrap();
 
-                String::from_utf8(buf).unwrap()
+                String::from_utf8(buf)?
             } else {
                 input.unwrap()
             };
 
-            compile(input);
+            compile(input)?;
         }
         CliCommands::Run {
             input,
@@ -129,12 +129,12 @@ async fn main() {
             } else {
                 input.unwrap()
             };
-            let result = compiler::Compiler::run(input, print_stacks).unwrap();
+            let result = compiler::Compiler::run(input, print_stacks)?;
 
             println!("result: {}", result);
         }
         CliCommands::Lsp {} => {
-            Lsp::new(LspImpl).start((), 3030).await.unwrap();
+            Lsp::new(LspImpl).start((), 3030).await?;
         }
         CliCommands::Dap {} => {
             Dap::new(DapImpl)
@@ -142,26 +142,22 @@ async fn main() {
                     DapContext(Arc::new(Mutex::new(Runtime::new(1024, vec![])))),
                     3031,
                 )
-                .await
-                .unwrap();
+                .await?;
         }
     }
+
+    Ok(())
 }
 
 #[derive(Clone)]
 struct LspImpl;
 
-async fn lsp_handler(
-    req: RpcMessageRequest,
-) -> Result<Option<RpcMessageResponse>, Box<dyn Error + Sync + Send + 'static>> {
+async fn lsp_handler(req: RpcMessageRequest) -> Result<Option<RpcMessageResponse>> {
     let token_types = vec![SemanticTokenTypes::Keyword, SemanticTokenTypes::Comment];
 
     match req.method.as_str() {
         "initialize" => {
-            println!(
-                "Initialize! {}",
-                serde_json::to_string(&req.params).unwrap()
-            );
+            println!("Initialize! {}", serde_json::to_string(&req.params)?);
 
             Ok(Some(RpcMessageResponse {
                 jsonrpc: "2.0".to_string(),
@@ -198,7 +194,7 @@ async fn lsp_handler(
             let filepath = params.text_document.uri.as_filepath().unwrap();
             let content = std::fs::read_to_string(filepath)?;
 
-            let tokens = compiler::Compiler::run_lexer(content.clone()).unwrap();
+            let tokens = compiler::Compiler::run_lexer(content.clone())?;
             let mut token_data = vec![];
             let mut prev = (0, 0);
             for token in tokens {
@@ -249,9 +245,9 @@ async fn lsp_handler(
         "textDocument/diagnostic" => {
             let params = serde_json::from_value::<lsp::SemanticTokensParams>(req.params.clone())?;
 
-            let input = compiler::Compiler::create_input(
-                std::fs::read_to_string(params.text_document.uri.as_filepath().unwrap()).unwrap(),
-            );
+            let input = compiler::Compiler::create_input(std::fs::read_to_string(
+                params.text_document.uri.as_filepath().unwrap(),
+            )?);
             let parsed = match compiler::Compiler::parse(input.clone()) {
                 Ok(parsed) => parsed,
                 Err(CompilerError::ParseError(err)) => {
@@ -343,18 +339,14 @@ async fn lsp_handler(
             }))
         }
         "textDocument/declaration" => {
-            println!(
-                "Declaration! {}",
-                serde_json::to_string(&req.params).unwrap()
-            );
+            println!("Declaration! {}", serde_json::to_string(&req.params)?);
 
             Ok(None)
         }
         "textDocument/definition" => {
             let params = serde_json::from_value::<TextDocumentPositionParams>(req.params.clone())?;
-            let input =
-                std::fs::read_to_string(params.text_document.uri.as_filepath().unwrap()).unwrap();
-            let parsed = compiler::Compiler::parse(input.clone()).unwrap();
+            let input = std::fs::read_to_string(params.text_document.uri.as_filepath().unwrap())?;
+            let parsed = compiler::Compiler::parse(input.clone())?;
             let mut module = compiler::Compiler::create_module(parsed);
 
             let position = compiler::Compiler::find_line_and_column(
@@ -362,8 +354,7 @@ async fn lsp_handler(
                 params.position.line,
                 params.position.character,
             );
-            let def_position =
-                compiler::Compiler::search_for_definition(&mut module, position).unwrap();
+            let def_position = compiler::Compiler::search_for_definition(&mut module, position)?;
 
             if let Some(def_position) = def_position {
                 let start_position =
@@ -411,7 +402,7 @@ struct DapContext(Arc<Mutex<Runtime>>);
 async fn dap_handler(
     ctx: DapContext,
     req: ProtocolMessageRequest,
-) -> Result<Vec<ProtocolMessageResponse>, Box<dyn Error + Sync + Send>> {
+) -> Result<Vec<ProtocolMessageResponse>> {
     const MAIN_THREAD_ID: usize = 1;
 
     match req.command.as_str() {
@@ -439,7 +430,7 @@ async fn dap_handler(
         "launch" => {
             let arg = serde_json::from_value::<LaunchRequestArguments>(req.arguments.clone())?;
             let content = std::fs::read_to_string(arg.source_file.unwrap())?;
-            let program = compiler::Compiler::compile(content.clone()).unwrap();
+            let program = compiler::Compiler::compile(content.clone())?;
 
             ctx.0.lock().unwrap().init(1024, program, content);
 
@@ -639,7 +630,7 @@ async fn dap_handler(
         }
         "next" => {
             let mut runtime = ctx.0.lock().unwrap();
-            let control = runtime.step(true).unwrap();
+            let control = runtime.step(true)?;
 
             match control {
                 ControlFlow::Finish => Ok(vec![

@@ -23,13 +23,19 @@ pub mod typechecker;
 pub mod vm;
 pub mod vm_code_gen;
 
-#[derive(Debug)]
+#[derive(Debug, thiserror::Error)]
 pub enum CompilerError {
+    #[error("Lexer error: {0}")]
     LexerError(LexerError),
+    #[error("Parse error: {0}")]
     ParseError(ParseError),
+    #[error("Typechecker error: {0}")]
     TypecheckError(TypecheckerError),
+    #[error("IR code generator error: {0}")]
     IrCodeGeneratorError(IrCodeGeneratorError),
+    #[error("VM code generator error: {0}")]
     VmCodeGeneratorError(VmCodeGeneratorError),
+    #[error("Byte code emitter error: {0}")]
     ByteCodeEmitterError(ByteCodeEmitterError),
 }
 

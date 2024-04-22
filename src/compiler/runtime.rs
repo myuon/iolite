@@ -1,8 +1,12 @@
+use thiserror::Error;
+
 use super::{ir::Value, vm::Instruction};
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Error)]
 pub enum RuntimeError {
+    #[error("Unknown instruction: {0}")]
     UnknownInstruction(u8),
+    #[error("Unknown register: {0}")]
     UnknownRegister(u8),
 }
 

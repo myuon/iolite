@@ -1,5 +1,7 @@
 use std::collections::HashMap;
 
+use thiserror::Error;
+
 use super::{
     ast::{
         BinOp, Block, Conversion, Declaration, Expr, Literal, Module, Source, Span, Statement, Type,
@@ -7,18 +9,25 @@ use super::{
     ir::TypeTag,
 };
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Error)]
 pub enum TypecheckerError {
+    #[error("Identifier not found: {0:?}")]
     IdentNotFound(Source<String>),
+    #[error("Type mismatch: expected {expected:?}, but got {actual:?}")]
     TypeMismatch {
         expected: Type,
         actual: Type,
         span: Span,
     },
+    #[error("Numeric type expected, but got {0:?}")]
     NumericTypeExpected(Type),
+    #[error("Argument count mismatch: expected {0}, but got {1}")]
     ArgumentCountMismatch(usize, usize),
+    #[error("Function type expected, but got {0:?}")]
     FunctionTypeExpected(Type),
+    #[error("Index not supported for type {0:?}")]
     IndexNotSupported(Type),
+    #[error("Conversion not supported from {0:?} to {1:?}")]
     ConversionNotSupported(Type, Source<Type>),
 }
 

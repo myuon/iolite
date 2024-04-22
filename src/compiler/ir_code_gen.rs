@@ -1,13 +1,14 @@
 use std::collections::HashMap;
 
 use nanoid::nanoid;
+use thiserror::Error;
 
 use super::{
     ast::{BinOp, Block, Conversion, Declaration, Expr, Literal, Module, Source, Statement, Type},
     ir::{IrDecl, IrModule, IrOp, IrTerm, TypeTag, Value},
 };
 
-#[derive(Debug, PartialEq, Clone)]
+#[derive(Debug, PartialEq, Clone, Error)]
 pub enum IrCodeGeneratorError {}
 
 #[derive(Debug)]

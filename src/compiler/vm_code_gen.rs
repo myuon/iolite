@@ -1,16 +1,20 @@
 use std::collections::HashMap;
 
 use nanoid::nanoid;
+use thiserror::Error;
 
 use super::{
     ir::{IrDecl, IrModule, IrOp, IrTerm, TypeTag, Value},
     vm::Instruction,
 };
 
-#[derive(Debug, PartialEq, Clone)]
+#[derive(Debug, PartialEq, Clone, Error)]
 pub enum VmCodeGeneratorError {
+    #[error("Arity not found: {0}")]
     ArityNotFound(String),
+    #[error("Local not found: {0}")]
     LocalNotFound(String),
+    #[error("Ident not found: {0}")]
     IdentNotFound(String),
 }
 

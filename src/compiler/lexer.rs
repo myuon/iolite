@@ -1,6 +1,7 @@
 use once_cell::sync::Lazy;
 
 use regex::Regex;
+use thiserror::Error;
 
 use super::ast::Span;
 
@@ -57,8 +58,9 @@ pub struct Token {
     pub span: Span,
 }
 
-#[derive(Debug, PartialEq, Clone)]
+#[derive(Debug, PartialEq, Clone, Error)]
 pub enum LexerError {
+    #[error("invalid character: {0}")]
     InvalidCharacter(char),
 }
 

@@ -1,3 +1,5 @@
+use thiserror::Error;
+
 use super::{
     ast::{BinOp, Block, Declaration, Expr, Literal, Source, Span, Statement, Type},
     lexer::{Lexeme, Token},
@@ -9,9 +11,11 @@ pub struct Parser {
     position: usize,
 }
 
-#[derive(Debug, PartialEq, Clone)]
+#[derive(Debug, PartialEq, Clone, Error)]
 pub enum ParseError {
+    #[error("unexpected end of stream")]
     UnexpectedEos,
+    #[error("unexpected token: expected {expected:?}, got {got:?}")]
     UnexpectedToken {
         expected: Option<Lexeme>,
         got: Token,
