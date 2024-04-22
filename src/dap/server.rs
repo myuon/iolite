@@ -27,7 +27,7 @@ pub trait DapServer<C> {
         context: C,
         sender: Sender<ProtocolMessageEventBuilder>,
         req: ProtocolMessageRequest,
-    ) -> FutureResult<Vec<ProtocolMessageResponse>>;
+    ) -> FutureResult<ProtocolMessageResponse>;
 }
 
 impl<C: Sync + Send + Clone + 'static, I: DapServer<C> + Sync + Send + Clone + 'static>
@@ -64,17 +64,15 @@ impl<C: Sync + Send + Clone + 'static, I: DapServer<C> + Sync + Send + Clone + '
                         serde_json::from_str::<ProtocolMessageRequest>(&content_part).unwrap();
                     println!("> received: {}", req.command);
 
-                    let resps = I::handle_request(ctx.clone(), sender.clone(), req)
+                    let resp = I::handle_request(ctx.clone(), sender.clone(), req)
                         .await
                         .unwrap();
-                    for resp in resps {
-                        let resp_body = serde_json::to_string(&resp).unwrap();
-                        let rcp_resp =
-                            format!("Content-Length: {}\r\n\r\n{}", resp_body.len(), resp_body);
-                        writer.write(rcp_resp.as_bytes()).await.unwrap();
+                    let resp_body = serde_json::to_string(&resp).unwrap();
+                    let rcp_resp =
+                        format!("Content-Length: {}\r\n\r\n{}", resp_body.len(), resp_body);
+                    writer.write(rcp_resp.as_bytes()).await.unwrap();
 
-                        println!("< respond: {}", resp.command.unwrap());
-                    }
+                    println!("< respond: {}", resp.command.unwrap());
 
                     Ok::<_, Box<dyn Error + Sync + Send>>(())
                 } {
