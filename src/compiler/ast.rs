@@ -293,6 +293,10 @@ impl AstWalker {
             Declaration::Function { name, params, body } => {
                 self.tokens
                     .push((AST_WALKER_FUNCTION.to_string(), name.span.clone()));
+                for (_, ty) in params {
+                    self.tokens
+                        .push((AST_WALKER_TYPE.to_string(), ty.span.clone()));
+                }
                 self.block(body);
             }
             Declaration::Let { name, value, .. } => {
