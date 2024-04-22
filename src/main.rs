@@ -3,18 +3,24 @@ use std::{
     sync::{Arc, Mutex},
 };
 
+use ::dap::{
+    events::{Event, ExitedEventBody, OutputEventBody, StoppedEventBody, TerminatedEventBody},
+    requests::Command,
+    responses::{
+        ContinueResponse, ReadMemoryResponse, ResponseBody, ScopesResponse, SetBreakpointsResponse,
+        SetExceptionBreakpointsResponse, SourceResponse, StackTraceResponse, ThreadsResponse,
+        VariablesResponse,
+    },
+    types::{
+        Breakpoint, Capabilities, OutputEventCategory, OutputEventGroup, Scope, Source, StackFrame,
+        StoppedEventReason, Thread, Variable,
+    },
+};
 use anyhow::Result;
 use base64::prelude::*;
 use clap::{Parser, Subcommand};
 use compiler::{lexer::Lexeme, runtime::Runtime, CompilerError};
-use dap::{
-    server::{Dap, DapServer},
-    ConfigurationDoneResponse, InitializedEvent, LaunchRequestArguments, LaunchResponse,
-    NextResponse, ProtocolMessageEventBuilder, ProtocolMessageEventKind, ProtocolMessageRequest,
-    ProtocolMessageResponse, ProtocolMessageResponseBuilder, ReadMemoryResponse, Scope,
-    ScopesArguments, ScopesResponse, SetExceptionBreakpointsResponse, SourceResponse, StackFrame,
-    StackTraceResponse, StoppedEvent, StoppedEventReason, Thread, ThreadsResponse,
-};
+use dap::server::{Dap, DapServer};
 use lsp::{
     server::{Lsp, LspServer},
     Diagnostic, DiagnosticOptions, DocumentDiagnosticReportKind, FullDocumentDiagnosticReport,
@@ -22,15 +28,12 @@ use lsp::{
     RpcMessageResponse, SemanticTokenTypes, SemanticTokens, SemanticTokensData,
     SemanticTokensLegend, SemanticTokensOptions, ServerCapabilities, TextDocumentSyncKind,
 };
+
 use server::{FutureResult, ServerProcess};
 use tokio::sync::mpsc::Sender;
 
 use crate::{
     compiler::{ast::Module, runtime::ControlFlow, vm::Instruction},
-    dap::{
-        BreakpointLocation, Capabilities, ExitedEvent, InitializeResponseBody, OutputEvent,
-        OutputEventKind, Source, Variable, VariablesArguments, VariablesResponse,
-    },
     lsp::{Location, TextDocumentPositionParams},
 };
 
@@ -400,14 +403,10 @@ struct DapImpl;
 #[derive(Clone)]
 struct DapContext(Arc<Mutex<Runtime>>);
 
-async fn dap_handler(
-    ctx: DapContext,
-    sender: Sender<ProtocolMessageEventBuilder>,
-    req: ProtocolMessageRequest,
-) -> Result<ProtocolMessageResponse> {
-    const MAIN_THREAD_ID: usize = 1;
+async fn dap_handler(ctx: DapContext, sender: Sender<Event>, req: Command) -> Result<ResponseBody> {
+    const MAIN_THREAD_ID: i64 = 1;
 
-    fn runtime_start(ctx: DapContext, sender: Sender<ProtocolMessageEventBuilder>) {
+    fn runtime_start(ctx: DapContext, sender: Sender<Event>) {
         tokio::spawn(async move {
             let (flow, pc, next) = {
                 let mut runtime = ctx.0.lock().unwrap();
@@ -420,38 +419,28 @@ async fn dap_handler(
                 (flow, runtime.pc, runtime.show_next_instruction())
             };
 
-            println!("Runtime stopped with {:?}", flow);
-
             match flow {
                 ControlFlow::HitBreakpoint => {
                     sender
-                        .send(ProtocolMessageEventBuilder {
-                            body: serde_json::to_value(StoppedEvent {
-                                reason: StoppedEventReason::Breakpoint,
-                                description: Some(format!("pc: {}, next: {:?}", pc, next)),
-                                thread_id: Some(MAIN_THREAD_ID),
-                                preserve_focus_hint: None,
-                                text: None,
-                                all_threads_stopped: None,
-                                hit_breakpoint_ids: None,
-                            })?,
-                            event: ProtocolMessageEventKind::Stopped,
-                        })
+                        .send(Event::Stopped(StoppedEventBody {
+                            reason: StoppedEventReason::Breakpoint,
+                            description: Some(format!("pc: {}, next: {:?}", pc, next)),
+                            thread_id: Some(MAIN_THREAD_ID),
+                            preserve_focus_hint: None,
+                            text: None,
+                            all_threads_stopped: None,
+                            hit_breakpoint_ids: None,
+                        }))
                         .await?;
-                    println!("sender!!");
                 }
                 ControlFlow::Finish => {
                     sender
-                        .send(ProtocolMessageEventBuilder {
-                            body: serde_json::to_value(dap::TerminatedEvent { restart: None })?,
-                            event: ProtocolMessageEventKind::Terminated,
-                        })
+                        .send(Event::Terminated(Some(TerminatedEventBody {
+                            restart: None,
+                        })))
                         .await?;
                     sender
-                        .send(ProtocolMessageEventBuilder {
-                            body: serde_json::to_value(ExitedEvent { exit_code: 0 })?,
-                            event: ProtocolMessageEventKind::Exited,
-                        })
+                        .send(Event::Exited(ExitedEventBody { exit_code: 0 }))
                         .await?;
                 }
                 _ => (),
@@ -461,410 +450,251 @@ async fn dap_handler(
         });
     }
 
-    match req.command.as_str() {
-        "initialize" => {
+    match req {
+        Command::Initialize(_) => {
             tokio::spawn(async move {
-                sender
-                    .send(ProtocolMessageEventBuilder {
-                        body: serde_json::to_value(InitializedEvent {})?,
-                        event: ProtocolMessageEventKind::Initialized,
-                    })
-                    .await?;
+                sender.send(Event::Initialized).await?;
 
                 Ok::<(), anyhow::Error>(())
             });
 
-            Ok(ProtocolMessageResponseBuilder {
-                body: serde_json::to_value(InitializeResponseBody(Capabilities {
-                    supports_configuration_done_request: Some(true),
-                    supports_single_thread_execution_requests: Some(true),
-                    supports_function_breakpoints: Some(false),
-                    supports_conditional_breakpoints: Some(false),
-                    supports_hit_conditional_breakpoints: Some(false),
-                    supports_read_memory_request: Some(true),
-                    supports_memory_event: Some(true),
-                    supports_disassemble_request: Some(true),
-                    supports_breakpoint_locations_request: Some(true),
-                }))?,
-            }
-            .build(&req))
+            Ok(ResponseBody::Initialize(Capabilities {
+                supports_configuration_done_request: None,
+                supports_function_breakpoints: None,
+                supports_conditional_breakpoints: None,
+                supports_hit_conditional_breakpoints: None,
+                supports_evaluate_for_hovers: None,
+                exception_breakpoint_filters: None,
+                supports_step_back: None,
+                supports_set_variable: None,
+                supports_restart_frame: None,
+                supports_goto_targets_request: None,
+                supports_step_in_targets_request: None,
+                supports_completions_request: None,
+                completion_trigger_characters: None,
+                supports_modules_request: None,
+                additional_module_columns: None,
+                supported_checksum_algorithms: None,
+                supports_restart_request: None,
+                supports_exception_options: None,
+                supports_value_formatting_options: None,
+                supports_exception_info_request: None,
+                support_terminate_debuggee: None,
+                support_suspend_debuggee: None,
+                supports_delayed_stack_trace_loading: None,
+                supports_loaded_sources_request: None,
+                supports_log_points: None,
+                supports_terminate_threads_request: None,
+                supports_set_expression: None,
+                supports_terminate_request: None,
+                supports_data_breakpoints: None,
+                supports_read_memory_request: None,
+                supports_write_memory_request: None,
+                supports_disassemble_request: None,
+                supports_cancel_request: None,
+                supports_breakpoint_locations_request: None,
+                supports_clipboard_context: None,
+                supports_stepping_granularity: None,
+                supports_instruction_breakpoints: None,
+                supports_exception_filter_options: None,
+                supports_single_thread_execution_requests: None,
+            }))
         }
-        "launch" => {
-            let arg = serde_json::from_value::<LaunchRequestArguments>(req.arguments.clone())?;
-            let content = std::fs::read_to_string(arg.source_file.unwrap())?;
+        Command::ConfigurationDone => todo!(),
+        Command::Launch(arg) => {
+            #[derive(serde::Deserialize)]
+            #[serde(rename_all = "camelCase")]
+            struct LaunchAdditionalData {
+                source_file: Option<String>,
+            }
+
+            let data =
+                serde_json::from_value::<LaunchAdditionalData>(arg.additional_data.unwrap())?;
+
+            let content = std::fs::read_to_string(data.source_file.unwrap())?;
             let program = compiler::Compiler::compile(content.clone())?;
 
             ctx.0.lock().unwrap().init(1024, program, content);
 
             sender
-                .send(ProtocolMessageEventBuilder {
-                    body: serde_json::to_value(StoppedEvent {
-                        reason: StoppedEventReason::Entry,
-                        description: Some("Entry".to_string()),
-                        thread_id: Some(MAIN_THREAD_ID),
-                        preserve_focus_hint: None,
-                        text: None,
-                        all_threads_stopped: None,
-                        hit_breakpoint_ids: None,
-                    })?,
-                    event: ProtocolMessageEventKind::Stopped,
-                })
+                .send(Event::Stopped(StoppedEventBody {
+                    reason: StoppedEventReason::Entry,
+                    description: Some("Entry".to_string()),
+                    thread_id: Some(MAIN_THREAD_ID),
+                    preserve_focus_hint: None,
+                    text: None,
+                    all_threads_stopped: None,
+                    hit_breakpoint_ids: None,
+                }))
                 .await?;
 
-            Ok(ProtocolMessageResponseBuilder {
-                body: serde_json::to_value(LaunchResponse {})?,
-            }
-            .build(&req))
+            Ok(ResponseBody::Launch)
         }
-        "setExceptionBreakpoints" => Ok(ProtocolMessageResponseBuilder {
-            body: serde_json::to_value(SetExceptionBreakpointsResponse { breakpoints: None })?,
-        }
-        .build(&req)),
-        "threads" => Ok(ProtocolMessageResponseBuilder {
-            body: serde_json::to_value(ThreadsResponse {
-                threads: vec![Thread {
-                    id: MAIN_THREAD_ID,
-                    name: "main".to_string(),
-                }],
-            })?,
-        }
-        .build(&req)),
-        "configurationDone" => Ok(ProtocolMessageResponseBuilder {
-            body: serde_json::to_value(ConfigurationDoneResponse {})?,
-        }
-        .build(&req)),
-        "source" => {
-            let runtime = ctx.0.lock().unwrap();
+        Command::Attach(_) => todo!(),
+        Command::BreakpointLocations(_) => todo!(),
+        Command::Completions(_) => todo!(),
+        Command::Continue(_) => {
+            runtime_start(ctx, sender);
 
-            Ok(ProtocolMessageResponseBuilder {
-                body: serde_json::to_value(SourceResponse {
-                    content: runtime.source_code.clone(),
-                    mime_type: None,
-                })?,
-            }
-            .build(&req))
+            Ok(ResponseBody::Continue(ContinueResponse {
+                all_threads_continued: None,
+            }))
         }
-        "stackTrace" => {
-            let runtime = ctx.0.lock().unwrap();
-            let frames = runtime.get_stack_frames();
-
-            Ok(ProtocolMessageResponseBuilder {
-                body: serde_json::to_value(StackTraceResponse {
-                    total_frames: frames.len(),
-                    stack_frames: frames
-                        .into_iter()
-                        .enumerate()
-                        .map(|(i, frame)| StackFrame {
-                            id: i,
-                            name: format!("<stackframe:#{:x?}>", frame),
-                            source: Some(Source {
-                                name: None,
-                                path: None,
-                                source_reference: None,
-                                presentation_hint: None,
-                                origin: None,
-                                sources: None,
-                                adapter_data: None,
-                                checksums: None,
-                            }),
-                            line: 4,
-                            column: 0,
-                            end_line: None,
-                            end_column: None,
-                            can_restart: Some(true),
-                            module_id: None,
-                            presentation_hint: None,
-                        })
-                        .collect(),
-                })?,
-            }
-            .build(&req))
-        }
-        "scopes" => {
-            let arg = serde_json::from_value::<ScopesArguments>(req.arguments.clone())?;
-            let runtime = ctx.0.lock().unwrap();
-            let values = runtime.get_stack_values(arg.frame_id);
-
-            Ok(ProtocolMessageResponseBuilder {
-                body: serde_json::to_value(ScopesResponse {
-                    scopes: vec![
-                        Scope {
-                            name: "Runtime Values".to_string(),
-                            presentation_hint: None,
-                            variables_reference: 1,
-                            named_variables: Some(3),
-                            indexed_variables: None,
-                            expensive: false,
-                            source: None,
-                            line: None,
-                            column: None,
-                            end_line: None,
-                            end_column: None,
-                        },
-                        Scope {
-                            name: "Locals".to_string(),
-                            presentation_hint: None,
-                            variables_reference: arg.frame_id + 2,
-                            named_variables: Some(values.len()),
-                            indexed_variables: None,
-                            expensive: false,
-                            source: None,
-                            line: None,
-                            column: None,
-                            end_line: None,
-                            end_column: None,
-                        },
-                    ],
-                })?,
-            }
-            .build(&req))
-        }
-        "variables" => {
-            let arg = serde_json::from_value::<VariablesArguments>(req.arguments.clone())?;
-            let runtime = ctx.0.lock().unwrap();
-
-            match arg.variables_reference {
-                1 => Ok(ProtocolMessageResponseBuilder {
-                    body: serde_json::to_value(VariablesResponse {
-                        variables: vec![
-                            Variable {
-                                name: "pc".to_string(),
-                                value: runtime.pc.to_string(),
-                                type_: Some("int".to_string()),
-                                presentation_hint: None,
-                                evaluate_name: None,
-                                variables_reference: 0,
-                                named_variables: None,
-                                indexed_variables: None,
-                                memory_reference: None,
-                            },
-                            Variable {
-                                name: "sp".to_string(),
-                                value: runtime.sp.to_string(),
-                                type_: Some("int".to_string()),
-                                presentation_hint: None,
-                                evaluate_name: None,
-                                variables_reference: 0,
-                                named_variables: None,
-                                indexed_variables: None,
-                                memory_reference: None,
-                            },
-                            Variable {
-                                name: "bp".to_string(),
-                                value: runtime.bp.to_string(),
-                                type_: Some("int".to_string()),
-                                presentation_hint: None,
-                                evaluate_name: None,
-                                variables_reference: 0,
-                                named_variables: None,
-                                indexed_variables: None,
-                                memory_reference: None,
-                            },
-                        ],
-                    })?,
-                }
-                .build(&req)),
-                _ => {
-                    let values = runtime.get_stack_values(arg.variables_reference - 2);
-
-                    Ok(ProtocolMessageResponseBuilder {
-                        body: serde_json::to_value(VariablesResponse {
-                            variables: values
-                                .into_iter()
-                                .enumerate()
-                                .map(|(i, value)| Variable {
-                                    name: format!("#{}", i),
-                                    value: format!("{:?}", value),
-                                    type_: Some("int".to_string()),
-                                    presentation_hint: None,
-                                    evaluate_name: None,
-                                    variables_reference: 0,
-                                    named_variables: None,
-                                    indexed_variables: None,
-                                    memory_reference: None,
-                                })
-                                .collect(),
-                        })?,
-                    }
-                    .build(&req))
-                }
-            }
-        }
-        "next" => {
-            let (control, pc, next) = {
+        Command::DataBreakpointInfo(_) => todo!(),
+        Command::Disassemble(_) => todo!(),
+        Command::Disconnect(_) => todo!(),
+        Command::Evaluate(_) => todo!(),
+        Command::ExceptionInfo(_) => todo!(),
+        Command::Goto(_) => todo!(),
+        Command::GotoTargets(_) => todo!(),
+        Command::LoadedSources => todo!(),
+        Command::Modules(_) => todo!(),
+        Command::Next(_) => {
+            let control = {
                 let mut runtime = ctx.0.lock().unwrap();
                 let control = runtime.step(true)?;
 
-                (control, runtime.pc, runtime.show_next_instruction())
+                control
             };
 
             match control {
                 ControlFlow::Finish => {
                     sender
-                        .send(ProtocolMessageEventBuilder {
-                            body: serde_json::to_value(ExitedEvent { exit_code: 0 })?,
-                            event: ProtocolMessageEventKind::Exited,
-                        })
+                        .send(Event::Exited(ExitedEventBody { exit_code: 0 }))
                         .await?;
 
-                    Ok(ProtocolMessageResponseBuilder {
-                        body: serde_json::to_value(NextResponse {})?,
-                    }
-                    .build(&req))
+                    Ok(ResponseBody::Next)
                 }
                 ControlFlow::HitBreakpoint => {
                     sender
-                        .send(ProtocolMessageEventBuilder {
-                            body: serde_json::to_value(StoppedEvent {
-                                reason: StoppedEventReason::Breakpoint,
-                                description: Some(format!("pc: {}, next: {:?}", pc, next,)),
-                                thread_id: Some(MAIN_THREAD_ID),
-                                preserve_focus_hint: None,
-                                text: None,
-                                all_threads_stopped: None,
-                                hit_breakpoint_ids: None,
-                            })?,
-                            event: ProtocolMessageEventKind::Stopped,
-                        })
+                        .send(Event::Stopped(StoppedEventBody {
+                            reason: StoppedEventReason::Breakpoint,
+                            description: Some("Breakpoint".to_string()),
+                            thread_id: Some(MAIN_THREAD_ID),
+                            preserve_focus_hint: None,
+                            text: None,
+                            all_threads_stopped: None,
+                            hit_breakpoint_ids: None,
+                        }))
                         .await?;
 
-                    Ok(ProtocolMessageResponseBuilder {
-                        body: serde_json::to_value(NextResponse {})?,
-                    }
-                    .build(&req))
+                    Ok(ResponseBody::Next)
                 }
                 ControlFlow::Continue => {
-                    sender
-                        .send(ProtocolMessageEventBuilder {
-                            body: serde_json::to_value(StoppedEvent {
-                                reason: StoppedEventReason::Step,
-                                description: Some(format!("pc: {}, next: {:?}", pc, next)),
-                                thread_id: Some(MAIN_THREAD_ID),
-                                preserve_focus_hint: None,
-                                text: None,
-                                all_threads_stopped: None,
-                                hit_breakpoint_ids: None,
-                            })?,
-                            event: ProtocolMessageEventKind::Stopped,
-                        })
-                        .await?;
-                    sender
-                        .send(ProtocolMessageEventBuilder {
-                            body: serde_json::to_value(OutputEvent {
-                                category: Some(OutputEventKind::Console),
-                                output: format!("pc: {}, next: {:?}\n", pc, next),
-                                group: Some("start".to_string()),
-                                variable_reference: None,
-                                source: None,
-                                line: None,
-                                column: None,
-                                data: None,
-                            })?,
-                            event: ProtocolMessageEventKind::Output,
-                        })
-                        .await?;
-
-                    let stacks = {
+                    let (pc, next, stacks) = {
                         let runtime = ctx.0.lock().unwrap();
-                        let stacks = runtime.show_stacks();
 
-                        stacks
+                        (
+                            runtime.pc,
+                            runtime.show_next_instruction(),
+                            runtime.show_stacks(),
+                        )
                     };
 
                     sender
-                        .send(ProtocolMessageEventBuilder {
-                            body: serde_json::to_value(OutputEvent {
-                                category: Some(OutputEventKind::Console),
-                                output: stacks,
-                                group: None,
-                                variable_reference: None,
-                                source: None,
-                                line: None,
-                                column: None,
-                                data: None,
-                            })?,
-                            event: ProtocolMessageEventKind::Output,
-                        })
+                        .send(Event::Stopped(StoppedEventBody {
+                            reason: StoppedEventReason::Step,
+                            description: Some(format!("pc: {}, next: {:?}", pc, next)),
+                            thread_id: Some(MAIN_THREAD_ID),
+                            preserve_focus_hint: None,
+                            text: None,
+                            all_threads_stopped: None,
+                            hit_breakpoint_ids: None,
+                        }))
                         .await?;
                     sender
-                        .send(ProtocolMessageEventBuilder {
-                            body: serde_json::to_value(OutputEvent {
-                                category: Some(OutputEventKind::Console),
-                                output: "".to_string(),
-                                group: Some("end".to_string()),
-                                variable_reference: None,
-                                source: None,
-                                line: None,
-                                column: None,
-                                data: None,
-                            })?,
-                            event: ProtocolMessageEventKind::Output,
-                        })
+                        .send(Event::Output(OutputEventBody {
+                            category: Some(OutputEventCategory::Console),
+                            output: format!("pc: {}, next: {:?}\n", pc, next),
+                            group: Some(OutputEventGroup::Start),
+                            variables_reference: None,
+                            source: None,
+                            line: None,
+                            column: None,
+                            data: None,
+                        }))
+                        .await?;
+                    sender
+                        .send(Event::Output(OutputEventBody {
+                            category: Some(OutputEventCategory::Console),
+                            output: stacks,
+                            group: None,
+                            variables_reference: None,
+                            source: None,
+                            line: None,
+                            column: None,
+                            data: None,
+                        }))
+                        .await?;
+                    sender
+                        .send(Event::Output(OutputEventBody {
+                            category: Some(OutputEventCategory::Console),
+                            output: "".to_string(),
+                            group: Some(OutputEventGroup::End),
+                            variables_reference: None,
+                            source: None,
+                            line: None,
+                            column: None,
+                            data: None,
+                        }))
                         .await?;
 
-                    Ok(ProtocolMessageResponseBuilder {
-                        body: serde_json::to_value(NextResponse {})?,
-                    }
-                    .build(&req))
+                    Ok(ResponseBody::Next)
                 }
             }
         }
-        "readMemory" => {
-            let arg = serde_json::from_value::<dap::ReadMemoryArguments>(req.arguments.clone())?;
+        Command::Pause(_) => todo!(),
+        Command::ReadMemory(arg) => {
             let runtime = ctx.0.lock().unwrap();
 
-            Ok(ProtocolMessageResponseBuilder {
-                body: serde_json::to_value(ReadMemoryResponse {
-                    address: "0x0".to_string(),
-                    data: Some(
-                        BASE64_STANDARD
-                            .encode(&runtime.memory[0..arg.count.min(runtime.memory.len())]),
-                    ),
-                    unreadable_bytes: None,
-                })?,
-            }
-            .build(&req))
+            Ok(ResponseBody::ReadMemory(ReadMemoryResponse {
+                address: "0x0".to_string(),
+                data: Some(
+                    BASE64_STANDARD
+                        .encode(&runtime.memory[0..(arg.count as usize).min(runtime.memory.len())]),
+                ),
+                unreadable_bytes: None,
+            }))
         }
-        "disassemble" => {
-            let arg = serde_json::from_value::<dap::DisassembleArguments>(req.arguments.clone())?;
+        Command::Restart(_) => todo!(),
+        Command::RestartFrame(_) => todo!(),
+        Command::ReverseContinue(_) => todo!(),
+        Command::Scopes(arg) => {
+            let runtime = ctx.0.lock().unwrap();
+            let values = runtime.get_stack_values(arg.frame_id as usize);
 
-            todo!();
+            Ok(ResponseBody::Scopes(ScopesResponse {
+                scopes: vec![
+                    Scope {
+                        name: "Runtime Values".to_string(),
+                        presentation_hint: None,
+                        variables_reference: 1,
+                        named_variables: Some(3),
+                        indexed_variables: None,
+                        expensive: false,
+                        source: None,
+                        line: None,
+                        column: None,
+                        end_line: None,
+                        end_column: None,
+                    },
+                    Scope {
+                        name: "Locals".to_string(),
+                        presentation_hint: None,
+                        variables_reference: arg.frame_id + 2,
+                        named_variables: Some(values.len() as i64),
+                        indexed_variables: None,
+                        expensive: false,
+                        source: None,
+                        line: None,
+                        column: None,
+                        end_line: None,
+                        end_column: None,
+                    },
+                ],
+            }))
         }
-        "setFunctionBreakpoints" => Ok(ProtocolMessageResponseBuilder {
-            body: serde_json::to_value(dap::SetFunctionBreakpointsResponse {
-                breakpoints: vec![],
-            })?,
-        }
-        .build(&req)),
-        "breakpointLocations" => {
-            let arg =
-                serde_json::from_value::<dap::BreakpointLocationsArguments>(req.arguments.clone())?;
-
-            let mut runtime = ctx.0.lock().unwrap();
-            let position = compiler::Compiler::find_line_and_column(
-                &runtime.source_code,
-                arg.line,
-                arg.column.unwrap_or(0),
-            );
-
-            runtime.set_breakpoints(vec![position]);
-
-            Ok(ProtocolMessageResponseBuilder {
-                body: serde_json::to_value(dap::BreakpointLocationsResponse {
-                    breakpoints: vec![BreakpointLocation {
-                        line: arg.line,
-                        column: arg.column,
-                        end_line: arg.end_line,
-                        end_column: arg.end_column,
-                    }],
-                })?,
-            }
-            .build(&req))
-        }
-        "setBreakpoints" => {
-            let arg =
-                serde_json::from_value::<dap::SetBreakpointsArguments>(req.arguments.clone())?;
-
+        Command::SetBreakpoints(arg) => {
             let std_content = compiler::Compiler::create_input(String::new());
             let std_content_len = std_content.len();
 
@@ -875,63 +705,172 @@ async fn dap_handler(
                 for bp in bps {
                     let position = compiler::Compiler::find_line_and_column(
                         &runtime.source_code,
-                        bp.line,
-                        bp.column.unwrap_or(0),
+                        bp.line as usize,
+                        bp.column.unwrap_or(0) as usize,
                     );
 
                     breakpoints.push(position + std_content_len);
                 }
             }
 
-            runtime.set_breakpoints(breakpoints);
+            runtime.set_breakpoints(breakpoints.clone());
 
-            Ok(ProtocolMessageResponseBuilder {
-                body: serde_json::to_value(dap::SetBreakpointsResponse {
-                    breakpoints: arg
-                        .breakpoints
-                        .unwrap_or(vec![])
-                        .into_iter()
-                        .enumerate()
-                        .map(|(i, bp)| dap::Breakpoint {
-                            id: Some(i),
-                            verified: true,
-                            message: None,
-                            source: None,
-                            line: Some(bp.line),
-                            column: bp.column,
-                            end_line: None,
-                            end_column: None,
-                            instruction_reference: None,
-                            offset: None,
-                            reason: None,
-                        })
-                        .collect(),
-                })?,
-            }
-            .build(&req))
+            Ok(ResponseBody::SetBreakpoints(SetBreakpointsResponse {
+                breakpoints: breakpoints
+                    .into_iter()
+                    .enumerate()
+                    .map(|(i, pos)| Breakpoint {
+                        id: Some(i as i64),
+                        verified: true,
+                        message: Some(format!("{}", pos)),
+                        source: None,
+                        line: None,
+                        column: None,
+                        end_line: None,
+                        end_column: None,
+                        instruction_reference: None,
+                        offset: None,
+                    })
+                    .collect(),
+            }))
         }
-        "continue" => {
-            let resp = ProtocolMessageResponseBuilder {
-                body: serde_json::to_value(dap::ContinueResponse {
-                    all_threads_continued: None,
-                })?,
-            }
-            .build(&req);
+        Command::SetDataBreakpoints(_) => todo!(),
+        Command::SetExceptionBreakpoints(_) => Ok(ResponseBody::SetExceptionBreakpoints(
+            SetExceptionBreakpointsResponse { breakpoints: None },
+        )),
+        Command::SetExpression(_) => todo!(),
+        Command::SetFunctionBreakpoints(_) => todo!(),
+        Command::SetInstructionBreakpoints(_) => todo!(),
+        Command::SetVariable(_) => todo!(),
+        Command::Source(_) => {
+            let runtime = ctx.0.lock().unwrap();
 
-            runtime_start(ctx, sender);
-
-            Ok(resp)
+            Ok(ResponseBody::Source(SourceResponse {
+                content: runtime.source_code.clone(),
+                mime_type: None,
+            }))
         }
-        _ => todo!(),
+        Command::StackTrace(_) => {
+            let runtime = ctx.0.lock().unwrap();
+            let frames = runtime.get_stack_frames();
+
+            Ok(ResponseBody::StackTrace(StackTraceResponse {
+                total_frames: Some(frames.len() as i64),
+                stack_frames: frames
+                    .into_iter()
+                    .enumerate()
+                    .map(|(i, frame)| StackFrame {
+                        id: i as i64,
+                        name: format!("<stackframe:#{:x?}>", frame),
+                        source: Some(Source {
+                            name: None,
+                            path: None,
+                            source_reference: None,
+                            presentation_hint: None,
+                            origin: None,
+                            sources: None,
+                            adapter_data: None,
+                            checksums: None,
+                        }),
+                        line: 4,
+                        column: 0,
+                        end_line: None,
+                        end_column: None,
+                        can_restart: Some(true),
+                        module_id: None,
+                        presentation_hint: None,
+                        instruction_pointer_reference: None,
+                    })
+                    .collect(),
+            }))
+        }
+        Command::StepBack(_) => todo!(),
+        Command::StepIn(_) => todo!(),
+        Command::StepInTargets(_) => todo!(),
+        Command::StepOut(_) => todo!(),
+        Command::Terminate(_) => todo!(),
+        Command::TerminateThreads(_) => todo!(),
+        Command::Threads => Ok(ResponseBody::Threads(ThreadsResponse {
+            threads: vec![Thread {
+                id: MAIN_THREAD_ID,
+                name: "main".to_string(),
+            }],
+        })),
+        Command::Variables(arg) => {
+            let runtime = ctx.0.lock().unwrap();
+
+            match arg.variables_reference {
+                1 => Ok(ResponseBody::Variables(VariablesResponse {
+                    variables: vec![
+                        Variable {
+                            name: "pc".to_string(),
+                            value: runtime.pc.to_string(),
+                            type_field: Some("int".to_string()),
+                            presentation_hint: None,
+                            evaluate_name: None,
+                            variables_reference: 0,
+                            named_variables: None,
+                            indexed_variables: None,
+                            memory_reference: None,
+                        },
+                        Variable {
+                            name: "sp".to_string(),
+                            value: runtime.sp.to_string(),
+                            type_field: Some("int".to_string()),
+                            presentation_hint: None,
+                            evaluate_name: None,
+                            variables_reference: 0,
+                            named_variables: None,
+                            indexed_variables: None,
+                            memory_reference: None,
+                        },
+                        Variable {
+                            name: "bp".to_string(),
+                            value: runtime.bp.to_string(),
+                            type_field: Some("int".to_string()),
+                            presentation_hint: None,
+                            evaluate_name: None,
+                            variables_reference: 0,
+                            named_variables: None,
+                            indexed_variables: None,
+                            memory_reference: None,
+                        },
+                    ],
+                })),
+                _ => {
+                    let values = runtime.get_stack_values(arg.variables_reference as usize - 2);
+
+                    Ok(ResponseBody::Variables(VariablesResponse {
+                        variables: values
+                            .into_iter()
+                            .enumerate()
+                            .map(|(i, value)| Variable {
+                                name: format!("#{}", i),
+                                value: format!("{:?}", value),
+                                type_field: Some("int".to_string()),
+                                presentation_hint: None,
+                                evaluate_name: None,
+                                variables_reference: 0,
+                                named_variables: None,
+                                indexed_variables: None,
+                                memory_reference: None,
+                            })
+                            .collect(),
+                    }))
+                }
+            }
+        }
+        Command::WriteMemory(_) => todo!(),
+        Command::Cancel(_) => todo!(),
     }
 }
 
 impl DapServer<DapContext> for DapImpl {
     fn handle_request(
         ctx: DapContext,
-        sender: Sender<ProtocolMessageEventBuilder>,
-        req: ProtocolMessageRequest,
-    ) -> FutureResult<ProtocolMessageResponse> {
+        sender: Sender<Event>,
+        req: Command,
+    ) -> FutureResult<ResponseBody> {
         Box::pin(dap_handler(ctx, sender, req))
     }
 }
