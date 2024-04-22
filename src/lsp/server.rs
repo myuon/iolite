@@ -27,7 +27,7 @@ pub trait LspServer {
 }
 
 impl<C: Clone, I: LspServer + Sync + Send + Clone + 'static> ServerProcess<C> for Lsp<I> {
-    fn handle(self, ctx: C, stream: TcpStream) -> FutureResult<()> {
+    fn handle(self, _ctx: C, stream: TcpStream) -> FutureResult<()> {
         let (mut reader, mut writer) = tokio::io::split(stream);
 
         tokio::spawn(async move {
@@ -50,25 +50,25 @@ impl<C: Clone, I: LspServer + Sync + Send + Clone + 'static> ServerProcess<C> fo
                     reader.read(&mut content).await.unwrap();
 
                     let content_part = String::from_utf8(content).unwrap();
-                    println!(
-                        "!content={}",
-                        if content_part.len() > 100 {
-                            format!("{}..", content_part[..100].to_string())
-                        } else {
-                            format!("{}", content_part)
-                        },
-                    );
 
                     let req = serde_json::from_str::<RpcMessageRequest>(&content_part).unwrap();
+                    println!(
+                        "> req: method={}, params={}..",
+                        req.method,
+                        req.params.to_string().chars().take(80).collect::<String>()
+                    );
 
                     let resp = I::handle_request(req).await.unwrap();
                     if let Some(resp) = resp {
                         let resp_body = serde_json::to_string(&resp).unwrap();
+                        println!(
+                            "< resp: {}..",
+                            resp.result.to_string().chars().take(80).collect::<String>()
+                        );
+
                         let rcp_resp =
                             format!("Content-Length: {}\r\n\r\n{}", resp_body.len(), resp_body);
                         writer.write(rcp_resp.as_bytes()).await.unwrap();
-
-                        println!("ok; resp={}", resp_body);
                     }
 
                     Ok::<_, Box<dyn Error + Sync + Send>>(())

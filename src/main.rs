@@ -28,6 +28,10 @@ use lsp::{
 };
 
 use lsp_types::{
+    notification::{Initialized, Notification},
+    request::{
+        DocumentDiagnosticRequest, GotoDefinition, Initialize, Request, SemanticTokensFullRequest,
+    },
     DeclarationCapability, Diagnostic, DiagnosticOptions, DiagnosticServerCapabilities,
     FullDocumentDiagnosticReport, InitializeResult, Location, OneOf, Position, Range,
     RelatedFullDocumentDiagnosticReport, SemanticToken, SemanticTokenType, SemanticTokens,
@@ -162,13 +166,12 @@ async fn lsp_handler(req: RpcMessageRequest) -> Result<Option<RpcMessageResponse
     let token_types = vec![SemanticTokenType::KEYWORD, SemanticTokenType::COMMENT];
 
     match req.method.as_str() {
-        "initialize" => {
+        Initialize::METHOD => {
             println!("Initialize! {}", serde_json::to_string(&req.params)?);
 
-            Ok(Some(RpcMessageResponse {
-                jsonrpc: "2.0".to_string(),
-                id: req.id,
-                result: serde_json::to_value(&InitializeResult {
+            Ok(Some(RpcMessageResponse::new(
+                req.id,
+                InitializeResult {
                     capabilities: ServerCapabilities {
                         text_document_sync: Some(TextDocumentSyncCapability::Kind(
                             TextDocumentSyncKind::FULL,
@@ -230,16 +233,15 @@ async fn lsp_handler(req: RpcMessageRequest) -> Result<Option<RpcMessageResponse
                         experimental: None,
                     },
                     server_info: None,
-                })?,
-            }))
+                },
+            )?))
         }
-        "initialized" => {
+        Initialized::METHOD => {
             println!("Initialized!");
 
             Ok(None)
         }
-        // it seems not working
-        "textDocument/semanticTokens/full" => {
+        SemanticTokensFullRequest::METHOD => {
             let params = serde_json::from_value::<SemanticTokensParams>(req.params.clone())?;
             let filepath = params.text_document.uri.path();
             let content = std::fs::read_to_string(filepath)?;
@@ -299,16 +301,15 @@ async fn lsp_handler(req: RpcMessageRequest) -> Result<Option<RpcMessageResponse
                 }
             }
 
-            Ok(Some(RpcMessageResponse {
-                jsonrpc: "2.0".to_string(),
-                id: req.id,
-                result: serde_json::to_value(&SemanticTokens {
+            Ok(Some(RpcMessageResponse::new(
+                req.id,
+                SemanticTokens {
                     result_id: None,
                     data: token_data,
-                })?,
-            }))
+                },
+            )?))
         }
-        "textDocument/diagnostic" => {
+        DocumentDiagnosticRequest::METHOD => {
             let params = serde_json::from_value::<SemanticTokensParams>(req.params.clone())?;
 
             let input = compiler::Compiler::create_input(std::fs::read_to_string(
@@ -317,10 +318,9 @@ async fn lsp_handler(req: RpcMessageRequest) -> Result<Option<RpcMessageResponse
             let parsed = match compiler::Compiler::parse(input.clone()) {
                 Ok(parsed) => parsed,
                 Err(CompilerError::ParseError(err)) => {
-                    return Ok(Some(RpcMessageResponse {
-                        jsonrpc: "2.0".to_string(),
-                        id: req.id,
-                        result: serde_json::to_value(RelatedFullDocumentDiagnosticReport {
+                    return Ok(Some(RpcMessageResponse::new(
+                        req.id,
+                        RelatedFullDocumentDiagnosticReport {
                             related_documents: None,
                             full_document_diagnostic_report: FullDocumentDiagnosticReport {
                                 items: vec![Diagnostic {
@@ -345,8 +345,8 @@ async fn lsp_handler(req: RpcMessageRequest) -> Result<Option<RpcMessageResponse
                                 }],
                                 result_id: None,
                             },
-                        })?,
-                    }));
+                        },
+                    )?));
                 }
                 _ => todo!(),
             };
@@ -354,10 +354,9 @@ async fn lsp_handler(req: RpcMessageRequest) -> Result<Option<RpcMessageResponse
             match compiler::Compiler::typecheck(&mut module, &input) {
                 Ok(_) => {}
                 Err(CompilerError::TypecheckError(err)) => {
-                    return Ok(Some(RpcMessageResponse {
-                        jsonrpc: "2.0".to_string(),
-                        id: req.id,
-                        result: serde_json::to_value(RelatedFullDocumentDiagnosticReport {
+                    return Ok(Some(RpcMessageResponse::new(
+                        req.id,
+                        RelatedFullDocumentDiagnosticReport {
                             related_documents: None,
                             full_document_diagnostic_report: FullDocumentDiagnosticReport {
                                 items: vec![Diagnostic {
@@ -382,30 +381,24 @@ async fn lsp_handler(req: RpcMessageRequest) -> Result<Option<RpcMessageResponse
                                 }],
                                 result_id: None,
                             },
-                        })?,
-                    }));
+                        },
+                    )?));
                 }
                 _ => todo!(),
             };
 
-            Ok(Some(RpcMessageResponse {
-                jsonrpc: "2.0".to_string(),
-                id: req.id,
-                result: serde_json::to_value(RelatedFullDocumentDiagnosticReport {
+            Ok(Some(RpcMessageResponse::new(
+                req.id,
+                RelatedFullDocumentDiagnosticReport {
                     related_documents: None,
                     full_document_diagnostic_report: FullDocumentDiagnosticReport {
                         items: vec![],
                         result_id: None,
                     },
-                })?,
-            }))
+                },
+            )?))
         }
-        "textDocument/declaration" => {
-            println!("Declaration! {}", serde_json::to_string(&req.params)?);
-
-            Ok(None)
-        }
-        "textDocument/definition" => {
+        GotoDefinition::METHOD => {
             let params = serde_json::from_value::<TextDocumentPositionParams>(req.params.clone())?;
             let input = std::fs::read_to_string(params.text_document.uri.path())?;
             let parsed = compiler::Compiler::parse(input.clone())?;
@@ -424,10 +417,9 @@ async fn lsp_handler(req: RpcMessageRequest) -> Result<Option<RpcMessageResponse
                 let end_position =
                     compiler::Compiler::find_position(&input, def_position.end.unwrap());
 
-                return Ok(Some(RpcMessageResponse {
-                    jsonrpc: "2.0".to_string(),
-                    id: req.id,
-                    result: serde_json::to_value(Location {
+                return Ok(Some(RpcMessageResponse::new(
+                    req.id,
+                    Location {
                         uri: params.text_document.uri,
                         range: Range {
                             start: Position {
@@ -439,8 +431,8 @@ async fn lsp_handler(req: RpcMessageRequest) -> Result<Option<RpcMessageResponse
                                 character: end_position.1 as u32,
                             },
                         },
-                    })?,
-                }));
+                    },
+                )?));
             }
 
             Ok(None)

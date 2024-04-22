@@ -114,7 +114,7 @@ impl<C: Sync + Send + Clone + 'static, I: DapServer<C> + Sync + Send + Clone + '
 
                     let req = serde_json::from_str::<Request>(&content_part)?;
                     println!(
-                        "> received: {}..",
+                        "> req: {}..",
                         content_part.chars().take(80).collect::<String>()
                     );
 
@@ -123,7 +123,7 @@ impl<C: Sync + Send + Clone + 'static, I: DapServer<C> + Sync + Send + Clone + '
                             .await?;
 
                     println!(
-                        "< respond: {}..",
+                        "< resp: {}..",
                         serde_json::to_string(&resp)?
                             .chars()
                             .take(80)
