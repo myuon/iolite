@@ -4,6 +4,7 @@ use std::{
 };
 
 use ::dap::{
+    base_message::Sendable,
     events::{Event, ExitedEventBody, OutputEventBody, StoppedEventBody, TerminatedEventBody},
     requests::Command,
     responses::{
@@ -20,7 +21,7 @@ use anyhow::Result;
 use base64::prelude::*;
 use clap::{Parser, Subcommand};
 use compiler::{lexer::Lexeme, runtime::Runtime, CompilerError};
-use dap::server::{Dap, DapServer};
+use dap::server::{Dap, DapServer, SimpleSender};
 use lsp::{
     server::{Lsp, LspServer},
     Diagnostic, DiagnosticOptions, DocumentDiagnosticReportKind, FullDocumentDiagnosticReport,
@@ -403,10 +404,14 @@ struct DapImpl;
 #[derive(Clone)]
 struct DapContext(Arc<Mutex<Runtime>>);
 
-async fn dap_handler(ctx: DapContext, sender: Sender<Event>, req: Command) -> Result<ResponseBody> {
+async fn dap_handler(
+    ctx: DapContext,
+    sender: SimpleSender<Sendable, Event>,
+    req: Command,
+) -> Result<ResponseBody> {
     const MAIN_THREAD_ID: i64 = 1;
 
-    fn runtime_start(ctx: DapContext, sender: Sender<Event>) {
+    fn runtime_start(ctx: DapContext, sender: SimpleSender<Sendable, Event>) {
         tokio::spawn(async move {
             let (flow, pc, next) = {
                 let mut runtime = ctx.0.lock().unwrap();
@@ -511,10 +516,21 @@ async fn dap_handler(ctx: DapContext, sender: Sender<Event>, req: Command) -> Re
             let data =
                 serde_json::from_value::<LaunchAdditionalData>(arg.additional_data.unwrap())?;
 
-            let content = std::fs::read_to_string(data.source_file.unwrap())?;
+            let source_file = data.source_file.unwrap();
+            let content = std::fs::read_to_string(&source_file)?;
             let program = compiler::Compiler::compile(content.clone())?;
 
-            ctx.0.lock().unwrap().init(1024, program, content);
+            ctx.0.lock().unwrap().init(
+                1024,
+                program,
+                std::path::Path::new(&source_file)
+                    .file_name()
+                    .unwrap()
+                    .to_str()
+                    .unwrap()
+                    .to_string(),
+                content,
+            );
 
             sender
                 .send(Event::Stopped(StoppedEventBody {
@@ -763,7 +779,7 @@ async fn dap_handler(ctx: DapContext, sender: Sender<Event>, req: Command) -> Re
                         id: i as i64,
                         name: format!("<stackframe:#{:x?}>", frame),
                         source: Some(Source {
-                            name: None,
+                            name: Some(runtime.source_file.clone()),
                             path: None,
                             source_reference: None,
                             presentation_hint: None,
@@ -868,7 +884,7 @@ async fn dap_handler(ctx: DapContext, sender: Sender<Event>, req: Command) -> Re
 impl DapServer<DapContext> for DapImpl {
     fn handle_request(
         ctx: DapContext,
-        sender: Sender<Event>,
+        sender: SimpleSender<Sendable, Event>,
         req: Command,
     ) -> FutureResult<ResponseBody> {
         Box::pin(dap_handler(ctx, sender, req))

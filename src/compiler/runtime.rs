@@ -23,6 +23,7 @@ pub struct Runtime {
     pub(crate) bp: usize,
     pub(crate) pc: usize,
     pub(crate) program: Vec<u8>,
+    pub(crate) source_file: String,
     pub(crate) source_code: String,
     pub(crate) breakpoints: Vec<usize>,
     prev_source_map: (usize, usize),
@@ -40,18 +41,26 @@ impl Runtime {
             bp,
             pc: 0,
             program,
+            source_file: String::new(),
             source_code: String::new(),
             breakpoints: vec![],
             prev_source_map: (0, 0),
         }
     }
 
-    pub fn init(&mut self, size: usize, program: Vec<u8>, source_code: String) {
+    pub fn init(
+        &mut self,
+        size: usize,
+        program: Vec<u8>,
+        source_file: String,
+        source_code: String,
+    ) {
         self.memory = vec![0; size];
         self.bp = self.memory.len();
         self.sp = self.bp;
         self.pc = 0;
         self.program = program;
+        self.source_file = source_file;
         self.source_code = source_code;
         self.breakpoints = vec![];
         self.prev_source_map = (0, 0);
