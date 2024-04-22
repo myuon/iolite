@@ -536,7 +536,9 @@ impl IrCodeGenerator {
 
 #[cfg(test)]
 mod tests {
-    use crate::compiler::{lexer::Lexer, parser::Parser, typechecker::Typechecker};
+    use pretty_assertions::assert_eq;
+
+    use crate::compiler::{ast::Span, lexer::Lexer, parser::Parser, typechecker::Typechecker};
 
     use super::*;
 
@@ -598,13 +600,22 @@ mod tests {
             (
                 "let a = 1; let b = 2; let c = a + b;",
                 IrTerm::Items(vec![
+                    IrTerm::SourceMap {
+                        span: Span::unknown(),
+                    },
                     IrTerm::Let {
                         name: "a".to_string(),
                         value: Box::new(IrTerm::Int(1)),
                     },
+                    IrTerm::SourceMap {
+                        span: Span::unknown(),
+                    },
                     IrTerm::Let {
                         name: "b".to_string(),
                         value: Box::new(IrTerm::Int(2)),
+                    },
+                    IrTerm::SourceMap {
+                        span: Span::unknown(),
                     },
                     IrTerm::Let {
                         name: "c".to_string(),
@@ -628,9 +639,15 @@ mod tests {
             (
                 "let a = 1; a = 2;",
                 IrTerm::Items(vec![
+                    IrTerm::SourceMap {
+                        span: Span::unknown(),
+                    },
                     IrTerm::Let {
                         name: "a".to_string(),
                         value: Box::new(IrTerm::Int(1)),
+                    },
+                    IrTerm::SourceMap {
+                        span: Span::unknown(),
                     },
                     IrTerm::Store {
                         size: Value::size() as usize,
@@ -643,14 +660,26 @@ mod tests {
             (
                 "let a = 2; { let a = 3; a = 4; }; a",
                 IrTerm::Items(vec![
+                    IrTerm::SourceMap {
+                        span: Span::unknown(),
+                    },
                     IrTerm::Let {
                         name: "a".to_string(),
                         value: Box::new(IrTerm::Int(2)),
                     },
+                    IrTerm::SourceMap {
+                        span: Span::unknown(),
+                    },
                     IrTerm::Items(vec![
+                        IrTerm::SourceMap {
+                            span: Span::unknown(),
+                        },
                         IrTerm::Let {
                             name: "a".to_string(),
                             value: Box::new(IrTerm::Int(3)),
+                        },
+                        IrTerm::SourceMap {
+                            span: Span::unknown(),
                         },
                         IrTerm::Store {
                             size: Value::size() as usize,

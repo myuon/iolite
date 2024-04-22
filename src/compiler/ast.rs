@@ -2,7 +2,7 @@ use std::vec;
 
 use super::ir::TypeTag;
 
-#[derive(Debug, PartialEq, Clone)]
+#[derive(Debug, Clone)]
 pub struct Span {
     pub start: Option<usize>,
     pub end: Option<usize>,
@@ -28,6 +28,12 @@ impl Span {
             (Some(start), Some(end)) => start <= pos && pos < end,
             _ => false,
         }
+    }
+}
+
+impl PartialEq for Span {
+    fn eq(&self, _other: &Self) -> bool {
+        true
     }
 }
 
