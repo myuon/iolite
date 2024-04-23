@@ -32,17 +32,17 @@ use lsp::{
 };
 
 use lsp_types::{
-    notification::{DidOpenTextDocument, Initialized, Notification},
+    notification::{DidOpenTextDocument, Initialized, Notification, PublishDiagnostics},
     request::{
         DocumentDiagnosticRequest, GotoDefinition, Initialize, Request, SemanticTokensFullRequest,
     },
     DeclarationCapability, Diagnostic, DiagnosticOptions, DiagnosticServerCapabilities,
     DiagnosticSeverity, DidOpenTextDocumentParams, FullDocumentDiagnosticReport, InitializeResult,
-    Location, OneOf, Position, Range, RelatedFullDocumentDiagnosticReport, SemanticToken,
-    SemanticTokenType, SemanticTokens, SemanticTokensFullOptions, SemanticTokensLegend,
-    SemanticTokensOptions, SemanticTokensParams, SemanticTokensServerCapabilities,
-    ServerCapabilities, TextDocumentPositionParams, TextDocumentSyncCapability,
-    TextDocumentSyncKind, WorkDoneProgressOptions,
+    Location, OneOf, Position, PublishDiagnosticsParams, Range,
+    RelatedFullDocumentDiagnosticReport, SemanticToken, SemanticTokenType, SemanticTokens,
+    SemanticTokensFullOptions, SemanticTokensLegend, SemanticTokensOptions, SemanticTokensParams,
+    SemanticTokensServerCapabilities, ServerCapabilities, TextDocumentPositionParams,
+    TextDocumentSyncCapability, TextDocumentSyncKind, WorkDoneProgressOptions,
 };
 use sender::SimpleSender;
 use server::{FutureResult, ServerProcess};
@@ -322,13 +322,12 @@ async fn lsp_handler(
             )?);
             let parsed = match compiler::Compiler::parse_decls(input.clone()) {
                 Ok(parsed) => parsed,
-                Err(CompilerError::ParseError(err)) => {
-                    return Ok(Some(RpcMessageResponse::new(
-                        req.id,
-                        RelatedFullDocumentDiagnosticReport {
-                            related_documents: None,
-                            full_document_diagnostic_report: FullDocumentDiagnosticReport {
-                                items: vec![Diagnostic {
+                Err(CompilerError::LexerError(err)) => {
+                    sender
+                        .send(NotificationMessage::new::<PublishDiagnostics>(
+                            PublishDiagnosticsParams {
+                                uri: params.text_document.uri,
+                                diagnostics: vec![Diagnostic {
                                     range: Range {
                                         start: Position {
                                             line: 0,
@@ -348,10 +347,44 @@ async fn lsp_handler(
                                     tags: None,
                                     data: None,
                                 }],
-                                result_id: None,
+                                version: None,
                             },
-                        },
-                    )?));
+                        )?)
+                        .await?;
+
+                    return Ok(None);
+                }
+                Err(CompilerError::ParseError(err)) => {
+                    sender
+                        .send(NotificationMessage::new::<PublishDiagnostics>(
+                            PublishDiagnosticsParams {
+                                uri: params.text_document.uri,
+                                diagnostics: vec![Diagnostic {
+                                    range: Range {
+                                        start: Position {
+                                            line: 0,
+                                            character: 0,
+                                        },
+                                        end: Position {
+                                            line: 1,
+                                            character: 1,
+                                        },
+                                    },
+                                    message: format!("{:?}", err),
+                                    severity: Some(DiagnosticSeverity::ERROR),
+                                    code: None,
+                                    code_description: None,
+                                    source: None,
+                                    related_information: None,
+                                    tags: None,
+                                    data: None,
+                                }],
+                                version: None,
+                            },
+                        )?)
+                        .await?;
+
+                    return Ok(None);
                 }
                 _ => todo!(),
             };
@@ -439,17 +472,6 @@ async fn lsp_handler(
                     },
                 )?));
             }
-
-            Ok(None)
-        }
-        DidOpenTextDocument::METHOD => {
-            let params = serde_json::from_value::<DidOpenTextDocumentParams>(req.params.clone())?;
-            println!("{:?}", params);
-
-            // let input = std::fs::read_to_string(params.text_document.uri.path())?;
-            // let parsed = compiler::Compiler::parse_decls(input.clone())?;
-            // let mut module = compiler::Compiler::create_module(parsed);
-            // let types = compiler::Compiler::typecheck(&mut module, &input)?;
 
             Ok(None)
         }

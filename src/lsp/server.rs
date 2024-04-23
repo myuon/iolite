@@ -1,5 +1,6 @@
 use std::{error::Error, sync::Arc};
 
+use anyhow::anyhow;
 use tokio::{
     io::{AsyncReadExt, AsyncWriteExt},
     net::TcpStream,
@@ -49,10 +50,18 @@ impl<C: Clone, I: LspServer + Sync + Send + Clone + 'static> ServerProcess<C> fo
 
             let simple_sender = SimpleSender::new(
                 sender.clone(),
-                Arc::new(|notification| {
+                Arc::new(|notification: NotificationMessage| {
                     let str = serde_json::to_string(&notification).unwrap();
 
-                    println!("+ notify: {}..", str.chars().take(80).collect::<String>());
+                    println!(
+                        "+ notify: method={} params={}..",
+                        notification.method,
+                        serde_json::to_string(&notification.params)
+                            .unwrap()
+                            .chars()
+                            .take(80)
+                            .collect::<String>()
+                    );
 
                     str
                 }),
@@ -64,28 +73,26 @@ impl<C: Clone, I: LspServer + Sync + Send + Clone + 'static> ServerProcess<C> fo
                     let length = headers
                         .into_iter()
                         .find(|(key, _)| key == "Content-Length")
-                        .ok_or("Content-Length is not found in headers".to_string())
-                        .unwrap()
+                        .ok_or(anyhow!("Content-Length is not found in headers"))?
                         .1
                         .parse::<usize>()
-                        .map_err(|err| format!("Cannot parse content-length: {}", err))
-                        .unwrap();
+                        .map_err(|err| anyhow!("Cannot parse content-length: {}", err))?;
 
                     let mut content = vec![0; length];
-                    reader.read(&mut content).await.unwrap();
+                    reader.read(&mut content).await?;
 
-                    let content_part = String::from_utf8(content).unwrap();
+                    let content_part = String::from_utf8(content)?;
 
-                    let req = serde_json::from_str::<RpcMessageRequest>(&content_part).unwrap();
+                    let req = serde_json::from_str::<RpcMessageRequest>(&content_part)?;
                     println!(
                         "> req: method={}, params={}..",
                         req.method,
                         req.params.to_string().chars().take(80).collect::<String>()
                     );
 
-                    let resp = I::handle_request(req, simple_sender.clone()).await.unwrap();
+                    let resp = I::handle_request(req, simple_sender.clone()).await?;
                     if let Some(resp) = resp {
-                        let resp_body = serde_json::to_string(&resp).unwrap();
+                        let resp_body = serde_json::to_string(&resp)?;
                         println!(
                             "< resp: {}..",
                             resp.result.to_string().chars().take(80).collect::<String>()
@@ -94,7 +101,7 @@ impl<C: Clone, I: LspServer + Sync + Send + Clone + 'static> ServerProcess<C> fo
                         sender.send(resp_body).await?;
                     }
 
-                    Ok::<_, Box<dyn Error + Sync + Send>>(())
+                    Ok::<_, anyhow::Error>(())
                 } {
                     eprintln!("failed to process stream; err = {:?}", err);
                     break;

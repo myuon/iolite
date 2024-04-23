@@ -42,7 +42,7 @@ pub struct NotificationMessage {
 }
 
 impl NotificationMessage {
-    pub fn new<T: Serialize + Notification>(params: T) -> Result<Self> {
+    pub fn new<T: Notification>(params: <T as Notification>::Params) -> Result<Self> {
         Ok(Self {
             jsonrpc: "2.0".to_string(),
             method: T::METHOD.to_string(),
