@@ -21,8 +21,12 @@ use anyhow::Result;
 use base64::prelude::*;
 use clap::{Parser, Subcommand};
 use compiler::{
-    ast::{AstWalker, AST_WALKER_FIELD, AST_WALKER_FUNCTION, AST_WALKER_METHOD, AST_WALKER_TYPE},
+    ast::{
+        AstWalker, Span, AST_WALKER_FIELD, AST_WALKER_FUNCTION, AST_WALKER_METHOD, AST_WALKER_TYPE,
+    },
+    parser::ParseError,
     runtime::Runtime,
+    typechecker::TypecheckerError,
     CompilerError,
 };
 use dap::server::{Dap, DapServer};
@@ -32,21 +36,22 @@ use lsp::{
 };
 
 use lsp_types::{
-    notification::{DidOpenTextDocument, Initialized, Notification, PublishDiagnostics},
+    notification::{
+        DidChangeTextDocument, DidSaveTextDocument, Initialized, Notification, PublishDiagnostics,
+    },
     request::{
         DocumentDiagnosticRequest, GotoDefinition, Initialize, Request, SemanticTokensFullRequest,
     },
     DeclarationCapability, Diagnostic, DiagnosticOptions, DiagnosticServerCapabilities,
-    DiagnosticSeverity, DidOpenTextDocumentParams, FullDocumentDiagnosticReport, InitializeResult,
-    Location, OneOf, Position, PublishDiagnosticsParams, Range,
-    RelatedFullDocumentDiagnosticReport, SemanticToken, SemanticTokenType, SemanticTokens,
-    SemanticTokensFullOptions, SemanticTokensLegend, SemanticTokensOptions, SemanticTokensParams,
-    SemanticTokensServerCapabilities, ServerCapabilities, TextDocumentPositionParams,
-    TextDocumentSyncCapability, TextDocumentSyncKind, WorkDoneProgressOptions,
+    DiagnosticSeverity, FullDocumentDiagnosticReport, InitializeResult, Location, OneOf, Position,
+    PublishDiagnosticsParams, Range, RelatedFullDocumentDiagnosticReport, SemanticToken,
+    SemanticTokenType, SemanticTokens, SemanticTokensFullOptions, SemanticTokensLegend,
+    SemanticTokensOptions, SemanticTokensParams, SemanticTokensServerCapabilities,
+    ServerCapabilities, TextDocumentPositionParams, TextDocumentSyncCapability,
+    TextDocumentSyncKind, WorkDoneProgressOptions,
 };
 use sender::SimpleSender;
 use server::{FutureResult, ServerProcess};
-use tokio::sync::mpsc::Sender;
 
 use crate::compiler::{ast::Module, runtime::ControlFlow, vm::Instruction};
 
@@ -262,7 +267,9 @@ async fn lsp_handler(
             let filepath = params.text_document.uri.path();
             let content = std::fs::read_to_string(filepath)?;
 
-            let module = compiler::Compiler::parse(content.clone())?;
+            let Ok(module) = compiler::Compiler::parse(content.clone()) else {
+                return Ok(None);
+            };
             let mut walker = AstWalker::new();
             walker.module(&module);
 
@@ -314,115 +321,91 @@ async fn lsp_handler(
                 },
             )?))
         }
-        DocumentDiagnosticRequest::METHOD => {
+        DocumentDiagnosticRequest::METHOD | DidSaveTextDocument::METHOD => {
             let params = serde_json::from_value::<SemanticTokensParams>(req.params.clone())?;
 
             let input = compiler::Compiler::create_input(std::fs::read_to_string(
                 params.text_document.uri.path(),
             )?);
-            let parsed = match compiler::Compiler::parse_decls(input.clone()) {
-                Ok(parsed) => parsed,
-                Err(CompilerError::LexerError(err)) => {
+            match compiler::Compiler::parse_decls(input.clone())
+                .map(|parsed| compiler::Compiler::create_module(parsed))
+                .and_then(|mut module| compiler::Compiler::typecheck(&mut module, &input))
+            {
+                Ok(_) => {
                     sender
                         .send(NotificationMessage::new::<PublishDiagnostics>(
                             PublishDiagnosticsParams {
                                 uri: params.text_document.uri,
-                                diagnostics: vec![Diagnostic {
-                                    range: Range {
-                                        start: Position {
-                                            line: 0,
-                                            character: 0,
-                                        },
-                                        end: Position {
-                                            line: 1,
-                                            character: 1,
-                                        },
-                                    },
-                                    message: format!("{:?}", err),
-                                    severity: Some(DiagnosticSeverity::ERROR),
-                                    code: None,
-                                    code_description: None,
-                                    source: None,
-                                    related_information: None,
-                                    tags: None,
-                                    data: None,
-                                }],
+                                diagnostics: vec![],
                                 version: None,
                             },
                         )?)
                         .await?;
-
-                    return Ok(None);
                 }
-                Err(CompilerError::ParseError(err)) => {
-                    sender
-                        .send(NotificationMessage::new::<PublishDiagnostics>(
-                            PublishDiagnosticsParams {
-                                uri: params.text_document.uri,
-                                diagnostics: vec![Diagnostic {
-                                    range: Range {
-                                        start: Position {
-                                            line: 0,
-                                            character: 0,
-                                        },
-                                        end: Position {
-                                            line: 1,
-                                            character: 1,
-                                        },
-                                    },
-                                    message: format!("{:?}", err),
-                                    severity: Some(DiagnosticSeverity::ERROR),
-                                    code: None,
-                                    code_description: None,
-                                    source: None,
-                                    related_information: None,
-                                    tags: None,
-                                    data: None,
-                                }],
-                                version: None,
-                            },
-                        )?)
-                        .await?;
-
-                    return Ok(None);
-                }
-                _ => todo!(),
-            };
-            let mut module = compiler::Compiler::create_module(parsed);
-            match compiler::Compiler::typecheck(&mut module, &input) {
-                Ok(_) => {}
-                Err(CompilerError::TypecheckError(err)) => {
-                    return Ok(Some(RpcMessageResponse::new(
-                        req.id,
-                        RelatedFullDocumentDiagnosticReport {
-                            related_documents: None,
-                            full_document_diagnostic_report: FullDocumentDiagnosticReport {
-                                items: vec![Diagnostic {
-                                    range: Range {
-                                        start: Position {
-                                            line: 0,
-                                            character: 0,
-                                        },
-                                        end: Position {
-                                            line: 2,
-                                            character: 0,
-                                        },
-                                    },
-                                    message: format!("{:?}", err),
-                                    severity: Some(DiagnosticSeverity::ERROR),
-                                    code: None,
-                                    code_description: None,
-                                    source: None,
-                                    related_information: None,
-                                    tags: None,
-                                    data: None,
-                                }],
-                                result_id: None,
-                            },
+                Err(err) => {
+                    let std_len = compiler::Compiler::create_input(String::new()).len();
+                    let message = format!("{:?}", err);
+                    let span = match err {
+                        CompilerError::LexerError(_) => Span::unknown(),
+                        CompilerError::ParseError(err) => match err {
+                            ParseError::UnexpectedEos => Span::unknown(),
+                            ParseError::UnexpectedToken { got, .. } => got.span,
                         },
-                    )?));
+                        CompilerError::TypecheckError(err) => match err {
+                            TypecheckerError::IdentNotFound(ident) => ident.span,
+                            TypecheckerError::TypeMismatch { span, .. } => span,
+                            TypecheckerError::NumericTypeExpected(_) => Span::unknown(),
+                            TypecheckerError::ArgumentCountMismatch(_, _) => Span::unknown(),
+                            TypecheckerError::FunctionTypeExpected(_) => Span::unknown(),
+                            TypecheckerError::IndexNotSupported(_) => Span::unknown(),
+                            TypecheckerError::ConversionNotSupported(_, ty) => ty.span,
+                        },
+                        _ => todo!(),
+                    };
+                    let start = {
+                        match span.start {
+                            Some(s) => compiler::Compiler::find_position(&input, s - std_len),
+                            None => (0, 0),
+                        }
+                    };
+                    let end = {
+                        match span.end {
+                            Some(e) => compiler::Compiler::find_position(&input, e - std_len),
+                            None => (0, 1),
+                        }
+                    };
+
+                    sender
+                        .send(NotificationMessage::new::<PublishDiagnostics>(
+                            PublishDiagnosticsParams {
+                                uri: params.text_document.uri,
+                                diagnostics: vec![Diagnostic {
+                                    range: Range {
+                                        start: Position {
+                                            line: start.0 as u32,
+                                            character: start.1 as u32,
+                                        },
+                                        end: Position {
+                                            line: end.0 as u32,
+                                            character: end.1 as u32,
+                                        },
+                                    },
+                                    message,
+                                    severity: Some(DiagnosticSeverity::ERROR),
+                                    code: None,
+                                    code_description: None,
+                                    source: None,
+                                    related_information: None,
+                                    tags: None,
+                                    data: None,
+                                }],
+                                version: None,
+                            },
+                        )?)
+                        .await?;
+
+                    return Ok(None);
                 }
-                _ => todo!(),
             };
 
             Ok(Some(RpcMessageResponse::new(
