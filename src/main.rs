@@ -25,25 +25,28 @@ use compiler::{
     runtime::Runtime,
     CompilerError,
 };
-use dap::server::{Dap, DapServer, SimpleSender};
+use dap::server::{Dap, DapServer};
 use lsp::{
     server::{Lsp, LspServer},
-    RpcMessageRequest, RpcMessageResponse,
+    NotificationMessage, RpcMessageRequest, RpcMessageResponse,
 };
 
 use lsp_types::{
-    notification::{Initialized, Notification},
+    notification::{DidOpenTextDocument, Initialized, Notification},
     request::{
         DocumentDiagnosticRequest, GotoDefinition, Initialize, Request, SemanticTokensFullRequest,
     },
     DeclarationCapability, Diagnostic, DiagnosticOptions, DiagnosticServerCapabilities,
-    DiagnosticSeverity, FullDocumentDiagnosticReport, InitializeResult, Location, OneOf, Position,
-    Range, RelatedFullDocumentDiagnosticReport, SemanticToken, SemanticTokenType, SemanticTokens,
-    SemanticTokensFullOptions, SemanticTokensLegend, SemanticTokensOptions, SemanticTokensParams,
-    SemanticTokensServerCapabilities, ServerCapabilities, TextDocumentPositionParams,
-    TextDocumentSyncCapability, TextDocumentSyncKind, WorkDoneProgressOptions,
+    DiagnosticSeverity, DidOpenTextDocumentParams, FullDocumentDiagnosticReport, InitializeResult,
+    Location, OneOf, Position, Range, RelatedFullDocumentDiagnosticReport, SemanticToken,
+    SemanticTokenType, SemanticTokens, SemanticTokensFullOptions, SemanticTokensLegend,
+    SemanticTokensOptions, SemanticTokensParams, SemanticTokensServerCapabilities,
+    ServerCapabilities, TextDocumentPositionParams, TextDocumentSyncCapability,
+    TextDocumentSyncKind, WorkDoneProgressOptions,
 };
+use sender::SimpleSender;
 use server::{FutureResult, ServerProcess};
+use tokio::sync::mpsc::Sender;
 
 use crate::compiler::{ast::Module, runtime::ControlFlow, vm::Instruction};
 
@@ -51,6 +54,7 @@ mod compiler;
 mod dap;
 mod lsp;
 mod net;
+mod sender;
 mod server;
 
 #[derive(Parser, Debug)]
@@ -166,7 +170,10 @@ async fn main() -> Result<()> {
 #[derive(Clone)]
 struct LspImpl;
 
-async fn lsp_handler(req: RpcMessageRequest) -> Result<Option<RpcMessageResponse>> {
+async fn lsp_handler(
+    req: RpcMessageRequest,
+    sender: SimpleSender<String, NotificationMessage>,
+) -> Result<Option<RpcMessageResponse>> {
     let token_types = vec![
         SemanticTokenType::FUNCTION,
         SemanticTokenType::PROPERTY,
@@ -435,13 +442,27 @@ async fn lsp_handler(req: RpcMessageRequest) -> Result<Option<RpcMessageResponse
 
             Ok(None)
         }
+        DidOpenTextDocument::METHOD => {
+            let params = serde_json::from_value::<DidOpenTextDocumentParams>(req.params.clone())?;
+            println!("{:?}", params);
+
+            // let input = std::fs::read_to_string(params.text_document.uri.path())?;
+            // let parsed = compiler::Compiler::parse_decls(input.clone())?;
+            // let mut module = compiler::Compiler::create_module(parsed);
+            // let types = compiler::Compiler::typecheck(&mut module, &input)?;
+
+            Ok(None)
+        }
         _ => Ok(None),
     }
 }
 
 impl LspServer for LspImpl {
-    fn handle_request(req: RpcMessageRequest) -> FutureResult<Option<RpcMessageResponse>> {
-        Box::pin(lsp_handler(req))
+    fn handle_request(
+        req: RpcMessageRequest,
+        sender: SimpleSender<String, NotificationMessage>,
+    ) -> FutureResult<Option<RpcMessageResponse>> {
+        Box::pin(lsp_handler(req, sender))
     }
 }
 

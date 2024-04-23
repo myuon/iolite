@@ -1,17 +1,19 @@
-use std::error::Error;
+use std::{error::Error, sync::Arc};
 
 use tokio::{
     io::{AsyncReadExt, AsyncWriteExt},
     net::TcpStream,
+    sync::mpsc::Sender,
 };
 
 use crate::{
     lsp::RpcMessageRequest,
     net::read_headers,
+    sender::SimpleSender,
     server::{FutureResult, ServerProcess},
 };
 
-use super::RpcMessageResponse;
+use super::{NotificationMessage, RpcMessageResponse};
 
 #[derive(Clone)]
 pub struct Lsp<I>(I);
@@ -23,7 +25,10 @@ impl<I> Lsp<I> {
 }
 
 pub trait LspServer {
-    fn handle_request(req: RpcMessageRequest) -> FutureResult<Option<RpcMessageResponse>>;
+    fn handle_request(
+        req: RpcMessageRequest,
+        sender: SimpleSender<String, NotificationMessage>,
+    ) -> FutureResult<Option<RpcMessageResponse>>;
 }
 
 impl<C: Clone, I: LspServer + Sync + Send + Clone + 'static> ServerProcess<C> for Lsp<I> {
@@ -31,7 +36,27 @@ impl<C: Clone, I: LspServer + Sync + Send + Clone + 'static> ServerProcess<C> fo
         let (mut reader, mut writer) = tokio::io::split(stream);
 
         tokio::spawn(async move {
-            println!("tokio:spawn");
+            let (sender, mut receiver) = tokio::sync::mpsc::channel::<String>(100);
+            tokio::spawn(async move {
+                while let Some(body) = receiver.recv().await {
+                    let rcp_event = format!("Content-Length: {}\r\n\r\n{}", body.len(), body);
+
+                    writer.write(rcp_event.as_bytes()).await?;
+                }
+
+                Ok::<_, anyhow::Error>(())
+            });
+
+            let simple_sender = SimpleSender::new(
+                sender.clone(),
+                Arc::new(|notification| {
+                    let str = serde_json::to_string(&notification).unwrap();
+
+                    println!("+ notify: {}..", str.chars().take(80).collect::<String>());
+
+                    str
+                }),
+            );
 
             loop {
                 if let Err(err) = {
@@ -58,7 +83,7 @@ impl<C: Clone, I: LspServer + Sync + Send + Clone + 'static> ServerProcess<C> fo
                         req.params.to_string().chars().take(80).collect::<String>()
                     );
 
-                    let resp = I::handle_request(req).await.unwrap();
+                    let resp = I::handle_request(req, simple_sender.clone()).await.unwrap();
                     if let Some(resp) = resp {
                         let resp_body = serde_json::to_string(&resp).unwrap();
                         println!(
@@ -66,9 +91,7 @@ impl<C: Clone, I: LspServer + Sync + Send + Clone + 'static> ServerProcess<C> fo
                             resp.result.to_string().chars().take(80).collect::<String>()
                         );
 
-                        let rcp_resp =
-                            format!("Content-Length: {}\r\n\r\n{}", resp_body.len(), resp_body);
-                        writer.write(rcp_resp.as_bytes()).await.unwrap();
+                        sender.send(resp_body).await?;
                     }
 
                     Ok::<_, Box<dyn Error + Sync + Send>>(())
@@ -78,7 +101,7 @@ impl<C: Clone, I: LspServer + Sync + Send + Clone + 'static> ServerProcess<C> fo
                 }
             }
 
-            println!("tokio:spawn end");
+            Ok::<_, anyhow::Error>(())
         });
 
         Box::pin(async { Ok(()) })
