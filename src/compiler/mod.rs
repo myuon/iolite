@@ -1,5 +1,7 @@
 use std::collections::HashMap;
 
+use anyhow::{anyhow, Result};
+
 use self::{
     ast::{Declaration, Module, Source, Span, Type},
     byte_code_emitter::{ByteCodeEmitter, ByteCodeEmitterError},
@@ -39,7 +41,15 @@ pub enum CompilerError {
     ByteCodeEmitterError(ByteCodeEmitterError),
 }
 
-pub struct Compiler {}
+#[derive(Debug, Clone)]
+pub struct LoadedModule {
+    pub source: String,
+    pub module: Module,
+}
+
+pub struct Compiler {
+    pub modules: HashMap<String, LoadedModule>,
+}
 
 impl Compiler {
     pub fn find_position(input: &str, position: usize) -> (usize, usize) {
@@ -89,7 +99,7 @@ impl Compiler {
         Ok(lexer.run().map_err(CompilerError::LexerError)?)
     }
 
-    pub fn parse(input: String) -> Result<Module, CompilerError> {
+    pub fn parse_module(input: String) -> Result<Module, CompilerError> {
         let decls = Self::parse_decls(input.clone())?;
 
         Ok(Self::create_module(decls))
@@ -121,6 +131,34 @@ impl Compiler {
         };
 
         Ok(expr)
+    }
+
+    pub fn parse(&mut self, path: String) -> Result<()> {
+        let input = std::fs::read_to_string(&path)
+            .map_err(|err| anyhow!("Failed to read file {}: {}", path, err))?;
+
+        let mut lexer = lexer::Lexer::new(input.clone());
+        let mut parser = parser::Parser::new(lexer.run().map_err(CompilerError::LexerError)?);
+        let decls = parser.decls()?;
+        let module = Self::create_module(decls);
+
+        self.modules.insert(
+            path.clone(),
+            LoadedModule {
+                source: input,
+                module: module.clone(),
+            },
+        );
+
+        for path in parser.imports {
+            if self.modules.contains_key(&path) {
+                continue;
+            }
+
+            self.parse(path)?;
+        }
+
+        Ok(())
     }
 
     pub fn typecheck(

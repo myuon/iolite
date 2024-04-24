@@ -9,7 +9,7 @@ use super::{
 pub struct Parser {
     tokens: Vec<Token>,
     position: usize,
-    imports: Vec<String>,
+    pub(crate) imports: Vec<String>,
 }
 
 #[derive(Debug, PartialEq, Clone, Error)]

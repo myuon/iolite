@@ -267,7 +267,7 @@ async fn lsp_handler(
             let filepath = params.text_document.uri.path();
             let content = std::fs::read_to_string(filepath)?;
 
-            let Ok(module) = compiler::Compiler::parse(content.clone()) else {
+            let Ok(module) = compiler::Compiler::parse_module(content.clone()) else {
                 return Ok(None);
             };
             let mut walker = AstWalker::new();
