@@ -509,6 +509,7 @@ impl Typechecker {
                     ),
                 );
             }
+            Declaration::Import(_) => {}
         }
 
         Ok(())

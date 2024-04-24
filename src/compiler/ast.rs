@@ -196,6 +196,7 @@ pub enum Declaration {
         name: Source<String>,
         fields: Vec<(Source<String>, Source<Type>)>,
     },
+    Import(Source<String>),
 }
 
 #[derive(Debug, PartialEq, Clone)]
@@ -303,6 +304,7 @@ impl AstWalker {
                 self.expr(value);
             }
             Declaration::Struct { fields, .. } => {}
+            Declaration::Import(_) => {}
         }
     }
 

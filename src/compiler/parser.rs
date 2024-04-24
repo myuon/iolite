@@ -9,6 +9,7 @@ use super::{
 pub struct Parser {
     tokens: Vec<Token>,
     position: usize,
+    imports: Vec<String>,
 }
 
 #[derive(Debug, PartialEq, Clone, Error)]
@@ -30,6 +31,7 @@ impl Parser {
                 .filter(|t| !matches!(t.lexeme, Lexeme::Comment(_)))
                 .collect(),
             position: 0,
+            imports: vec![],
         }
     }
 
@@ -151,7 +153,7 @@ impl Parser {
     }
 
     pub fn decl(&mut self) -> Result<Source<Declaration>, ParseError> {
-        let token = self.peek()?;
+        let token = self.peek()?.clone();
         match token.lexeme {
             Lexeme::Fun => {
                 let start_token = self.consume()?;
@@ -224,6 +226,17 @@ impl Parser {
                     Declaration::Struct { name, fields },
                     start_token.span.start,
                     end_token.span.end,
+                ))
+            }
+            Lexeme::Import => {
+                let module_name = self.ident()?;
+                self.expect(Lexeme::Semicolon)?;
+
+                self.imports.push(module_name.data.clone());
+
+                Ok(Source::span(
+                    Declaration::Import(module_name),
+                    token.span.clone(),
                 ))
             }
             _ => Err(ParseError::UnexpectedToken {

@@ -162,6 +162,7 @@ impl IrCodeGenerator {
                 Ok(Some(IrDecl::Let { name: name.data }))
             }
             Declaration::Struct { .. } => Ok(None),
+            Declaration::Import(_) => Ok(None),
         }
     }
 
