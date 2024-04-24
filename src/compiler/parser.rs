@@ -229,14 +229,17 @@ impl Parser {
                 ))
             }
             Lexeme::Import => {
+                let start_token = self.consume()?;
+
                 let module_name = self.ident()?;
                 self.expect(Lexeme::Semicolon)?;
 
                 self.imports.push(module_name.data.clone());
 
-                Ok(Source::span(
-                    Declaration::Import(module_name),
-                    token.span.clone(),
+                Ok(Source::new_span(
+                    Declaration::Import(module_name.clone()),
+                    start_token.span.start,
+                    module_name.span.end,
                 ))
             }
             _ => Err(ParseError::UnexpectedToken {

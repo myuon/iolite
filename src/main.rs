@@ -17,7 +17,7 @@ use ::dap::{
         StoppedEventReason, Thread, Variable,
     },
 };
-use anyhow::Result;
+use anyhow::{anyhow, bail, Result};
 use base64::prelude::*;
 use clap::{Parser, Subcommand};
 use compiler::{
@@ -36,9 +36,7 @@ use lsp::{
 };
 
 use lsp_types::{
-    notification::{
-        DidChangeTextDocument, DidSaveTextDocument, Initialized, Notification, PublishDiagnostics,
-    },
+    notification::{DidSaveTextDocument, Initialized, Notification, PublishDiagnostics},
     request::{
         DocumentDiagnosticRequest, GotoDefinition, Initialize, Request, SemanticTokensFullRequest,
     },
@@ -72,13 +70,13 @@ struct Cli {
 #[derive(Debug, Subcommand)]
 enum CliCommands {
     Compile {
-        input: Option<String>,
+        file: Option<String>,
 
         #[clap(long)]
         stdin: bool,
     },
     Run {
-        input: Option<String>,
+        file: Option<String>,
 
         #[clap(long)]
         stdin: bool,
@@ -125,34 +123,45 @@ fn compile(input: String) -> Result<Vec<u8>> {
 #[tokio::main]
 async fn main() -> Result<()> {
     let cli = Cli::parse();
+    let mut compiler = compiler::Compiler::new();
 
     match cli.command {
-        CliCommands::Compile { input, stdin } => {
+        CliCommands::Compile { file, stdin } => {
             let input = if stdin {
                 let mut buf = Vec::new();
                 std::io::stdin().read_to_end(&mut buf).unwrap();
 
                 String::from_utf8(buf)?
             } else {
-                input.unwrap()
+                file.unwrap()
             };
 
             compile(input)?;
         }
         CliCommands::Run {
-            input,
+            file,
             stdin,
             print_stacks,
         } => {
-            let input = if stdin {
-                let mut buf = Vec::new();
-                std::io::stdin().read_to_end(&mut buf).unwrap();
+            let source_code = match file {
+                Some(file) => std::fs::read_to_string(&file)
+                    .map_err(|err| anyhow!("Failed to read file {}: {}", file, err))?,
+                None => {
+                    if stdin {
+                        let mut buf = Vec::new();
+                        std::io::stdin().read_to_end(&mut buf).unwrap();
 
-                String::from_utf8(buf).unwrap()
-            } else {
-                input.unwrap()
+                        String::from_utf8(buf).unwrap()
+                    } else {
+                        bail!("No input file or stdin provided");
+                    }
+                }
             };
-            let result = compiler::Compiler::run(input, print_stacks)?;
+
+            let main = "main".to_string();
+
+            compiler.parse_with_code(main.clone(), source_code)?;
+            let result = compiler.run(main.clone(), print_stacks)?;
 
             println!("result: {}", result);
         }

@@ -54,6 +54,12 @@ pub struct Compiler {
 }
 
 impl Compiler {
+    pub fn new() -> Self {
+        Self {
+            modules: HashMap::new(),
+        }
+    }
+
     pub fn find_position(input: &str, position: usize) -> (usize, usize) {
         let mut line = 0;
         let mut col = 0;
@@ -143,22 +149,20 @@ impl Compiler {
                 span: Span::unknown(),
             },
             Token {
-                lexeme: Lexeme::String("std".to_string()),
+                lexeme: Lexeme::Ident("std".to_string()),
+                position: 0,
+                span: Span::unknown(),
+            },
+            Token {
+                lexeme: Lexeme::Semicolon,
                 position: 0,
                 span: Span::unknown(),
             },
         ]
     }
 
-    pub fn parse(&mut self, path: String) -> Result<()> {
-        let input = if path == "std" {
-            std::fs::read_to_string(&path)
-                .map_err(|err| anyhow!("Failed to read file {}: {}", path, err))?
-        } else {
-            include_str!("./std.io").to_string()
-        };
-
-        let mut lexer = lexer::Lexer::new(input.clone());
+    pub fn parse_with_code(&mut self, path: String, source: String) -> Result<()> {
+        let mut lexer = lexer::Lexer::new(source.clone());
 
         let mut tokens = if path != "std.io" {
             Self::tokens_import_std()
@@ -174,18 +178,31 @@ impl Compiler {
         self.modules.insert(
             path.clone(),
             LoadedModule {
-                source: input,
+                source,
                 module: module.clone(),
             },
         );
 
         for path in parser.imports {
-            if self.modules.contains_key(&format!("{}.io", path)) {
+            if self.modules.contains_key(&path) {
                 continue;
             }
 
             self.parse(path)?;
         }
+
+        Ok(())
+    }
+
+    pub fn parse(&mut self, path: String) -> Result<()> {
+        let source = if path == "std" {
+            include_str!("./std.io").to_string()
+        } else {
+            std::fs::read_to_string(&path)
+                .map_err(|err| anyhow!("Failed to read file {}: {}", path, err))?
+        };
+
+        self.parse_with_code(path, source)?;
 
         Ok(())
     }
@@ -293,9 +310,20 @@ impl Compiler {
         Ok(binary)
     }
 
-    pub fn run(input: String, print_stacks: bool) -> Result<i64, CompilerError> {
+    pub fn run_input(input: String, print_stacks: bool) -> Result<i64, CompilerError> {
         let program = Self::compile(input)?;
         Self::run_vm(program, print_stacks)
+    }
+
+    pub fn run(&self, path: String, print_stacks: bool) -> Result<i64> {
+        let module = self
+            .modules
+            .get(&path)
+            .ok_or_else(|| anyhow!("Module {} not found in the compiler", path))?;
+
+        let program = Self::compile(module.source.clone())?;
+
+        Ok(Self::run_vm(program, print_stacks)?)
     }
 
     pub fn run_vm(program: Vec<u8>, print_stacks: bool) -> Result<i64, CompilerError> {
@@ -344,7 +372,7 @@ mod tests {
         for (input, expected) in cases {
             println!("====== {}", input);
             let actual =
-                Compiler::run(format!("fun main() {{ return {}; }}", input), false).unwrap();
+                Compiler::run_input(format!("fun main() {{ return {}; }}", input), false).unwrap();
             let value = Value::from_u64(actual as u64);
             assert_eq!(value, Value::Int(expected), "input: {}", input);
         }
@@ -690,7 +718,7 @@ mod tests {
 
         for (input, expected) in cases {
             println!("====== {}", input);
-            let actual = Compiler::run(input.to_string(), false).unwrap();
+            let actual = Compiler::run_input(input.to_string(), false).unwrap();
             assert_eq!(actual, expected, "input: {}", input);
         }
     }
