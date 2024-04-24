@@ -2,11 +2,13 @@ use std::collections::HashMap;
 
 use anyhow::{anyhow, Result};
 
+use crate::compiler::lexer::Lexeme;
+
 use self::{
     ast::{Declaration, Module, Source, Span, Type},
     byte_code_emitter::{ByteCodeEmitter, ByteCodeEmitterError},
     ir_code_gen::IrCodeGeneratorError,
-    lexer::LexerError,
+    lexer::{LexerError, Token},
     parser::ParseError,
     runtime::Runtime,
     typechecker::TypecheckerError,
@@ -133,12 +135,39 @@ impl Compiler {
         Ok(expr)
     }
 
+    fn tokens_import_std() -> Vec<Token> {
+        vec![
+            Token {
+                lexeme: Lexeme::Import,
+                position: 0,
+                span: Span::unknown(),
+            },
+            Token {
+                lexeme: Lexeme::String("std".to_string()),
+                position: 0,
+                span: Span::unknown(),
+            },
+        ]
+    }
+
     pub fn parse(&mut self, path: String) -> Result<()> {
-        let input = std::fs::read_to_string(&path)
-            .map_err(|err| anyhow!("Failed to read file {}: {}", path, err))?;
+        let input = if path == "std" {
+            std::fs::read_to_string(&path)
+                .map_err(|err| anyhow!("Failed to read file {}: {}", path, err))?
+        } else {
+            include_str!("./std.io").to_string()
+        };
 
         let mut lexer = lexer::Lexer::new(input.clone());
-        let mut parser = parser::Parser::new(lexer.run().map_err(CompilerError::LexerError)?);
+
+        let mut tokens = if path != "std.io" {
+            Self::tokens_import_std()
+        } else {
+            vec![]
+        };
+        tokens.extend(lexer.run().map_err(CompilerError::LexerError)?);
+
+        let mut parser = parser::Parser::new(tokens);
         let decls = parser.decls()?;
         let module = Self::create_module(decls);
 
@@ -151,7 +180,7 @@ impl Compiler {
         );
 
         for path in parser.imports {
-            if self.modules.contains_key(&path) {
+            if self.modules.contains_key(&format!("{}.io", path)) {
                 continue;
             }
 
