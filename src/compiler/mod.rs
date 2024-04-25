@@ -60,7 +60,7 @@ impl Compiler {
         }
     }
 
-    pub fn find_position(input: &str, position: usize) -> (usize, usize) {
+    pub fn find_position_with_input(input: &str, position: usize) -> (usize, usize) {
         let mut line = 0;
         let mut col = 0;
         for (i, c) in input.chars().enumerate() {
@@ -79,7 +79,16 @@ impl Compiler {
         (line, col)
     }
 
-    pub fn find_line_and_column(input: &str, line: usize, col: usize) -> usize {
+    pub fn find_position(&self, path: &str, position: usize) -> Result<(usize, usize)> {
+        let module = self
+            .modules
+            .get(path)
+            .ok_or_else(|| anyhow!("Module {} not found in the compiler", path))?;
+
+        Ok(Self::find_position_with_input(&module.source, position))
+    }
+
+    pub fn find_line_and_column_with_input(input: &str, line: usize, col: usize) -> usize {
         let mut current_line = 0;
         let mut current_col = 0;
         let mut position = 0;
@@ -102,9 +111,17 @@ impl Compiler {
         position
     }
 
-    pub fn run_lexer(input: String) -> Result<Vec<lexer::Token>, CompilerError> {
-        let mut lexer = lexer::Lexer::new(input);
-        Ok(lexer.run().map_err(CompilerError::LexerError)?)
+    pub fn find_line_and_column(&self, path: &str, line: usize, col: usize) -> Result<usize> {
+        let module = self
+            .modules
+            .get(path)
+            .ok_or_else(|| anyhow!("Module {} not found in the compiler", path))?;
+
+        Ok(Self::find_line_and_column_with_input(
+            &module.source,
+            line,
+            col,
+        ))
     }
 
     pub fn parse_module(input: String) -> Result<Module, CompilerError> {
@@ -121,7 +138,7 @@ impl Compiler {
             Err(err) => {
                 match err.clone() {
                     ParseError::UnexpectedToken { got, .. } => {
-                        let (line, col) = Self::find_position(&input, got.position);
+                        let (line, col) = Self::find_position_with_input(&input, got.position);
 
                         eprintln!(
                             "Error at line {}, column {}\n\n{}\n{}^",
@@ -207,7 +224,15 @@ impl Compiler {
         Ok(())
     }
 
-    pub fn typecheck(
+    pub fn typecheck(&mut self, path: String) -> Result<()> {
+        for (_, module) in self.modules.iter_mut() {
+            Self::typecheck_module(&mut module.module, &module.source)?;
+        }
+
+        Ok(())
+    }
+
+    pub fn typecheck_module(
         module: &mut Module,
         input: &str,
     ) -> Result<HashMap<String, Source<Type>>, CompilerError> {
@@ -217,7 +242,8 @@ impl Compiler {
             Err(err) => {
                 match err.clone() {
                     TypecheckerError::TypeMismatch { span, .. } if span.start.is_some() => {
-                        let (line, col) = Self::find_position(input, span.start.unwrap());
+                        let (line, col) =
+                            Self::find_position_with_input(input, span.start.unwrap());
                         eprintln!(
                             "Error at line {}, column {} ({})",
                             line,
@@ -240,13 +266,25 @@ impl Compiler {
         Ok(typechecker.types)
     }
 
-    pub fn search_for_definition(
+    pub fn search_for_definition_module(
         module: &mut Module,
         position: usize,
     ) -> Result<Option<Span>, CompilerError> {
         let mut typechecker = typechecker::Typechecker::new();
 
         Ok(typechecker.search_for_definition(module, position))
+    }
+
+    pub fn search_for_definition(&mut self, path: String, position: usize) -> Result<Option<Span>> {
+        let module = self
+            .modules
+            .get_mut(&path)
+            .ok_or_else(|| anyhow!("Module {} not found in the compiler", path))?;
+
+        Ok(Self::search_for_definition_module(
+            &mut module.module,
+            position,
+        )?)
     }
 
     pub fn ir_code_gen(
@@ -301,7 +339,7 @@ impl Compiler {
     pub fn compile_bundled(input: String) -> Result<Vec<u8>, CompilerError> {
         let decls = Self::parse_decls(input.clone())?;
         let mut module = Self::create_module(decls);
-        let types = Self::typecheck(&mut module, &input)?;
+        let types = Self::typecheck_module(&mut module, &input)?;
 
         let ir = Self::ir_code_gen(module, types)?;
         let code = Self::vm_code_gen(ir)?;

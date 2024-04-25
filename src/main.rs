@@ -93,7 +93,7 @@ fn compile(input: String) -> Result<Vec<u8>> {
         name: "main".to_string(),
         declarations: decls,
     };
-    let types = compiler::Compiler::typecheck(&mut module, &input).unwrap();
+    let types = compiler::Compiler::typecheck_module(&mut module, &input).unwrap();
 
     let ir = compiler::Compiler::ir_code_gen(module, types).unwrap();
     println!("= IR_CODE_GEN");
@@ -291,7 +291,8 @@ async fn lsp_handler(
             for (ty, span) in tokens {
                 match (span.start, span.end) {
                     (Some(start), Some(end)) => {
-                        let (line, col) = compiler::Compiler::find_position(&content, start);
+                        let (line, col) =
+                            compiler::Compiler::find_position_with_input(&content, start);
 
                         token_data.push(SemanticToken {
                             delta_line: (line - prev.0) as u32,
@@ -333,12 +334,12 @@ async fn lsp_handler(
         DocumentDiagnosticRequest::METHOD | DidSaveTextDocument::METHOD => {
             let params = serde_json::from_value::<SemanticTokensParams>(req.params.clone())?;
 
-            let input = compiler::Compiler::create_input(std::fs::read_to_string(
-                params.text_document.uri.path(),
-            )?);
-            match compiler::Compiler::parse_decls(input.clone())
-                .map(|parsed| compiler::Compiler::create_module(parsed))
-                .and_then(|mut module| compiler::Compiler::typecheck(&mut module, &input))
+            let path = params.text_document.uri.path();
+            let mut compiler = compiler::Compiler::new();
+
+            match compiler
+                .parse(path.to_string())
+                .and_then(|_| compiler.typecheck(path.to_string()))
             {
                 Ok(_) => {
                     sender
@@ -352,15 +353,14 @@ async fn lsp_handler(
                         .await?;
                 }
                 Err(err) => {
-                    let std_len = compiler::Compiler::create_input(String::new()).len();
                     let message = format!("{:?}", err);
-                    let span = match err {
-                        CompilerError::LexerError(_) => Span::unknown(),
-                        CompilerError::ParseError(err) => match err {
+                    let span = match err.downcast::<CompilerError>() {
+                        Ok(CompilerError::LexerError(_)) => Span::unknown(),
+                        Ok(CompilerError::ParseError(err)) => match err {
                             ParseError::UnexpectedEos => Span::unknown(),
                             ParseError::UnexpectedToken { got, .. } => got.span,
                         },
-                        CompilerError::TypecheckError(err) => match err {
+                        Ok(CompilerError::TypecheckError(err)) => match err {
                             TypecheckerError::IdentNotFound(ident) => ident.span,
                             TypecheckerError::TypeMismatch { span, .. } => span,
                             TypecheckerError::NumericTypeExpected(_) => Span::unknown(),
@@ -373,13 +373,13 @@ async fn lsp_handler(
                     };
                     let start = {
                         match span.start {
-                            Some(s) => compiler::Compiler::find_position(&input, s - std_len),
+                            Some(s) => compiler.find_position(&path, s)?,
                             None => (0, 0),
                         }
                     };
                     let end = {
                         match span.end {
-                            Some(e) => compiler::Compiler::find_position(&input, e - std_len),
+                            Some(e) => compiler.find_position(&path, e)?,
                             None => (0, 1),
                         }
                     };
@@ -430,22 +430,22 @@ async fn lsp_handler(
         }
         GotoDefinition::METHOD => {
             let params = serde_json::from_value::<TextDocumentPositionParams>(req.params.clone())?;
-            let input = std::fs::read_to_string(params.text_document.uri.path())?;
-            let parsed = compiler::Compiler::parse_decls(input.clone())?;
-            let mut module = compiler::Compiler::create_module(parsed);
 
-            let position = compiler::Compiler::find_line_and_column(
-                &input,
+            let path = params.text_document.uri.path();
+            let mut compiler = compiler::Compiler::new();
+
+            compiler.parse(path.to_string())?;
+
+            let position = compiler.find_line_and_column(
+                path,
                 params.position.line as usize,
                 params.position.character as usize,
-            );
-            let def_position = compiler::Compiler::search_for_definition(&mut module, position)?;
+            )?;
+            let def_position = compiler.search_for_definition(path.to_string(), position)?;
 
             if let Some(def_position) = def_position {
-                let start_position =
-                    compiler::Compiler::find_position(&input, def_position.start.unwrap());
-                let end_position =
-                    compiler::Compiler::find_position(&input, def_position.end.unwrap());
+                let start_position = compiler.find_position(path, def_position.start.unwrap())?;
+                let end_position = compiler.find_position(path, def_position.end.unwrap())?;
 
                 return Ok(Some(RpcMessageResponse::new(
                     req.id,
@@ -801,7 +801,7 @@ async fn dap_handler(
             let mut breakpoints = vec![];
             if let Some(bps) = &arg.breakpoints {
                 for bp in bps {
-                    let position = compiler::Compiler::find_line_and_column(
+                    let position = compiler::Compiler::find_line_and_column_with_input(
                         &runtime.source_code,
                         bp.line as usize,
                         bp.column.unwrap_or(0) as usize,

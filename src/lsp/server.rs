@@ -1,10 +1,9 @@
-use std::{error::Error, sync::Arc};
+use std::sync::Arc;
 
 use anyhow::anyhow;
 use tokio::{
     io::{AsyncReadExt, AsyncWriteExt},
     net::TcpStream,
-    sync::mpsc::Sender,
 };
 
 use crate::{
