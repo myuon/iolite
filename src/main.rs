@@ -1,4 +1,5 @@
 use std::{
+    collections::HashMap,
     io::Read,
     sync::{Arc, Mutex},
 };
@@ -170,14 +171,19 @@ async fn main() -> Result<()> {
             compiler.parse_with_code(main.clone(), source_code)?;
             compiler.typecheck(main.clone())?;
 
-            let ir_modules = compiler.ir_code_gen(main.clone())?;
+            let ir_modules = compiler
+                .ir_code_gen(main.clone())?
+                .into_iter()
+                .map(|m| (m.name.clone(), m))
+                .collect::<HashMap<_, _>>();
             let mut ir = IrModule {
-                name: "main".to_string(),
+                name: main.clone(),
                 decls: vec![],
                 data_section: vec![],
                 global_offset: 0,
             };
-            for module in ir_modules {
+            for path in compiler.pathes_in_imported_order() {
+                let module = ir_modules.get(&path).unwrap().clone();
                 ir.decls.extend(module.decls);
                 ir.data_section.extend(module.data_section);
                 ir.global_offset += module.global_offset;

@@ -201,6 +201,7 @@ impl Compiler {
         let decls = parser.decls()?;
         let module = Self::create_module(decls);
 
+        println!("insert, {}", path);
         self.modules.insert(
             path.clone(),
             LoadedModule {
@@ -236,13 +237,19 @@ impl Compiler {
         Ok(())
     }
 
-    pub fn typecheck(&mut self, _path: String) -> Result<()> {
+    pub fn pathes_in_imported_order(&self) -> Vec<String> {
         let mut paths = self.modules.keys().cloned().collect::<Vec<_>>();
         paths.sort_by(|a, b| {
             let a = self.modules.get(a).unwrap();
             let b = self.modules.get(b).unwrap();
             b.parsed_order.cmp(&a.parsed_order)
         });
+
+        paths
+    }
+
+    pub fn typecheck(&mut self, _path: String) -> Result<()> {
+        let paths = self.pathes_in_imported_order();
 
         let mut typechecker = typechecker::Typechecker::new();
         for path in paths {
@@ -255,13 +262,7 @@ impl Compiler {
     }
 
     pub fn ir_code_gen(&mut self, _path: String) -> Result<Vec<IrModule>> {
-        let mut paths = self.modules.keys().cloned().collect::<Vec<_>>();
-        paths.sort_by(|a, b| {
-            let a = self.modules.get(a).unwrap();
-            let b = self.modules.get(b).unwrap();
-            b.parsed_order.cmp(&a.parsed_order)
-        });
-
+        let paths = self.pathes_in_imported_order();
         let mut modules = vec![];
         for path in paths {
             let module = self.modules.get_mut(&path).unwrap();
