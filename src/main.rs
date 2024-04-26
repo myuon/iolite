@@ -134,7 +134,7 @@ async fn main() -> Result<()> {
         CliCommands::Run {
             file,
             stdin,
-            print_stacks,
+            print_stacks: _,
         } => {
             let cwd = match file.clone() {
                 Some(file) => std::path::Path::new(&file)
@@ -171,23 +171,7 @@ async fn main() -> Result<()> {
             compiler.parse_with_code(main.clone(), source_code)?;
             compiler.typecheck(main.clone())?;
 
-            let ir_modules = compiler
-                .ir_code_gen(main.clone())?
-                .into_iter()
-                .map(|m| (m.name.clone(), m))
-                .collect::<HashMap<_, _>>();
-            let mut ir = IrModule {
-                name: main.clone(),
-                decls: vec![],
-                data_section: vec![],
-                global_offset: 0,
-            };
-            for path in compiler.pathes_in_imported_order() {
-                let module = ir_modules.get(&path).unwrap().clone();
-                ir.decls.extend(module.decls);
-                ir.data_section.extend(module.data_section);
-                ir.global_offset += module.global_offset;
-            }
+            let ir = compiler.ir_code_gen(main.clone())?;
             let code = compiler::Compiler::vm_code_gen(ir)?;
             let binary = compiler::Compiler::byte_code_gen(code)?;
 

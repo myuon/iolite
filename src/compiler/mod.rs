@@ -1,6 +1,7 @@
 use std::collections::HashMap;
 
 use anyhow::{anyhow, Result};
+use proptest::path;
 
 use crate::compiler::lexer::Lexeme;
 
@@ -190,7 +191,7 @@ impl Compiler {
     pub fn parse_with_code(&mut self, path: String, source: String) -> Result<()> {
         let mut lexer = lexer::Lexer::new(source.clone());
 
-        let mut tokens = if path != "std.io" {
+        let mut tokens = if path != "std" {
             Self::tokens_import_std()
         } else {
             vec![]
@@ -241,13 +242,32 @@ impl Compiler {
 
     pub fn pathes_in_imported_order(&self) -> Vec<String> {
         let mut paths = self.modules.keys().cloned().collect::<Vec<_>>();
-        paths.sort_by(|a, b| {
-            let a = self.modules.get(a).unwrap();
-            let b = self.modules.get(b).unwrap();
-            b.parsed_order.cmp(&a.parsed_order)
-        });
+        let mut result = vec![];
 
-        paths
+        while let Some(path) = paths.pop() {
+            if result.contains(&path) {
+                continue;
+            }
+
+            let module = self.modules.get(&path).unwrap();
+            let imports = module.imports.clone();
+
+            let mut has_imports = false;
+            for import in imports {
+                if !result.contains(&import) {
+                    has_imports = true;
+                    paths.push(path.clone());
+                    paths.push(import);
+                    break;
+                }
+            }
+
+            if !has_imports {
+                result.push(path);
+            }
+        }
+
+        result
     }
 
     pub fn typecheck(&mut self, _path: String) -> Result<()> {
@@ -263,7 +283,7 @@ impl Compiler {
         Ok(())
     }
 
-    pub fn ir_code_gen(&mut self, _path: String) -> Result<Vec<IrModule>> {
+    pub fn ir_code_gen(&mut self, path: String) -> Result<IrModule> {
         let paths = self.pathes_in_imported_order();
         let mut modules = vec![];
         for path in paths {
@@ -273,7 +293,25 @@ impl Compiler {
             modules.push(ir);
         }
 
-        Ok(modules)
+        let modules_map = modules
+            .iter()
+            .map(|module| (module.name.clone(), module.clone()))
+            .collect::<HashMap<_, _>>();
+
+        let mut ir = IrModule {
+            name: path.clone(),
+            decls: vec![],
+            data_section: vec![],
+            global_offset: 0,
+        };
+        for path in self.pathes_in_imported_order() {
+            let module = modules_map.get(&path).unwrap().clone();
+            ir.decls.extend(module.decls);
+            ir.data_section.extend(module.data_section);
+            ir.global_offset += module.global_offset;
+        }
+
+        Ok(ir)
     }
 
     fn typecheck_method(
@@ -858,5 +896,40 @@ mod tests {
             let actual = Compiler::run_input(input.to_string(), false).unwrap();
             assert_eq!(actual, expected, "input: {}", input);
         }
+    }
+
+    #[test]
+    fn test_compile_e2e() -> Result<()> {
+        let paths = std::fs::read_dir("./tests")
+            .unwrap()
+            .map(|entry| entry.unwrap().path())
+            .collect::<Vec<_>>();
+
+        for dir_path in paths {
+            let mut compiler = Compiler::new();
+            compiler.set_cwd(dir_path.display().to_string());
+
+            let path = dir_path.join("main.io").display().to_string();
+            let main = "main".to_string();
+
+            let input = std::fs::read_to_string(path.clone()).unwrap();
+
+            compiler.parse(main.clone())?;
+            compiler.typecheck(main.clone())?;
+
+            let ir = compiler.ir_code_gen(main.clone())?;
+            let code = Compiler::vm_code_gen(ir)?;
+            let binary = Compiler::byte_code_gen(code)?;
+
+            let result = Compiler::run_vm(binary, false)?;
+
+            let expected = dir_path.join("result.test").display().to_string();
+            let expected = std::fs::read_to_string(expected).unwrap();
+            let expected = expected.trim().parse::<i64>().unwrap();
+
+            assert_eq!(result, expected, "input: {}", input);
+        }
+
+        Ok(())
     }
 }
