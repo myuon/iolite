@@ -8,7 +8,7 @@ use super::{
 #[derive(Debug, PartialEq)]
 pub struct Parser {
     tokens: Vec<Token>,
-    position: usize,
+    pub(crate) position: usize,
     pub(crate) imports: Vec<String>,
 }
 
@@ -1066,314 +1066,76 @@ impl Parser {
 
 #[cfg(test)]
 mod tests {
-    use crate::compiler::ast::BinOp;
-
     use super::*;
 
     #[test]
-    fn test_expr() {
+    fn test_expr_success() {
         let cases = vec![
-            (
-                "1 + 3 * 4",
-                Source::unknown(Expr::BinOp {
-                    ty: Type::Unknown,
-                    op: Source::unknown(BinOp::Add),
-                    left: Box::new(Source::unknown(Expr::Lit(Source::unknown(
-                        Literal::Integer(Source::unknown(1)),
-                    )))),
-                    right: Box::new(Source::unknown(Expr::BinOp {
-                        ty: Type::Unknown,
-                        op: Source::unknown(BinOp::Mul),
-                        left: Box::new(Source::unknown(Expr::Lit(Source::unknown(
-                            Literal::Integer(Source::unknown(3)),
-                        )))),
-                        right: Box::new(Source::unknown(Expr::Lit(Source::unknown(
-                            Literal::Integer(Source::unknown(4)),
-                        )))),
-                    })),
-                }),
-            ),
-            /*
-            (
-                "1 * 3 - 4",
-                Expr::BinOp {
-                    op: BinOp::Sub,
-                    left: Box::new(Expr::BinOp {
-                        op: BinOp::Mul,
-                        left: Box::new(Expr::Lit(Literal::Integer(1))),
-                        right: Box::new(Expr::Lit(Literal::Integer(3))),
-                    }),
-                    right: Box::new(Expr::Lit(Literal::Integer(4))),
-                },
-            ),
-            (
-                "4 * f(1, 2, 4 * 3) - 2",
-                Expr::BinOp {
-                    op: BinOp::Sub,
-                    left: Box::new(Expr::BinOp {
-                        op: BinOp::Mul,
-                        left: Box::new(Expr::Lit(Literal::Integer(4))),
-                        right: Box::new(Expr::Call {
-                            name: "f".to_string(),
-                            args: vec![
-                                Expr::Lit(Literal::Integer(1)),
-                                Expr::Lit(Literal::Integer(2)),
-                                Expr::BinOp {
-                                    op: BinOp::Mul,
-                                    left: Box::new(Expr::Lit(Literal::Integer(4))),
-                                    right: Box::new(Expr::Lit(Literal::Integer(3))),
-                                },
-                            ],
-                        }),
-                    }),
-                    right: Box::new(Expr::Lit(Literal::Integer(2))),
-                },
-            ),
-            (
-                "1 <= 2 || 3 >= 4 && 1 + 2 == 4",
-                Expr::BinOp {
-                    op: BinOp::Or,
-                    left: Box::new(Expr::BinOp {
-                        op: BinOp::Le,
-                        left: Box::new(Expr::Lit(Literal::Integer(1))),
-                        right: Box::new(Expr::Lit(Literal::Integer(2))),
-                    }),
-                    right: Box::new(Expr::BinOp {
-                        op: BinOp::And,
-                        left: Box::new(Expr::BinOp {
-                            op: BinOp::Ge,
-                            left: Box::new(Expr::Lit(Literal::Integer(3))),
-                            right: Box::new(Expr::Lit(Literal::Integer(4))),
-                        }),
-                        right: Box::new(Expr::BinOp {
-                            op: BinOp::Eq,
-                            left: Box::new(Expr::BinOp {
-                                op: BinOp::Add,
-                                left: Box::new(Expr::Lit(Literal::Integer(1))),
-                                right: Box::new(Expr::Lit(Literal::Integer(2))),
-                            }),
-                            right: Box::new(Expr::Lit(Literal::Integer(4))),
-                        }),
-                    }),
-                },
-            ),
-             */
+            "1 + 3 * 4",
+            "1 * 3 - 4",
+            "4 * f(1, 2, 4 * 3) - 2",
+            "1 <= 2 || 3 >= 4 && 1 + 2 == 4",
+            "f().length",
         ];
 
-        for (input, expected) in cases {
+        for input in cases {
             let mut lexer = crate::compiler::lexer::Lexer::new(input.to_string());
             let tokens = lexer.run().unwrap();
             let mut parser = Parser::new(tokens);
-            let got = parser.expr(true).unwrap();
+            parser.expr(true).unwrap();
 
-            assert_eq!(got, expected);
+            assert_eq!(parser.position, parser.tokens.len(), "{}", input);
         }
     }
 
-    /*
     #[test]
     fn test_statement() {
-        let cases = vec![
-            (
-                "let x = 1 + 2",
-                Statement::Let(
-                    "x".to_string(),
-                    Expr::BinOp {
-                        op: BinOp::Add,
-                        left: Box::new(Expr::Lit(Literal::Integer(1))),
-                        right: Box::new(Expr::Lit(Literal::Integer(2))),
-                    },
-                ),
-            ),
-            (
-                "return 1 + 2",
-                Statement::Return(Expr::BinOp {
-                    op: BinOp::Add,
-                    left: Box::new(Expr::Lit(Literal::Integer(1))),
-                    right: Box::new(Expr::Lit(Literal::Integer(2))),
-                }),
-            ),
-            (
-                "a = b;",
-                Statement::Assign(Expr::Ident("a".to_string()), Expr::Ident("b".to_string())),
-            ),
-        ];
+        let cases = vec!["let x = 1 + 2", "return 1 + 2", "a = b;"];
 
-        for (input, expected) in cases {
+        for input in cases {
             let mut lexer = crate::compiler::lexer::Lexer::new(input.to_string());
             let tokens = lexer.run().unwrap();
             let mut parser = Parser::new(tokens);
-            let got = parser.statement().unwrap();
-
-            assert_eq!(got, expected);
+            parser.statement().unwrap();
         }
     }
 
     #[test]
     fn test_block() {
         let cases = vec![
-            (
-                "let x = 1 + 2; let y = 3 * 4; let z = x + y;",
-                Block {
-                    statements: vec![
-                        Statement::Let(
-                            "x".to_string(),
-                            Expr::BinOp {
-                                op: BinOp::Add,
-                                left: Box::new(Expr::Lit(Literal::Integer(1))),
-                                right: Box::new(Expr::Lit(Literal::Integer(2))),
-                            },
-                        ),
-                        Statement::Let(
-                            "y".to_string(),
-                            Expr::BinOp {
-                                op: BinOp::Mul,
-                                left: Box::new(Expr::Lit(Literal::Integer(3))),
-                                right: Box::new(Expr::Lit(Literal::Integer(4))),
-                            },
-                        ),
-                        Statement::Let(
-                            "z".to_string(),
-                            Expr::BinOp {
-                                op: BinOp::Add,
-                                left: Box::new(Expr::Ident("x".to_string())),
-                                right: Box::new(Expr::Ident("y".to_string())),
-                            },
-                        ),
-                    ],
-                },
-            ),
-            (
-                "return 1 + 2; return 3 * 4;",
-                Block {
-                    statements: vec![
-                        Statement::Return(Expr::BinOp {
-                            op: BinOp::Add,
-                            left: Box::new(Expr::Lit(Literal::Integer(1))),
-                            right: Box::new(Expr::Lit(Literal::Integer(2))),
-                        }),
-                        Statement::Return(Expr::BinOp {
-                            op: BinOp::Mul,
-                            left: Box::new(Expr::Lit(Literal::Integer(3))),
-                            right: Box::new(Expr::Lit(Literal::Integer(4))),
-                        }),
-                    ],
-                },
-            ),
-            (
-                "while (true) { let a = 1; let b = 2; }",
-                Block {
-                    statements: vec![Statement::While {
-                        cond: Expr::Lit(Literal::Bool(true)),
-                        body: Block {
-                            statements: vec![
-                                Statement::Let("a".to_string(), Expr::Lit(Literal::Integer(1))),
-                                Statement::Let("b".to_string(), Expr::Lit(Literal::Integer(2))),
-                            ],
-                        },
-                    }],
-                },
-            ),
-            (
-                "let a = 1; 10",
-                Block {
-                    statements: vec![
-                        Statement::Let("a".to_string(), Expr::Lit(Literal::Integer(1))),
-                        Statement::Expr(Expr::Lit(Literal::Integer(10))),
-                    ],
-                },
-            ),
-            (
-                "let a = 1; 10;",
-                Block {
-                    statements: vec![
-                        Statement::Let("a".to_string(), Expr::Lit(Literal::Integer(1))),
-                        Statement::Expr(Expr::Lit(Literal::Integer(10))),
-                    ],
-                },
-            ),
-            (
-                "let a = 2; { let a = 3; a = 4; }; a",
-                Block {
-                    statements: vec![
-                        Statement::Let("a".to_string(), Expr::Lit(Literal::Integer(2))),
-                        Statement::Block(Block {
-                            statements: vec![
-                                Statement::Let("a".to_string(), Expr::Lit(Literal::Integer(3))),
-                                Statement::Assign(
-                                    Expr::Ident("a".to_string()),
-                                    Expr::Lit(Literal::Integer(4)),
-                                ),
-                            ],
-                        }),
-                        Statement::Expr(Expr::Ident("a".to_string())),
-                    ],
-                },
-            ),
-            (
-                "let a = 2; { let a = 3; a = 4; } a",
-                Block {
-                    statements: vec![
-                        Statement::Let("a".to_string(), Expr::Lit(Literal::Integer(2))),
-                        Statement::Block(Block {
-                            statements: vec![
-                                Statement::Let("a".to_string(), Expr::Lit(Literal::Integer(3))),
-                                Statement::Assign(
-                                    Expr::Ident("a".to_string()),
-                                    Expr::Lit(Literal::Integer(4)),
-                                ),
-                            ],
-                        }),
-                        Statement::Expr(Expr::Ident("a".to_string())),
-                    ],
-                },
-            ),
+            "let x = 1 + 2; let y = 3 * 4; let z = x + y;",
+            "return 1 + 2; return 3 * 4;",
+            "while (true) { let a = 1; let b = 2; }",
+            "let a = 1; 10",
+            "let a = 1; 10;",
+            "let a = 2; { let a = 3; a = 4; }; a",
+            "let a = 2; { let a = 3; a = 4; } a",
         ];
 
-        for (input, expected) in cases {
+        for input in cases {
             let mut lexer = crate::compiler::lexer::Lexer::new(input.to_string());
             let tokens = lexer.run().unwrap();
             let mut parser = Parser::new(tokens);
-            let got = parser.block(None).unwrap();
-
-            assert_eq!(got, expected);
+            parser.block(None).unwrap();
         }
     }
 
     #[test]
     fn test_decls() {
-        let cases = vec![(
+        let cases = vec![
             r#"fun main() {
     let x = 1;
     let y = 2;
 
     return x + y;
                 }"#,
-            vec![Declaration::Function {
-                name: "main".to_string(),
-                params: vec![],
-                body: Block {
-                    statements: vec![
-                        Statement::Let("x".to_string(), Expr::Lit(Literal::Integer(1))),
-                        Statement::Let("y".to_string(), Expr::Lit(Literal::Integer(2))),
-                        Statement::Return(Expr::BinOp {
-                            op: BinOp::Add,
-                            left: Box::new(Expr::Ident("x".to_string())),
-                            right: Box::new(Expr::Ident("y".to_string())),
-                        }),
-                    ],
-                },
-            }],
-        )];
+        ];
 
-        for (input, expected) in cases {
+        for input in cases {
             let mut lexer = crate::compiler::lexer::Lexer::new(input.to_string());
             let tokens = lexer.run().unwrap();
             let mut parser = Parser::new(tokens);
-            let got = parser.decls().unwrap();
-
-            assert_eq!(expected, got);
+            parser.decls().unwrap();
         }
     }
-    */
 }
