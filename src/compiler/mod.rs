@@ -199,9 +199,11 @@ impl Compiler {
 
         let mut parser = parser::Parser::new(tokens);
         let decls = parser.decls()?;
-        let module = Self::create_module(decls);
+        let module = Module {
+            name: path.clone(),
+            declarations: decls,
+        };
 
-        println!("insert, {}", path);
         self.modules.insert(
             path.clone(),
             LoadedModule {
