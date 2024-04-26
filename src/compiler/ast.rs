@@ -300,10 +300,10 @@ impl AstWalker {
                 }
                 self.block(body);
             }
-            Declaration::Let { name, value, .. } => {
+            Declaration::Let {  value, .. } => {
                 self.expr(value);
             }
-            Declaration::Struct { fields, .. } => {}
+            Declaration::Struct {  .. } => {}
             Declaration::Import(_) => {}
         }
     }

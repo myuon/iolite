@@ -1,7 +1,6 @@
 use std::collections::HashMap;
 
 use anyhow::{anyhow, Result};
-use proptest::path;
 
 use crate::compiler::lexer::Lexeme;
 

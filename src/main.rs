@@ -1,5 +1,4 @@
 use std::{
-    collections::HashMap,
     io::Read,
     sync::{Arc, Mutex},
 };
@@ -52,7 +51,7 @@ use lsp_types::{
 use sender::SimpleSender;
 use server::{FutureResult, ServerProcess};
 
-use crate::compiler::{ast::Module, ir::IrModule, runtime::ControlFlow, vm::Instruction};
+use crate::compiler::{ast::Module, runtime::ControlFlow, vm::Instruction};
 
 mod compiler;
 mod dap;
