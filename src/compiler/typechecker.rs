@@ -533,6 +533,17 @@ impl Typechecker {
 
         self.search_def.clone()?.found
     }
+
+    pub fn infer_type_at(&mut self, module: &mut Module, position: usize) -> Option<Span> {
+        self.search_def = Some(SearchDefinition {
+            position,
+            found: None,
+        });
+
+        self.module(module).unwrap();
+
+        self.search_def.clone()?.found
+    }
 }
 
 #[cfg(test)]

@@ -39,15 +39,16 @@ use lsp::{
 use lsp_types::{
     notification::{DidSaveTextDocument, Initialized, Notification, PublishDiagnostics},
     request::{
-        DocumentDiagnosticRequest, GotoDefinition, Initialize, Request, SemanticTokensFullRequest,
+        DocumentDiagnosticRequest, GotoDefinition, HoverRequest, Initialize, Request,
+        SemanticTokensFullRequest,
     },
     DeclarationCapability, Diagnostic, DiagnosticOptions, DiagnosticServerCapabilities,
-    DiagnosticSeverity, FullDocumentDiagnosticReport, InitializeResult, Location, OneOf, Position,
-    PublishDiagnosticsParams, Range, RelatedFullDocumentDiagnosticReport, SemanticToken,
-    SemanticTokenType, SemanticTokens, SemanticTokensFullOptions, SemanticTokensLegend,
-    SemanticTokensOptions, SemanticTokensParams, SemanticTokensServerCapabilities,
-    ServerCapabilities, TextDocumentPositionParams, TextDocumentSyncCapability,
-    TextDocumentSyncKind, WorkDoneProgressOptions,
+    DiagnosticSeverity, FullDocumentDiagnosticReport, HoverParams, HoverProviderCapability,
+    InitializeResult, Location, OneOf, Position, PublishDiagnosticsParams, Range,
+    RelatedFullDocumentDiagnosticReport, SemanticToken, SemanticTokenType, SemanticTokens,
+    SemanticTokensFullOptions, SemanticTokensLegend, SemanticTokensOptions, SemanticTokensParams,
+    SemanticTokensServerCapabilities, ServerCapabilities, TextDocumentPositionParams,
+    TextDocumentSyncCapability, TextDocumentSyncKind, WorkDoneProgressOptions,
 };
 use sender::SimpleSender;
 use server::{FutureResult, ServerProcess};
@@ -249,7 +250,7 @@ async fn lsp_handler(
                         )),
                         position_encoding: None,
                         selection_range_provider: None,
-                        hover_provider: None,
+                        hover_provider: Some(HoverProviderCapability::Simple(true)),
                         completion_provider: None,
                         signature_help_provider: None,
                         type_definition_provider: None,
@@ -494,6 +495,30 @@ async fn lsp_handler(
                     },
                 )?));
             }
+
+            Ok(None)
+        }
+        HoverRequest::METHOD => {
+            let params = serde_json::from_value::<HoverParams>(req.params.clone())?;
+            let path = Path::new(
+                params
+                    .text_document_position_params
+                    .text_document
+                    .uri
+                    .path(),
+            );
+            let (line, col) = (
+                params.text_document_position_params.position.line as usize,
+                params.text_document_position_params.position.character as usize,
+            );
+            let module_name = path.to_str().unwrap().replace(".io", "");
+
+            let mut compiler = compiler::Compiler::new();
+            compiler.parse(module_name.clone())?;
+
+            let position = compiler.find_line_and_column(&module_name, line, col)?;
+
+            compiler.infer_type_at(module_name.clone(), position)?;
 
             Ok(None)
         }

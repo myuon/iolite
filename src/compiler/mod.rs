@@ -402,6 +402,17 @@ impl Compiler {
         )?)
     }
 
+    pub fn infer_type_at(&mut self, path: String, position: usize) -> Result<Option<Span>> {
+        let module = self
+            .modules
+            .get_mut(&path)
+            .ok_or_else(|| anyhow!("Module {} not found in the compiler", path))?;
+
+        let mut typechecker = typechecker::Typechecker::new();
+
+        Ok(typechecker.infer_type_at(&mut module.module, position))
+    }
+
     pub fn ir_code_gen_module(
         block: Module,
         types: HashMap<String, Source<Type>>,
