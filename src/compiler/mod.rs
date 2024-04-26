@@ -7,6 +7,7 @@ use crate::compiler::lexer::Lexeme;
 use self::{
     ast::{Declaration, Module, Source, Span, Type},
     byte_code_emitter::{ByteCodeEmitter, ByteCodeEmitterError},
+    ir::IrModule,
     ir_code_gen::IrCodeGeneratorError,
     lexer::{LexerError, Token},
     parser::ParseError,
@@ -47,17 +48,25 @@ pub enum CompilerError {
 pub struct LoadedModule {
     pub source: String,
     pub module: Module,
+    pub imports: Vec<String>,
+    pub parsed_order: usize,
 }
 
 pub struct Compiler {
+    pub cwd: String,
     pub modules: HashMap<String, LoadedModule>,
 }
 
 impl Compiler {
     pub fn new() -> Self {
         Self {
+            cwd: "".to_string(),
             modules: HashMap::new(),
         }
+    }
+
+    pub fn set_cwd(&mut self, cwd: String) {
+        self.cwd = cwd;
     }
 
     pub fn find_position_with_input(input: &str, position: usize) -> (usize, usize) {
@@ -197,6 +206,8 @@ impl Compiler {
             LoadedModule {
                 source,
                 module: module.clone(),
+                imports: parser.imports.clone(),
+                parsed_order: self.modules.len(),
             },
         );
 
@@ -215,8 +226,9 @@ impl Compiler {
         let source = if path == "std" {
             include_str!("./std.io").to_string()
         } else {
-            std::fs::read_to_string(&path)
-                .map_err(|err| anyhow!("Failed to read file {}: {}", path, err))?
+            let file_path = format!("{}/{}.io", self.cwd, path);
+            std::fs::read_to_string(&file_path)
+                .map_err(|err| anyhow!("Failed to read file {}.io: {}", file_path, err))?
         };
 
         self.parse_with_code(path, source)?;
@@ -224,9 +236,72 @@ impl Compiler {
         Ok(())
     }
 
-    pub fn typecheck(&mut self, path: String) -> Result<()> {
-        for (_, module) in self.modules.iter_mut() {
-            Self::typecheck_module(&mut module.module, &module.source)?;
+    pub fn typecheck(&mut self, _path: String) -> Result<()> {
+        let mut paths = self.modules.keys().cloned().collect::<Vec<_>>();
+        paths.sort_by(|a, b| {
+            let a = self.modules.get(a).unwrap();
+            let b = self.modules.get(b).unwrap();
+            b.parsed_order.cmp(&a.parsed_order)
+        });
+
+        let mut typechecker = typechecker::Typechecker::new();
+        for path in paths {
+            let module = self.modules.get_mut(&path).unwrap();
+
+            Self::typecheck_method(&mut typechecker, &mut module.module, &module.source)?;
+        }
+
+        Ok(())
+    }
+
+    pub fn ir_code_gen(&mut self, _path: String) -> Result<Vec<IrModule>> {
+        let mut paths = self.modules.keys().cloned().collect::<Vec<_>>();
+        paths.sort_by(|a, b| {
+            let a = self.modules.get(a).unwrap();
+            let b = self.modules.get(b).unwrap();
+            b.parsed_order.cmp(&a.parsed_order)
+        });
+
+        let mut modules = vec![];
+        for path in paths {
+            let module = self.modules.get_mut(&path).unwrap();
+
+            let ir = Self::ir_code_gen_module(module.module.clone(), HashMap::new())?;
+            modules.push(ir);
+        }
+
+        Ok(modules)
+    }
+
+    fn typecheck_method(
+        typechecker: &mut typechecker::Typechecker,
+        module: &mut Module,
+        input: &str,
+    ) -> Result<(), CompilerError> {
+        match typechecker.module(module) {
+            Ok(_) => {}
+            Err(err) => {
+                match err.clone() {
+                    TypecheckerError::TypeMismatch { span, .. } if span.start.is_some() => {
+                        let (line, col) =
+                            Self::find_position_with_input(input, span.start.unwrap());
+                        eprintln!(
+                            "Error at line {}, column {} ({})",
+                            line,
+                            col,
+                            span.start.unwrap()
+                        );
+                        eprintln!(
+                            "{}\n{}^",
+                            input.lines().collect::<Vec<_>>().join("\n"),
+                            " ".repeat(col - 1)
+                        );
+                    }
+                    _ => {}
+                }
+
+                return Err(CompilerError::TypecheckError(err));
+            }
         }
 
         Ok(())
@@ -287,7 +362,7 @@ impl Compiler {
         )?)
     }
 
-    pub fn ir_code_gen(
+    pub fn ir_code_gen_module(
         block: Module,
         types: HashMap<String, Source<Type>>,
     ) -> Result<ir::IrModule, CompilerError> {
@@ -330,10 +405,27 @@ impl Compiler {
         }
     }
 
-    pub fn compile(input: String) -> Result<Vec<u8>, CompilerError> {
+    pub fn compile_with_input(input: String) -> Result<Vec<u8>, CompilerError> {
         let input = Self::create_input(input);
 
         Self::compile_bundled(input)
+    }
+
+    pub fn compile(&mut self, path: String) -> Result<Vec<u8>> {
+        let module = self
+            .modules
+            .get(&path)
+            .ok_or_else(|| anyhow!("Module {} not found in the compiler", path))?
+            .clone();
+
+        self.parse(path.clone())?;
+        self.typecheck(path.clone())?;
+
+        let ir = Self::ir_code_gen_module(module.module.clone(), HashMap::new())?;
+        let code = Self::vm_code_gen(ir)?;
+        let binary = Self::byte_code_gen(code)?;
+
+        Ok(binary)
     }
 
     pub fn compile_bundled(input: String) -> Result<Vec<u8>, CompilerError> {
@@ -341,7 +433,7 @@ impl Compiler {
         let mut module = Self::create_module(decls);
         let types = Self::typecheck_module(&mut module, &input)?;
 
-        let ir = Self::ir_code_gen(module, types)?;
+        let ir = Self::ir_code_gen_module(module, types)?;
         let code = Self::vm_code_gen(ir)?;
         let binary = Self::byte_code_gen(code)?;
 
@@ -349,7 +441,7 @@ impl Compiler {
     }
 
     pub fn run_input(input: String, print_stacks: bool) -> Result<i64, CompilerError> {
-        let program = Self::compile(input)?;
+        let program = Self::compile_with_input(input)?;
         Self::run_vm(program, print_stacks)
     }
 
@@ -359,7 +451,7 @@ impl Compiler {
             .get(&path)
             .ok_or_else(|| anyhow!("Module {} not found in the compiler", path))?;
 
-        let program = Self::compile(module.source.clone())?;
+        let program = Self::compile_with_input(module.source.clone())?;
 
         Ok(Self::run_vm(program, print_stacks)?)
     }
@@ -429,7 +521,9 @@ mod tests {
 
         for (input, expected) in cases {
             println!("====== {}", input);
-            let program = Compiler::compile(format!("fun main() {{ return {}; }}", input)).unwrap();
+            let program =
+                Compiler::compile_with_input(format!("fun main() {{ return {}; }}", input))
+                    .unwrap();
             let mut runtime = Compiler::exec_vm(program, false).unwrap();
             assert_eq!(
                 runtime.pop_value(),
@@ -460,7 +554,9 @@ mod tests {
 
         for (input, expected) in cases {
             println!("====== {}", input);
-            let program = Compiler::compile(format!("fun main() {{ return {}; }}", input)).unwrap();
+            let program =
+                Compiler::compile_with_input(format!("fun main() {{ return {}; }}", input))
+                    .unwrap();
             let mut runtime = Compiler::exec_vm(program, false).unwrap();
             assert_eq!(
                 runtime.pop_value(),

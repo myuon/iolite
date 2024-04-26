@@ -576,7 +576,7 @@ mod tests {
         ];
 
         for (input, error) in cases {
-            let result = Compiler::compile(input.to_string());
+            let result = Compiler::compile_with_input(input.to_string());
 
             match result.err() {
                 Some(CompilerError::TypecheckError(err)) => {

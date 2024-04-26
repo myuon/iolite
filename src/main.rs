@@ -51,7 +51,7 @@ use lsp_types::{
 use sender::SimpleSender;
 use server::{FutureResult, ServerProcess};
 
-use crate::compiler::{ast::Module, runtime::ControlFlow, vm::Instruction};
+use crate::compiler::{ast::Module, ir::IrModule, runtime::ControlFlow, vm::Instruction};
 
 mod compiler;
 mod dap;
@@ -95,13 +95,8 @@ fn compile(input: String) -> Result<Vec<u8>> {
     };
     let types = compiler::Compiler::typecheck_module(&mut module, &input).unwrap();
 
-    let ir = compiler::Compiler::ir_code_gen(module, types).unwrap();
-    println!("= IR_CODE_GEN");
-    println!("{:#?}", ir);
-
+    let ir = compiler::Compiler::ir_code_gen_module(module, types).unwrap();
     let code = compiler::Compiler::vm_code_gen(ir).unwrap();
-    println!("= VM_CODE_GEN");
-
     for inst in &code {
         match inst {
             Instruction::Label(label) => {
@@ -112,10 +107,7 @@ fn compile(input: String) -> Result<Vec<u8>> {
             }
         }
     }
-
     let binary = compiler::Compiler::byte_code_gen(code).unwrap();
-    println!("= BYTE_CODE_GEN");
-    println!("{:x?}", binary);
 
     Ok(binary)
 }
@@ -143,6 +135,21 @@ async fn main() -> Result<()> {
             stdin,
             print_stacks,
         } => {
+            let cwd = match file.clone() {
+                Some(file) => std::path::Path::new(&file)
+                    .parent()
+                    .unwrap()
+                    .to_str()
+                    .unwrap()
+                    .to_string(),
+                None => std::env::current_dir()
+                    .map_err(|err| anyhow!("Failed to get current directory: {}", err))?
+                    .to_str()
+                    .unwrap()
+                    .to_string(),
+            };
+            compiler.set_cwd(cwd);
+
             let source_code = match file {
                 Some(file) => std::fs::read_to_string(&file)
                     .map_err(|err| anyhow!("Failed to read file {}: {}", file, err))?,
@@ -161,7 +168,24 @@ async fn main() -> Result<()> {
             let main = "main".to_string();
 
             compiler.parse_with_code(main.clone(), source_code)?;
-            let result = compiler.run(main.clone(), print_stacks)?;
+            compiler.typecheck(main.clone())?;
+
+            let ir_modules = compiler.ir_code_gen(main.clone())?;
+            let mut ir = IrModule {
+                name: "main".to_string(),
+                decls: vec![],
+                data_section: vec![],
+                global_offset: 0,
+            };
+            for module in ir_modules {
+                ir.decls.extend(module.decls);
+                ir.data_section.extend(module.data_section);
+                ir.global_offset += module.global_offset;
+            }
+            let code = compiler::Compiler::vm_code_gen(ir)?;
+            let binary = compiler::Compiler::byte_code_gen(code)?;
+
+            let result = compiler::Compiler::run_vm(binary, false)?;
 
             println!("result: {}", result);
         }
@@ -369,7 +393,7 @@ async fn lsp_handler(
                             TypecheckerError::IndexNotSupported(_) => Span::unknown(),
                             TypecheckerError::ConversionNotSupported(_, ty) => ty.span,
                         },
-                        _ => todo!(),
+                        err => todo!("{:?}", err),
                     };
                     let start = {
                         match span.start {
@@ -600,7 +624,7 @@ async fn dap_handler(
 
             let source_file = data.source_file.unwrap();
             let content = std::fs::read_to_string(&source_file)?;
-            let program = compiler::Compiler::compile(content.clone())?;
+            let program = compiler::Compiler::compile_with_input(content.clone())?;
 
             ctx.0.lock().unwrap().init(
                 1024,

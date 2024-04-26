@@ -737,14 +737,14 @@ impl Parser {
     }
 
     fn expr_1(&mut self, with_struct: bool) -> Result<Source<Expr>, ParseError> {
-        let mut current = self.expr_0_5(with_struct)?;
+        let mut current = self.expr_0(with_struct)?;
 
         while self.position < self.tokens.len() {
             let token = self.peek()?.clone();
             match token.lexeme {
                 Lexeme::Star => {
                     self.consume()?;
-                    let right = self.expr_0_5(with_struct)?;
+                    let right = self.expr_0(with_struct)?;
                     let start = current.span.start;
                     let end = right.span.end;
 
@@ -761,7 +761,7 @@ impl Parser {
                 }
                 Lexeme::Slash => {
                     self.consume()?;
-                    let right = self.expr_0_5(with_struct)?;
+                    let right = self.expr_0(with_struct)?;
                     let start = current.span.start;
                     let end = right.span.end;
 
@@ -785,8 +785,8 @@ impl Parser {
         Ok(current)
     }
 
-    fn expr_0_5(&mut self, with_struct: bool) -> Result<Source<Expr>, ParseError> {
-        let mut current = self.expr_0(with_struct)?;
+    fn expr_0(&mut self, with_struct: bool) -> Result<Source<Expr>, ParseError> {
+        let mut current = self.expr_base(with_struct)?;
 
         while self.position < self.tokens.len() {
             let token = self.peek()?.clone();
@@ -856,21 +856,6 @@ impl Parser {
                         _ => todo!(),
                     }
                 }
-                _ => {
-                    break;
-                }
-            }
-        }
-
-        Ok(current)
-    }
-
-    fn expr_0(&mut self, with_struct: bool) -> Result<Source<Expr>, ParseError> {
-        let mut current = self.expr_base(with_struct)?;
-
-        while self.position < self.tokens.len() {
-            let token = self.peek()?.clone();
-            match token.lexeme {
                 Lexeme::Dot => {
                     self.consume()?;
 
@@ -1075,6 +1060,7 @@ mod tests {
             "1 * 3 - 4",
             "4 * f(1, 2, 4 * 3) - 2",
             "1 <= 2 || 3 >= 4 && 1 + 2 == 4",
+            "f.method(1,2,3)",
             "f().length",
         ];
 
