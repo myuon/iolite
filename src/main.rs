@@ -1,5 +1,6 @@
 use std::{
     io::Read,
+    path::Path,
     sync::{Arc, Mutex},
 };
 
@@ -349,6 +350,22 @@ async fn lsp_handler(
 
             let path = params.text_document.uri.path();
             let mut compiler = compiler::Compiler::new();
+            compiler.set_cwd(
+                Path::new(&path)
+                    .parent()
+                    .unwrap()
+                    .to_str()
+                    .unwrap()
+                    .to_string(),
+            );
+
+            let path = Path::new(&path)
+                .file_name()
+                .unwrap()
+                .to_str()
+                .unwrap()
+                .to_string()
+                .replace(".io", "");
 
             match compiler
                 .parse(path.to_string())
