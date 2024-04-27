@@ -30,7 +30,6 @@ pub enum Instruction {
     LoadSp,
     StoreSp,
     Push(u64),
-    Pop,
     Jump,
     JumpIf,
     Call,
@@ -66,7 +65,6 @@ impl Instruction {
         match self {
             // Control flow
             Push(_) => vec![0x01],
-            Pop => vec![0x02],
             Call => vec![0x03],
             Return => vec![0x04],
             Jump => vec![0x05],
@@ -129,7 +127,6 @@ impl Instruction {
     pub fn from_byte(bytes: &[u8]) -> Result<Instruction, InstructionError> {
         Ok(match bytes[0] {
             0x01 => Instruction::Push(0),
-            0x02 => Instruction::Pop,
             0x03 => Instruction::Call,
             0x04 => Instruction::Return,
             0x05 => Instruction::Jump,
@@ -210,7 +207,6 @@ impl Arbitrary for Instruction {
             Just(Instruction::Load32),
             Just(Instruction::Store32),
             Just(Instruction::Push(0)),
-            Just(Instruction::Pop),
             Just(Instruction::Jump),
             Just(Instruction::JumpIf),
             Just(Instruction::Call),

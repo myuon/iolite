@@ -292,10 +292,6 @@ impl Runtime {
                 let imm = self.consume_u64() as i64;
                 self.push(imm);
             }
-            // pop
-            0x02 => {
-                self.pop_i64();
-            }
             // call
             0x03 => {
                 let pc = self.pop_i64();

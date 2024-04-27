@@ -171,9 +171,6 @@ impl VmCodeGenerator {
             Push(_) => {
                 self.stack_pointer += 1;
             }
-            Pop => {
-                self.stack_pointer -= 1;
-            }
             Jump => {
                 self.stack_pointer -= 1;
             }
