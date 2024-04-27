@@ -402,15 +402,21 @@ impl Compiler {
         )?)
     }
 
-    pub fn infer_type_at(&mut self, path: String, position: usize) -> Result<Option<Span>> {
-        let module = self
-            .modules
-            .get_mut(&path)
-            .ok_or_else(|| anyhow!("Module {} not found in the compiler", path))?;
+    pub fn infer_type_at(&mut self, path: String, position: usize) -> Result<Option<Type>> {
+        let paths = self.pathes_in_imported_order();
 
         let mut typechecker = typechecker::Typechecker::new();
+        for path_target in paths {
+            let module = self.modules.get_mut(&path_target).unwrap();
 
-        Ok(typechecker.infer_type_at(&mut module.module, position))
+            if path_target == path {
+                return Ok(typechecker.infer_type_at(&mut module.module, position));
+            } else {
+                Self::typecheck_method(&mut typechecker, &mut module.module, &module.source)?;
+            }
+        }
+
+        Ok(None)
     }
 
     pub fn ir_code_gen_module(

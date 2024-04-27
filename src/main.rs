@@ -43,12 +43,13 @@ use lsp_types::{
         SemanticTokensFullRequest,
     },
     DeclarationCapability, Diagnostic, DiagnosticOptions, DiagnosticServerCapabilities,
-    DiagnosticSeverity, FullDocumentDiagnosticReport, HoverParams, HoverProviderCapability,
-    InitializeResult, Location, OneOf, Position, PublishDiagnosticsParams, Range,
-    RelatedFullDocumentDiagnosticReport, SemanticToken, SemanticTokenType, SemanticTokens,
-    SemanticTokensFullOptions, SemanticTokensLegend, SemanticTokensOptions, SemanticTokensParams,
-    SemanticTokensServerCapabilities, ServerCapabilities, TextDocumentPositionParams,
-    TextDocumentSyncCapability, TextDocumentSyncKind, WorkDoneProgressOptions,
+    DiagnosticSeverity, FullDocumentDiagnosticReport, Hover, HoverContents, HoverOptions,
+    HoverParams, HoverProviderCapability, InitializeResult, Location, MarkedString, OneOf,
+    Position, PublishDiagnosticsParams, Range, RelatedFullDocumentDiagnosticReport, SemanticToken,
+    SemanticTokenType, SemanticTokens, SemanticTokensFullOptions, SemanticTokensLegend,
+    SemanticTokensOptions, SemanticTokensParams, SemanticTokensServerCapabilities,
+    ServerCapabilities, TextDocumentPositionParams, TextDocumentSyncCapability,
+    TextDocumentSyncKind, WorkDoneProgressOptions,
 };
 use sender::SimpleSender;
 use server::{FutureResult, ServerProcess};
@@ -511,16 +512,36 @@ async fn lsp_handler(
                 params.text_document_position_params.position.line as usize,
                 params.text_document_position_params.position.character as usize,
             );
-            let module_name = path.to_str().unwrap().replace(".io", "");
+            let module_name = Path::new(path.to_str().unwrap())
+                .file_name()
+                .unwrap()
+                .to_str()
+                .unwrap()
+                .replace(".io", "");
 
             let mut compiler = compiler::Compiler::new();
+            compiler.set_cwd(path.parent().unwrap().to_str().unwrap().to_string());
             compiler.parse(module_name.clone())?;
 
             let position = compiler.find_line_and_column(&module_name, line, col)?;
-
-            compiler.infer_type_at(module_name.clone(), position)?;
-
-            Ok(None)
+            let ty = compiler.infer_type_at(module_name.clone(), position)?;
+            if let Some(ty) = ty {
+                Ok(Some(RpcMessageResponse::new(
+                    req.id,
+                    Hover {
+                        contents: HoverContents::Scalar(MarkedString::String(format!("{:?}", ty))),
+                        range: None,
+                    },
+                )?))
+            } else {
+                Ok(Some(RpcMessageResponse::new(
+                    req.id,
+                    Hover {
+                        contents: HoverContents::Scalar(MarkedString::String("".to_string())),
+                        range: None,
+                    },
+                )?))
+            }
         }
         _ => Ok(None),
     }

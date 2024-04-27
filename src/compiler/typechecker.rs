@@ -73,10 +73,17 @@ struct SearchDefinition {
     found: Option<Span>,
 }
 
+#[derive(Debug, Clone)]
+struct InferTypeAt {
+    position: usize,
+    found: Option<Type>,
+}
+
 pub struct Typechecker {
     pub types: HashMap<String, Source<Type>>,
     return_ty: Type,
     search_def: Option<SearchDefinition>,
+    infer_type_at: Option<InferTypeAt>,
 }
 
 impl Typechecker {
@@ -85,6 +92,7 @@ impl Typechecker {
             types: HashMap::new(),
             return_ty: Type::Unknown,
             search_def: None,
+            infer_type_at: None,
         }
     }
 
@@ -119,6 +127,17 @@ impl Typechecker {
         }
     }
 
+    fn check_infer_type_at(&mut self, span: &Span, ty: Type) {
+        if let Some(infer) = &self.infer_type_at {
+            if span.has(infer.position) {
+                self.infer_type_at = Some(InferTypeAt {
+                    position: infer.position,
+                    found: Some(ty),
+                });
+            }
+        }
+    }
+
     fn expr_infer(
         &mut self,
         expr: &mut Source<Expr>,
@@ -134,7 +153,10 @@ impl Typechecker {
             Expr::Ident(i) => {
                 self.check_search_ident(i);
 
-                Ok(self.get_type(i)?.data)
+                let ty = self.get_type(i)?.data;
+                self.check_infer_type_at(&expr.span, ty.clone());
+
+                Ok(ty)
             }
             Expr::Lit(lit) => Ok(match lit.data {
                 Literal::Nil => Type::Nil,
@@ -201,6 +223,8 @@ impl Typechecker {
                 }
 
                 let fun_ty = self.get_type(name)?.data;
+                self.check_infer_type_at(&expr.span, fun_ty.clone());
+
                 match fun_ty {
                     Type::Fun(arg_types_expected, ret_ty) => {
                         if arg_types_actual.len() != arg_types_expected.len() {
@@ -301,6 +325,8 @@ impl Typechecker {
                     .find(|(name, _)| name == &field.data)
                     .map(|(_, ty)| ty.clone())
                     .ok_or(TypecheckerError::IdentNotFound(field.clone()))?;
+
+                self.check_infer_type_at(&field.span, field_ty.clone());
 
                 Ok(field_ty)
             }
@@ -534,15 +560,15 @@ impl Typechecker {
         self.search_def.clone()?.found
     }
 
-    pub fn infer_type_at(&mut self, module: &mut Module, position: usize) -> Option<Span> {
-        self.search_def = Some(SearchDefinition {
+    pub fn infer_type_at(&mut self, module: &mut Module, position: usize) -> Option<Type> {
+        self.infer_type_at = Some(InferTypeAt {
             position,
             found: None,
         });
 
         self.module(module).unwrap();
 
-        self.search_def.clone()?.found
+        self.infer_type_at.clone()?.found
     }
 }
 
