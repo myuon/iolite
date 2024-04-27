@@ -128,9 +128,19 @@ impl VmCodeGenerator {
         self.globals.iter().any(|s| s == name)
     }
 
+    fn pop(&mut self) {
+        let sp = self.stack_pointer;
+        self.emit(Instruction::LoadSp);
+        self.push_value(Value::Int(Value::size()));
+        self.emit(Instruction::AddInt);
+        self.emit(Instruction::StoreSp);
+
+        self.stack_pointer = sp - 1;
+    }
+
     fn pop_until(&mut self, size: usize) {
         while self.stack_pointer > size {
-            self.emit(Instruction::Pop);
+            self.pop();
         }
     }
 
@@ -413,7 +423,7 @@ impl VmCodeGenerator {
 
                 self.term(*body)?;
                 // discard the result of the block
-                self.emit(Instruction::Pop);
+                self.pop();
 
                 self.emit(Instruction::JumpTo(label_while_start.clone()));
 
@@ -457,7 +467,7 @@ impl VmCodeGenerator {
 
                 // NOTE: pop arity
                 for _ in 0..args_len {
-                    self.emit(Instruction::Pop);
+                    self.pop();
                 }
             }
             IrTerm::Index { ptr, index } => {
@@ -648,7 +658,10 @@ mod tests {
                     Instruction::AddInt,
                     Instruction::Load,
                     Instruction::Store,
-                    Instruction::Pop,
+                    Instruction::LoadSp,
+                    Instruction::Push(Value::Int(8).as_u64()),
+                    Instruction::AddInt,
+                    Instruction::StoreSp,
                 ],
             ),
         ];
