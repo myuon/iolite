@@ -1,5 +1,7 @@
 import lib;
 
 fun main() {
-  return f().length;
+  let p = f().length;
+
+  return p;
 }

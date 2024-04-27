@@ -84,6 +84,7 @@ pub struct Typechecker {
     return_ty: Type,
     search_def: Option<SearchDefinition>,
     infer_type_at: Option<InferTypeAt>,
+    inlay_hints: Option<Vec<(Span, Type)>>,
 }
 
 impl Typechecker {
@@ -93,6 +94,7 @@ impl Typechecker {
             return_ty: Type::Unknown,
             search_def: None,
             infer_type_at: None,
+            inlay_hints: None,
         }
     }
 
@@ -135,6 +137,12 @@ impl Typechecker {
                     found: Some(ty),
                 });
             }
+        }
+    }
+
+    fn check_inlay_hints(&mut self, span: &Span, ty: Type) {
+        if let Some(inlay_hints) = &mut self.inlay_hints {
+            inlay_hints.push((span.clone(), ty));
         }
     }
 
@@ -427,6 +435,7 @@ impl Typechecker {
         match &mut stmt.data {
             Statement::Let(name, value) => {
                 let ty = self.expr(value)?;
+                self.check_inlay_hints(&name.span, ty.clone());
                 self.types
                     .insert(name.data.clone(), Source::span(ty, name.span.clone()));
             }
@@ -569,6 +578,14 @@ impl Typechecker {
         self.module(module).unwrap();
 
         self.infer_type_at.clone()?.found
+    }
+
+    pub fn inlay_hints(&mut self, module: &mut Module) -> Vec<(Span, Type)> {
+        self.inlay_hints = Some(vec![]);
+
+        self.module(module).unwrap();
+
+        self.inlay_hints.clone().unwrap()
     }
 }
 

@@ -282,6 +282,23 @@ impl Compiler {
         Ok(())
     }
 
+    pub fn inlay_hints(&mut self, path: String) -> Result<Vec<(Span, Type)>> {
+        let paths = self.pathes_in_imported_order();
+
+        let mut typechecker = typechecker::Typechecker::new();
+        for path_target in paths {
+            let module = self.modules.get_mut(&path_target).unwrap();
+
+            if path_target == path {
+                return Ok(typechecker.inlay_hints(&mut module.module));
+            } else {
+                Self::typecheck_method(&mut typechecker, &mut module.module, &module.source)?;
+            }
+        }
+
+        Ok(vec![])
+    }
+
     pub fn ir_code_gen(&mut self, path: String) -> Result<IrModule> {
         let paths = self.pathes_in_imported_order();
         let mut modules = vec![];

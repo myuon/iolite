@@ -23,7 +23,8 @@ use base64::prelude::*;
 use clap::{Parser, Subcommand};
 use compiler::{
     ast::{
-        AstWalker, Span, AST_WALKER_FIELD, AST_WALKER_FUNCTION, AST_WALKER_METHOD, AST_WALKER_TYPE,
+        AstWalker, AstWalkerMode, Span, AST_WALKER_FIELD, AST_WALKER_FUNCTION, AST_WALKER_METHOD,
+        AST_WALKER_TYPE,
     },
     parser::ParseError,
     runtime::Runtime,
@@ -39,17 +40,17 @@ use lsp::{
 use lsp_types::{
     notification::{DidSaveTextDocument, Initialized, Notification, PublishDiagnostics},
     request::{
-        DocumentDiagnosticRequest, GotoDefinition, HoverRequest, Initialize, Request,
-        SemanticTokensFullRequest,
+        DocumentDiagnosticRequest, GotoDefinition, HoverRequest, Initialize, InlayHintRequest,
+        Request, SemanticTokensFullRequest,
     },
     DeclarationCapability, Diagnostic, DiagnosticOptions, DiagnosticServerCapabilities,
-    DiagnosticSeverity, FullDocumentDiagnosticReport, Hover, HoverContents, HoverOptions,
-    HoverParams, HoverProviderCapability, InitializeResult, Location, MarkedString, OneOf,
-    Position, PublishDiagnosticsParams, Range, RelatedFullDocumentDiagnosticReport, SemanticToken,
-    SemanticTokenType, SemanticTokens, SemanticTokensFullOptions, SemanticTokensLegend,
-    SemanticTokensOptions, SemanticTokensParams, SemanticTokensServerCapabilities,
-    ServerCapabilities, TextDocumentPositionParams, TextDocumentSyncCapability,
-    TextDocumentSyncKind, WorkDoneProgressOptions,
+    DiagnosticSeverity, FullDocumentDiagnosticReport, Hover, HoverContents, HoverParams,
+    HoverProviderCapability, InitializeResult, InlayHint, InlayHintLabel, InlayHintParams,
+    Location, MarkedString, OneOf, Position, PublishDiagnosticsParams, Range,
+    RelatedFullDocumentDiagnosticReport, SemanticToken, SemanticTokenType, SemanticTokens,
+    SemanticTokensFullOptions, SemanticTokensLegend, SemanticTokensOptions, SemanticTokensParams,
+    SemanticTokensServerCapabilities, ServerCapabilities, TextDocumentPositionParams,
+    TextDocumentSyncCapability, TextDocumentSyncKind, WorkDoneProgressOptions,
 };
 use sender::SimpleSender;
 use server::{FutureResult, ServerProcess};
@@ -275,7 +276,7 @@ async fn lsp_handler(
                         moniker_provider: None,
                         linked_editing_range_provider: None,
                         inline_value_provider: None,
-                        inlay_hint_provider: None,
+                        inlay_hint_provider: Some(OneOf::Left(true)),
                         experimental: None,
                     },
                     server_info: None,
@@ -295,7 +296,7 @@ async fn lsp_handler(
             let Ok(module) = compiler::Compiler::parse_module(content.clone()) else {
                 return Ok(None);
             };
-            let mut walker = AstWalker::new();
+            let mut walker = AstWalker::new(AstWalkerMode::SemanticTokens);
             walker.module(&module);
 
             let mut token_data = vec![];
@@ -542,6 +543,41 @@ async fn lsp_handler(
                     },
                 )?))
             }
+        }
+        InlayHintRequest::METHOD => {
+            let params = serde_json::from_value::<InlayHintParams>(req.params.clone())?;
+            let path = Path::new(params.text_document.uri.path());
+            let module_name = Path::new(path.to_str().unwrap())
+                .file_name()
+                .unwrap()
+                .to_str()
+                .unwrap()
+                .replace(".io", "");
+
+            let mut compiler = compiler::Compiler::new();
+            compiler.set_cwd(path.parent().unwrap().to_str().unwrap().to_string());
+            compiler.parse(module_name.clone())?;
+            let types = compiler.inlay_hints(module_name.clone())?;
+
+            let mut hints = vec![];
+            for (span, ty) in types {
+                let (line, col) = compiler.find_position(&module_name, span.end.unwrap())?;
+                hints.push(InlayHint {
+                    position: Position {
+                        line: line as u32,
+                        character: col as u32,
+                    },
+                    label: InlayHintLabel::String(format!(": {:?}", ty)),
+                    kind: None,
+                    text_edits: None,
+                    tooltip: None,
+                    padding_left: None,
+                    padding_right: None,
+                    data: None,
+                })
+            }
+
+            Ok(Some(RpcMessageResponse::new(req.id, hints)?))
         }
         _ => Ok(None),
     }
