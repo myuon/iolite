@@ -9,6 +9,7 @@ const debuggerDefaultConfig: vscode.DebugConfiguration = {
   type: debugType,
   request: "launch",
   sourceFile: "${file}",
+  cwd: "${fileDirname}",
 };
 
 let client: LanguageClient;

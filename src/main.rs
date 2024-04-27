@@ -701,18 +701,33 @@ async fn dap_handler(
         }
         Command::ConfigurationDone => todo!(),
         Command::Launch(arg) => {
-            #[derive(serde::Deserialize)]
+            #[derive(serde::Deserialize, Debug)]
             #[serde(rename_all = "camelCase")]
             struct LaunchAdditionalData {
                 source_file: Option<String>,
+                cwd: Option<String>,
             }
 
             let data =
                 serde_json::from_value::<LaunchAdditionalData>(arg.additional_data.unwrap())?;
 
-            let source_file = data.source_file.unwrap();
-            let content = std::fs::read_to_string(&source_file)?;
-            let program = compiler::Compiler::compile_with_input(content.clone())?;
+            let source_file = Path::new(&data.cwd.clone().unwrap())
+                .join(Path::new(&data.source_file.unwrap()))
+                .to_str()
+                .unwrap()
+                .to_string();
+            let mut compiler = compiler::Compiler::new();
+            compiler.set_cwd(data.cwd.unwrap());
+
+            let main = "main".to_string();
+            let source_code = std::fs::read_to_string(&source_file)?;
+
+            compiler.parse_with_code(main.clone(), source_code.clone())?;
+            compiler.typecheck(main.clone())?;
+
+            let ir = compiler.ir_code_gen(main.clone())?;
+            let code = compiler::Compiler::vm_code_gen(ir)?;
+            let program = compiler::Compiler::byte_code_gen(code)?;
 
             ctx.0.lock().unwrap().init(
                 1024,
@@ -723,7 +738,7 @@ async fn dap_handler(
                     .to_str()
                     .unwrap()
                     .to_string(),
-                content,
+                source_code,
             );
 
             sender

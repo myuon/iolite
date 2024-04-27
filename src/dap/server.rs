@@ -92,9 +92,15 @@ impl<C: Sync + Send + Clone + 'static, I: DapServer<C> + Sync + Send + Clone + '
                         content_part.chars().take(80).collect::<String>()
                     );
 
-                    let resp =
+                    let resp_result =
                         I::handle_request(ctx.clone(), simple_sender.clone(), req.command.clone())
-                            .await?;
+                            .await;
+                    if let Err(err) = resp_result {
+                        eprintln!("failed to handle request; err = {:?}", err);
+                        break;
+                    }
+
+                    let resp = resp_result?;
 
                     println!(
                         "< resp: {}..",
