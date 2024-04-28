@@ -336,7 +336,7 @@ async fn lsp_handler(
                     return Ok(None);
                 }
             };
-            let def_position = match compiler.search_for_definition(module_name, position) {
+            let def_position = match compiler.search_for_definition(module_name.clone(), position) {
                 Ok(pos) => pos,
                 Err(err) => {
                     eprintln!("{:?}", err);
@@ -363,6 +363,8 @@ async fn lsp_handler(
                         },
                     },
                 )?));
+            } else {
+                eprintln!("Definition not found, {}:{}", module_name, position);
             }
 
             Ok(None)
@@ -590,29 +592,50 @@ mod tests {
 
     #[tokio::test]
     async fn test_lsp_handler_go_to_definition() -> Result<()> {
-        let cases = vec![(
-            "test1.io",
-            Position {
-                line: 9,
-                character: 10,
-            },
-            vec![(
-                "test1",
-                "Typechecker error: Type mismatch: expected Int, but got Array(Byte)",
-                Range {
-                    start: Position {
-                        line: 3,
-                        character: 12,
-                    },
-                    end: Position {
-                        line: 3,
-                        character: 13,
-                    },
+        let cases = vec![
+            (
+                "test1.io",
+                Position {
+                    line: 9,
+                    character: 10,
                 },
-            )],
-        )];
+                (
+                    "test1",
+                    Range {
+                        start: Position {
+                            line: 4,
+                            character: 4,
+                        },
+                        end: Position {
+                            line: 4,
+                            character: 5,
+                        },
+                    },
+                ),
+            ),
+            (
+                "test1.io",
+                Position {
+                    line: 5,
+                    character: 9,
+                },
+                (
+                    "test1",
+                    Range {
+                        start: Position {
+                            line: 0,
+                            character: 4,
+                        },
+                        end: Position {
+                            line: 0,
+                            character: 5,
+                        },
+                    },
+                ),
+            ),
+        ];
 
-        for (file, position, checks) in cases {
+        for (file, position, result) in cases {
             let req = RpcMessageRequest {
                 id: None,
                 method: GotoDefinition::METHOD.to_string(),
@@ -647,20 +670,11 @@ mod tests {
                     uri: Url::parse(&format!(
                         "file://{}",
                         std::env::current_dir()?
-                            .join(format!("tests/lsp/gotodefinition/{}.io", checks[0].0))
+                            .join(format!("tests/lsp/gotodefinition/{}.io", result.0))
                             .to_str()
                             .unwrap()
                     ))?,
-                    range: Range {
-                        start: Position {
-                            line: 4,
-                            character: 4,
-                        },
-                        end: Position {
-                            line: 4,
-                            character: 5,
-                        },
-                    },
+                    range: result.1,
                 },
             );
 
