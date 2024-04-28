@@ -708,4 +708,162 @@ mod tests {
 
         Ok(())
     }
+
+    #[tokio::test]
+    async fn test_lsp_handler_inlay_hints() -> Result<()> {
+        let cases = vec![(
+            "test1.io",
+            Range {
+                start: Position {
+                    line: 9,
+                    character: 10,
+                },
+                end: Position {
+                    line: 9,
+                    character: 10,
+                },
+            },
+            vec![
+                InlayHint {
+                    position: Position {
+                        line: 1,
+                        character: 7,
+                    },
+                    label: InlayHintLabel::String(": int".to_string()),
+                    kind: None,
+                    text_edits: None,
+                    tooltip: None,
+                    padding_left: None,
+                    padding_right: None,
+                    data: None,
+                },
+                InlayHint {
+                    position: Position {
+                        line: 2,
+                        character: 7,
+                    },
+                    label: InlayHintLabel::String(": bool".to_string()),
+                    kind: None,
+                    text_edits: None,
+                    tooltip: None,
+                    padding_left: None,
+                    padding_right: None,
+                    data: None,
+                },
+                InlayHint {
+                    position: Position {
+                        line: 3,
+                        character: 7,
+                    },
+                    label: InlayHintLabel::String(": float".to_string()),
+                    kind: None,
+                    text_edits: None,
+                    tooltip: None,
+                    padding_left: None,
+                    padding_right: None,
+                    data: None,
+                },
+                InlayHint {
+                    position: Position {
+                        line: 4,
+                        character: 7,
+                    },
+                    label: InlayHintLabel::String(": array[byte]".to_string()),
+                    kind: None,
+                    text_edits: None,
+                    tooltip: None,
+                    padding_left: None,
+                    padding_right: None,
+                    data: None,
+                },
+                InlayHint {
+                    position: Position {
+                        line: 5,
+                        character: 7,
+                    },
+                    label: InlayHintLabel::String(": array[int]".to_string()),
+                    kind: None,
+                    text_edits: None,
+                    tooltip: None,
+                    padding_left: None,
+                    padding_right: None,
+                    data: None,
+                },
+                InlayHint {
+                    position: Position {
+                        line: 6,
+                        character: 7,
+                    },
+                    label: InlayHintLabel::String(": nil".to_string()),
+                    kind: None,
+                    text_edits: None,
+                    tooltip: None,
+                    padding_left: None,
+                    padding_right: None,
+                    data: None,
+                },
+                InlayHint {
+                    position: Position {
+                        line: 7,
+                        character: 7,
+                    },
+                    label: InlayHintLabel::String(": ptr[int]".to_string()),
+                    kind: None,
+                    text_edits: None,
+                    tooltip: None,
+                    padding_left: None,
+                    padding_right: None,
+                    data: None,
+                },
+                InlayHint {
+                    position: Position {
+                        line: 8,
+                        character: 7,
+                    },
+                    label: InlayHintLabel::String(": byte".to_string()),
+                    kind: None,
+                    text_edits: None,
+                    tooltip: None,
+                    padding_left: None,
+                    padding_right: None,
+                    data: None,
+                },
+            ],
+        )];
+
+        for (file, range, result) in cases {
+            let req = RpcMessageRequest {
+                id: None,
+                method: InlayHintRequest::METHOD.to_string(),
+                params: serde_json::to_value(&InlayHintParams {
+                    work_done_progress_params: WorkDoneProgressParams {
+                        work_done_token: None,
+                    },
+                    text_document: TextDocumentIdentifier::new(Url::parse(&format!(
+                        "file://{}",
+                        std::env::current_dir()?
+                            .join(format!("tests/lsp/inlayhints/{}", file))
+                            .to_str()
+                            .unwrap()
+                    ))?),
+                    range,
+                })?,
+                jsonrpc: "".to_string(),
+            };
+            let (sender, mut receiver) = tokio::sync::mpsc::channel::<String>(100);
+            let sender =
+                SimpleSender::new(sender, Arc::new(|m| serde_json::to_string(&m).unwrap()));
+            let res = lsp_handler(req, sender).await?;
+
+            assert_eq!(
+                res.unwrap().result,
+                serde_json::to_value::<Vec<InlayHint>>(result)?,
+            );
+
+            let r = receiver.try_recv();
+            assert!(r.is_err());
+        }
+
+        Ok(())
+    }
 }
