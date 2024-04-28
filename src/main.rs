@@ -31,10 +31,12 @@ use compiler::{
     typechecker::TypecheckerError,
     CompilerError,
 };
-use dap::server::{Dap, DapServer};
-use lsp::{
-    server::{Lsp, LspServer},
-    NotificationMessage, RpcMessageRequest, RpcMessageResponse,
+use utils::{
+    dap::server::{Dap, DapServer},
+    lsp::{
+        server::{Lsp, LspServer},
+        NotificationMessage, RpcMessageRequest, RpcMessageResponse,
+    },
 };
 
 use lsp_types::{
@@ -59,8 +61,6 @@ use utils::server_process::{FutureResult, ServerProcess};
 use crate::compiler::{ast::Module, runtime::ControlFlow, vm::Instruction};
 
 mod compiler;
-mod dap;
-mod lsp;
 mod utils;
 
 #[derive(Parser, Debug)]

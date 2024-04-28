@@ -7,13 +7,12 @@ use tokio::{
 };
 
 use crate::{
-    lsp::RpcMessageRequest,
     utils::net::read_headers,
     utils::sender::SimpleSender,
     utils::server_process::{FutureResult, ServerProcess},
 };
 
-use super::{NotificationMessage, RpcMessageResponse};
+use super::{NotificationMessage, RpcMessageRequest, RpcMessageResponse};
 
 #[derive(Clone)]
 pub struct Lsp<I>(I);
