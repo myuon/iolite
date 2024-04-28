@@ -165,6 +165,19 @@ impl Parser {
                 let params = self.arity_decl()?;
                 let result_position = self.expect(Lexeme::RParen)?;
 
+                let mut result_ty = Source::new_span(
+                    Type::Unknown,
+                    self.module_name.clone(),
+                    Some(result_position.span.end.unwrap()),
+                    Some(result_position.span.end.unwrap()),
+                );
+
+                if self.is_next_token(Lexeme::Colon) {
+                    self.consume()?;
+
+                    result_ty = self.ty()?;
+                }
+
                 self.expect(Lexeme::LBrace)?;
                 let block = self.block(Some(Lexeme::RBrace))?;
                 let end_token = self.expect(Lexeme::RBrace)?;
@@ -173,12 +186,7 @@ impl Parser {
                     Declaration::Function {
                         name,
                         params,
-                        result: Source::new_span(
-                            Type::Unknown,
-                            self.module_name.clone(),
-                            Some(result_position.span.end.unwrap()),
-                            Some(result_position.span.end.unwrap()),
-                        ),
+                        result: result_ty,
                         body: block,
                     },
                     self.module_name.clone(),

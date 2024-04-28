@@ -515,7 +515,15 @@ impl Typechecker {
                     );
                 }
 
-                self.return_ty = Type::Unknown;
+                self.return_ty = result.data.clone();
+                self.types.insert(
+                    name.data.clone(),
+                    Source::span(
+                        Type::Fun(param_types.clone(), Box::new(self.return_ty.clone())),
+                        name.span.clone(),
+                    ),
+                );
+
                 self.block(body)?;
 
                 self.check_inlay_hints(&result.span, self.return_ty.clone());
