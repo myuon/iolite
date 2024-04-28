@@ -163,7 +163,7 @@ impl Parser {
                 let name = self.ident()?;
                 self.expect(Lexeme::LParen)?;
                 let params = self.arity_decl()?;
-                self.expect(Lexeme::RParen)?;
+                let result_position = self.expect(Lexeme::RParen)?;
 
                 self.expect(Lexeme::LBrace)?;
                 let block = self.block(Some(Lexeme::RBrace))?;
@@ -173,6 +173,12 @@ impl Parser {
                     Declaration::Function {
                         name,
                         params,
+                        result: Source::new_span(
+                            Type::Unknown,
+                            self.module_name.clone(),
+                            Some(result_position.span.end.unwrap()),
+                            Some(result_position.span.end.unwrap()),
+                        ),
                         body: block,
                     },
                     self.module_name.clone(),

@@ -493,7 +493,12 @@ impl Typechecker {
 
     fn decl(&mut self, decl: &mut Source<Declaration>) -> Result<(), TypecheckerError> {
         match &mut decl.data {
-            Declaration::Function { name, params, body } => {
+            Declaration::Function {
+                name,
+                params,
+                result,
+                body,
+            } => {
                 let types_cloned = self.types.clone();
                 let mut param_types = vec![];
 
@@ -507,6 +512,8 @@ impl Typechecker {
 
                 self.return_ty = Type::Unknown;
                 self.block(body)?;
+
+                self.check_inlay_hints(&result.span, self.return_ty.clone());
 
                 let ty = Type::Fun(param_types, Box::new(self.return_ty.clone()));
 

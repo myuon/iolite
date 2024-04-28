@@ -125,7 +125,12 @@ impl IrCodeGenerator {
 
     fn decl(&mut self, decl: Source<Declaration>) -> Result<Option<IrDecl>, IrCodeGeneratorError> {
         match decl.data {
-            Declaration::Function { name, params, body } => {
+            Declaration::Function {
+                name,
+                params,
+                result: _,
+                body,
+            } => {
                 let body = {
                     let term = self.block(body)?;
 

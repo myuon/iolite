@@ -828,6 +828,19 @@ mod tests {
                     padding_right: None,
                     data: None,
                 },
+                InlayHint {
+                    position: Position {
+                        line: 0,
+                        character: 10,
+                    },
+                    label: InlayHintLabel::String(": nil".to_string()),
+                    kind: None,
+                    text_edits: None,
+                    tooltip: None,
+                    padding_left: None,
+                    padding_right: None,
+                    data: None,
+                },
             ],
         )];
 

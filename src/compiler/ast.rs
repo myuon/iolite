@@ -197,6 +197,7 @@ pub enum Declaration {
     Function {
         name: Source<String>,
         params: Vec<(Source<String>, Source<Type>)>,
+        result: Source<Type>,
         body: Source<Block>,
     },
     Let {
@@ -337,7 +338,12 @@ impl AstWalker {
 
     fn decl(&mut self, decl: &Source<Declaration>) {
         match &decl.data {
-            Declaration::Function { name, params, body } => {
+            Declaration::Function {
+                name,
+                params,
+                result,
+                body,
+            } => {
                 if matches!(self.mode, AstWalkerMode::SemanticTokens) {
                     self.tokens
                         .push((AST_WALKER_FUNCTION.to_string(), name.span.clone()));
