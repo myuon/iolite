@@ -97,6 +97,24 @@ impl Compiler {
         Ok(Self::find_position_with_input(&module.source, position))
     }
 
+    pub fn find_span(&self, span: &Span) -> Result<Option<((usize, usize), (usize, usize))>> {
+        let module_name = span.module_name.as_ref().unwrap();
+        let module = self
+            .modules
+            .get(module_name)
+            .ok_or_else(|| anyhow!("Module {} not found in the compiler", module_name))?;
+
+        match (span.start, span.end) {
+            (Some(start), Some(end)) => {
+                let start = Self::find_position_with_input(&module.source, start);
+                let end = Self::find_position_with_input(&module.source, end);
+
+                Ok(Some((start, end)))
+            }
+            _ => Ok(None),
+        }
+    }
+
     pub fn find_line_and_column_with_input(input: &str, line: usize, col: usize) -> usize {
         let mut current_line = 0;
         let mut current_col = 0;
@@ -140,8 +158,11 @@ impl Compiler {
     }
 
     pub fn parse_decls(input: String) -> Result<Vec<Source<Declaration>>, CompilerError> {
-        let mut lexer = lexer::Lexer::new(input.clone());
-        let mut parser = parser::Parser::new(lexer.run().map_err(CompilerError::LexerError)?);
+        let mut lexer = lexer::Lexer::new("".to_string(), input.clone());
+        let mut parser = parser::Parser::new(
+            "".to_string(),
+            lexer.run().map_err(CompilerError::LexerError)?,
+        );
         let expr = match parser.decls() {
             Ok(expr) => expr,
             Err(err) => {
@@ -198,7 +219,7 @@ impl Compiler {
             },
         );
 
-        let mut lexer = lexer::Lexer::new(source);
+        let mut lexer = lexer::Lexer::new(path.clone(), source);
 
         let mut tokens = if path != "std" {
             Self::tokens_import_std()
@@ -207,7 +228,7 @@ impl Compiler {
         };
         tokens.extend(lexer.run().map_err(CompilerError::LexerError)?);
 
-        let mut parser = parser::Parser::new(tokens);
+        let mut parser = parser::Parser::new(path.clone(), tokens);
         let decls = parser.decls().map_err(CompilerError::ParseError)?;
         let module = Module {
             name: path.clone(),

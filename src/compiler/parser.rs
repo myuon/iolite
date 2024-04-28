@@ -7,6 +7,7 @@ use super::{
 
 #[derive(Debug, PartialEq)]
 pub struct Parser {
+    module_name: String,
     tokens: Vec<Token>,
     pub(crate) position: usize,
     pub(crate) imports: Vec<String>,
@@ -24,8 +25,9 @@ pub enum ParseError {
 }
 
 impl Parser {
-    pub fn new(tokens: Vec<Token>) -> Self {
+    pub fn new(module_name: String, tokens: Vec<Token>) -> Self {
         Self {
+            module_name,
             tokens: tokens
                 .into_iter()
                 .filter(|t| !matches!(t.lexeme, Lexeme::Comment(_)))
@@ -173,6 +175,7 @@ impl Parser {
                         params,
                         body: block,
                     },
+                    self.module_name.clone(),
                     start_token.span.start,
                     end_token.span.end,
                 ))
@@ -192,6 +195,7 @@ impl Parser {
                         ty: Type::Unknown,
                         value: expr,
                     },
+                    self.module_name.clone(),
                     start_token.span.start,
                     end_token.span.end,
                 ))
@@ -224,6 +228,7 @@ impl Parser {
 
                 Ok(Source::new_span(
                     Declaration::Struct { name, fields },
+                    self.module_name.clone(),
                     start_token.span.start,
                     end_token.span.end,
                 ))
@@ -238,6 +243,7 @@ impl Parser {
 
                 Ok(Source::new_span(
                     Declaration::Import(module_name.clone()),
+                    self.module_name.clone(),
                     start_token.span.start,
                     module_name.span.end,
                 ))
@@ -319,6 +325,7 @@ impl Parser {
 
                 Ok(Source::new_span(
                     Statement::Let(ident, expr),
+                    self.module_name.clone(),
                     token.span.start,
                     end,
                 ))
@@ -331,6 +338,7 @@ impl Parser {
 
                 Ok(Source::new_span(
                     Statement::Return(expr),
+                    self.module_name.clone(),
                     token.span.start,
                     end,
                 ))
@@ -351,6 +359,7 @@ impl Parser {
                         cond: expr,
                         body: block,
                     },
+                    self.module_name.clone(),
                     token.span.start,
                     end_token.span.end,
                 ))
@@ -364,6 +373,7 @@ impl Parser {
 
                 Ok(Source::new_span(
                     Statement::Block(block),
+                    self.module_name.clone(),
                     token.span.start,
                     end_token.span.end,
                 ))
@@ -384,7 +394,12 @@ impl Parser {
                         else_: None,
                     };
 
-                    return Ok(Source::new_span(s, token.span.start, end));
+                    return Ok(Source::new_span(
+                        s,
+                        self.module_name.clone(),
+                        token.span.start,
+                        end,
+                    ));
                 }
 
                 self.expect(Lexeme::Else)?;
@@ -406,7 +421,12 @@ impl Parser {
                         )),
                     };
 
-                    Ok(Source::new_span(s, token.span.start, end))
+                    Ok(Source::new_span(
+                        s,
+                        self.module_name.clone(),
+                        token.span.start,
+                        end,
+                    ))
                 } else {
                     self.expect(Lexeme::LBrace)?;
                     let else_block = self.block(Some(Lexeme::RBrace))?;
@@ -419,7 +439,12 @@ impl Parser {
                         else_: Some(else_block),
                     };
 
-                    Ok(Source::new_span(s, token.span.start, end))
+                    Ok(Source::new_span(
+                        s,
+                        self.module_name.clone(),
+                        token.span.start,
+                        end,
+                    ))
                 }
             }
             _ => {
@@ -436,6 +461,7 @@ impl Parser {
                             let end = right.span.end;
                             return Ok(Source::new_span(
                                 Statement::Assign(expr, right),
+                                self.module_name.clone(),
                                 start,
                                 end,
                             ));
@@ -478,6 +504,7 @@ impl Parser {
                         cond: Box::new(cond),
                         cases: vec![true_case, false_case],
                     },
+                    self.module_name.clone(),
                     start_token.span.start,
                     end_token.span.end,
                 ))
@@ -525,6 +552,7 @@ impl Parser {
                             left: Box::new(current),
                             right: Box::new(right),
                         },
+                        self.module_name.clone(),
                         start,
                         end,
                     );
@@ -557,6 +585,7 @@ impl Parser {
                             left: Box::new(current),
                             right: Box::new(right),
                         },
+                        self.module_name.clone(),
                         start,
                         end,
                     );
@@ -589,6 +618,7 @@ impl Parser {
                             left: Box::new(current),
                             right: Box::new(right),
                         },
+                        self.module_name.clone(),
                         start,
                         end,
                     );
@@ -606,6 +636,7 @@ impl Parser {
                             left: Box::new(current),
                             right: Box::new(right),
                         },
+                        self.module_name.clone(),
                         start,
                         end,
                     );
@@ -623,6 +654,7 @@ impl Parser {
                             left: Box::new(current),
                             right: Box::new(right),
                         },
+                        self.module_name.clone(),
                         start,
                         end,
                     );
@@ -640,6 +672,7 @@ impl Parser {
                             left: Box::new(current),
                             right: Box::new(right),
                         },
+                        self.module_name.clone(),
                         start,
                         end,
                     );
@@ -657,6 +690,7 @@ impl Parser {
                             left: Box::new(current),
                             right: Box::new(right),
                         },
+                        self.module_name.clone(),
                         start,
                         end,
                     );
@@ -674,6 +708,7 @@ impl Parser {
                             left: Box::new(current),
                             right: Box::new(right),
                         },
+                        self.module_name.clone(),
                         start,
                         end,
                     );
@@ -706,6 +741,7 @@ impl Parser {
                             left: Box::new(current),
                             right: Box::new(right),
                         },
+                        self.module_name.clone(),
                         start,
                         end,
                     );
@@ -723,6 +759,7 @@ impl Parser {
                             left: Box::new(current),
                             right: Box::new(right),
                         },
+                        self.module_name.clone(),
                         start,
                         end,
                     );
@@ -755,6 +792,7 @@ impl Parser {
                             left: Box::new(current),
                             right: Box::new(right),
                         },
+                        self.module_name.clone(),
                         start,
                         end,
                     );
@@ -772,6 +810,7 @@ impl Parser {
                             left: Box::new(current),
                             right: Box::new(right),
                         },
+                        self.module_name.clone(),
                         start,
                         end,
                     );
@@ -805,6 +844,7 @@ impl Parser {
                             ty,
                             conversion: None,
                         },
+                        self.module_name.clone(),
                         start,
                         end,
                     );
@@ -846,12 +886,18 @@ impl Parser {
                                     name: field,
                                     args,
                                 },
+                                self.module_name.clone(),
                                 start,
                                 end,
                             );
                         }
                         Expr::Ident(name) => {
-                            current = Source::new_span(Expr::Call { name, args }, start, end);
+                            current = Source::new_span(
+                                Expr::Call { name, args },
+                                self.module_name.clone(),
+                                start,
+                                end,
+                            );
                         }
                         _ => todo!(),
                     }
@@ -871,6 +917,7 @@ impl Parser {
                                 ptr: Box::new(current),
                                 index: Box::new(index),
                             },
+                            self.module_name.clone(),
                             start,
                             end_token.span.end,
                         );
@@ -885,6 +932,7 @@ impl Parser {
                                 expr: Box::new(current),
                                 field,
                             },
+                            self.module_name.clone(),
                             start,
                             end,
                         );
@@ -997,6 +1045,7 @@ impl Parser {
                             name: ident,
                             fields,
                         },
+                        self.module_name.clone(),
                         current.span.start,
                         end.span.end,
                     ));
@@ -1021,6 +1070,7 @@ impl Parser {
 
                 Ok(Source::new_span(
                     Expr::Block(Box::new(block)),
+                    self.module_name.clone(),
                     token.span.start,
                     end_token.span.end,
                 ))
@@ -1037,6 +1087,7 @@ impl Parser {
                         ty: Type::Unknown,
                         expr: Box::new(expr),
                     },
+                    self.module_name.clone(),
                     start,
                     end,
                 ))
@@ -1065,9 +1116,9 @@ mod tests {
         ];
 
         for input in cases {
-            let mut lexer = crate::compiler::lexer::Lexer::new(input.to_string());
+            let mut lexer = crate::compiler::lexer::Lexer::new("".to_string(), input.to_string());
             let tokens = lexer.run().unwrap();
-            let mut parser = Parser::new(tokens);
+            let mut parser = Parser::new("".to_string(), tokens);
             parser.expr(true).unwrap();
 
             assert_eq!(parser.position, parser.tokens.len(), "{}", input);
@@ -1079,9 +1130,9 @@ mod tests {
         let cases = vec!["let x = 1 + 2", "return 1 + 2", "a = b;"];
 
         for input in cases {
-            let mut lexer = crate::compiler::lexer::Lexer::new(input.to_string());
+            let mut lexer = crate::compiler::lexer::Lexer::new("".to_string(), input.to_string());
             let tokens = lexer.run().unwrap();
-            let mut parser = Parser::new(tokens);
+            let mut parser = Parser::new("".to_string(), tokens);
             parser.statement().unwrap();
         }
     }
@@ -1099,9 +1150,9 @@ mod tests {
         ];
 
         for input in cases {
-            let mut lexer = crate::compiler::lexer::Lexer::new(input.to_string());
+            let mut lexer = crate::compiler::lexer::Lexer::new("".to_string(), input.to_string());
             let tokens = lexer.run().unwrap();
-            let mut parser = Parser::new(tokens);
+            let mut parser = Parser::new("".to_string(), tokens);
             parser.block(None).unwrap();
         }
     }
@@ -1118,9 +1169,9 @@ mod tests {
         ];
 
         for input in cases {
-            let mut lexer = crate::compiler::lexer::Lexer::new(input.to_string());
+            let mut lexer = crate::compiler::lexer::Lexer::new("".to_string(), input.to_string());
             let tokens = lexer.run().unwrap();
-            let mut parser = Parser::new(tokens);
+            let mut parser = Parser::new("".to_string(), tokens);
             parser.decls().unwrap();
         }
     }

@@ -66,6 +66,7 @@ pub enum LexerError {
 }
 
 pub struct Lexer {
+    module_name: String,
     input: String,
     position: usize,
 }
@@ -78,15 +79,23 @@ const INTEGER: Lazy<Regex> = Lazy::new(|| Regex::new(r"^[0-9]+").unwrap());
 const COMMENT: Lazy<Regex> = Lazy::new(|| Regex::new(r"^//.*").unwrap());
 
 impl Lexer {
-    pub fn new(input: String) -> Self {
-        Self { input, position: 0 }
+    pub fn new(module_name: String, input: String) -> Self {
+        Self {
+            module_name,
+            input,
+            position: 0,
+        }
     }
 
     fn new_token(&self, lexeme: Lexeme, length: usize) -> Token {
         Token {
             lexeme,
             position: self.position,
-            span: Span::span(self.position, self.position + length),
+            span: Span::span(
+                self.module_name.clone(),
+                self.position,
+                self.position + length,
+            ),
         }
     }
 
@@ -239,7 +248,7 @@ mod tests {
         ];
 
         for (input, expected) in cases {
-            let mut lexer = Lexer::new(input.to_string());
+            let mut lexer = Lexer::new("".to_string(), input.to_string());
             let tokens = lexer.run().unwrap();
             assert_eq!(
                 tokens.into_iter().map(|t| t.lexeme).collect::<Vec<_>>(),

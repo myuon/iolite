@@ -14,7 +14,7 @@ use lsp_types::{
     RelatedFullDocumentDiagnosticReport, SemanticToken, SemanticTokenType, SemanticTokens,
     SemanticTokensFullOptions, SemanticTokensLegend, SemanticTokensOptions, SemanticTokensParams,
     SemanticTokensServerCapabilities, ServerCapabilities, TextDocumentPositionParams,
-    TextDocumentSyncCapability, TextDocumentSyncKind, WorkDoneProgressOptions,
+    TextDocumentSyncCapability, TextDocumentSyncKind, Url, WorkDoneProgressOptions,
 };
 
 use crate::{
@@ -200,14 +200,8 @@ async fn lsp_handler(
 
             let path = params.text_document.uri.path();
             let mut compiler = compiler::Compiler::new();
-            compiler.set_cwd(
-                Path::new(&path)
-                    .parent()
-                    .unwrap()
-                    .to_str()
-                    .unwrap()
-                    .to_string(),
-            );
+            let cwd = Path::new(&path).parent().unwrap().to_str().unwrap();
+            compiler.set_cwd(cwd.to_string());
 
             let path = Path::new(&path)
                 .file_name()
@@ -236,7 +230,9 @@ async fn lsp_handler(
                     let message = format!("{:?}", err);
                     let span = match err.downcast::<CompilerError>() {
                         Ok(CompilerError::LexerError(err)) => match err {
-                            LexerError::InvalidCharacter(_, pos) => Span::span(pos, pos + 1),
+                            LexerError::InvalidCharacter(_, pos) => {
+                                Span::span(path.clone(), pos, pos + 1)
+                            }
                         },
                         Ok(CompilerError::ParseError(err)) => match err {
                             ParseError::UnexpectedEos => Span::unknown(),
@@ -253,23 +249,17 @@ async fn lsp_handler(
                         },
                         err => todo!("{:?}", err),
                     };
-                    let start = {
-                        match span.start {
-                            Some(s) => compiler.find_position(&path, s)?,
-                            None => (0, 0),
-                        }
-                    };
-                    let end = {
-                        match span.end {
-                            Some(e) => compiler.find_position(&path, e)?,
-                            None => (0, 1),
-                        }
-                    };
+                    let range = compiler.find_span(&span)?;
+                    let (start, end) = range.unwrap();
 
                     sender
                         .send(NotificationMessage::new::<PublishDiagnostics>(
                             PublishDiagnosticsParams {
-                                uri: params.text_document.uri,
+                                uri: Url::parse(&format!(
+                                    "file://{}/{}.io",
+                                    cwd,
+                                    span.module_name.unwrap()
+                                ))?,
                                 diagnostics: vec![Diagnostic {
                                     range: Range {
                                         start: Position {
@@ -450,6 +440,7 @@ mod tests {
             (
                 "test1.io",
                 vec![(
+                    "test1",
                     "Typechecker error: Type mismatch: expected Int, but got Array(Byte)",
                     Range {
                         start: Position {
@@ -466,6 +457,7 @@ mod tests {
             (
                 "test2.io",
                 vec![(
+                    "test2",
                     "Parse error: unexpected token",
                     Range {
                         start: Position {
@@ -482,6 +474,7 @@ mod tests {
             (
                 "test3.io",
                 vec![(
+                    "test3",
                     "Lexer error: invalid character",
                     Range {
                         start: Position {
@@ -495,6 +488,23 @@ mod tests {
                     },
                 )],
             ),
+            (
+                "test4/main.io",
+                vec![(
+                    "test4/lib",
+                    "Type mismatch: expected Int, but got Array(Byte)",
+                    Range {
+                        start: Position {
+                            line: 1,
+                            character: 11,
+                        },
+                        end: Position {
+                            line: 1,
+                            character: 12,
+                        },
+                    },
+                )],
+            ),
         ];
 
         for (file, checks) in cases {
@@ -503,7 +513,7 @@ mod tests {
                 method: DidSaveTextDocument::METHOD.to_string(),
                 params: serde_json::to_value(&DidSaveTextDocumentParams {
                     text_document: TextDocumentIdentifier::new(Url::parse(&format!(
-                        "file:///{}",
+                        "file://{}",
                         std::env::current_dir()?
                             .join(format!("tests/lsp/diagnostics/{}", file))
                             .to_str()
@@ -524,7 +534,16 @@ mod tests {
             let params =
                 serde_json::from_value::<PublishDiagnosticsParams>(message.params.clone())?;
 
-            for (i, (err, range)) in checks.iter().enumerate() {
+            for (i, (module_name, err, range)) in checks.iter().enumerate() {
+                assert_eq!(
+                    params.uri.to_file_path().unwrap().to_str().unwrap(),
+                    std::env::current_dir()?
+                        .join(format!("tests/lsp/diagnostics/{}.io", module_name))
+                        .to_str()
+                        .unwrap(),
+                    "{}",
+                    serde_json::to_string(&params)?
+                );
                 assert!(
                     params.diagnostics[i].message.contains(*err),
                     "Failed: {}.contains({})",

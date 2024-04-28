@@ -4,13 +4,15 @@ use super::ir::TypeTag;
 
 #[derive(Debug, Clone)]
 pub struct Span {
+    pub module_name: Option<String>,
     pub start: Option<usize>,
     pub end: Option<usize>,
 }
 
 impl Span {
-    pub fn span(start: usize, end: usize) -> Self {
+    pub fn span(module_name: String, start: usize, end: usize) -> Self {
         Self {
+            module_name: Some(module_name),
             start: Some(start),
             end: Some(end),
         }
@@ -18,6 +20,7 @@ impl Span {
 
     pub fn unknown() -> Self {
         Self {
+            module_name: None,
             start: None,
             end: None,
         }
@@ -58,10 +61,19 @@ impl<T> Source<T> {
         }
     }
 
-    pub fn new_span(data: T, start: Option<usize>, end: Option<usize>) -> Self {
+    pub fn new_span(
+        data: T,
+        module_name: String,
+        start: Option<usize>,
+        end: Option<usize>,
+    ) -> Self {
         Self {
             data,
-            span: Span { start, end },
+            span: Span {
+                module_name: Some(module_name),
+                start,
+                end,
+            },
         }
     }
 
