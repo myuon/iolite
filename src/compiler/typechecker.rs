@@ -166,13 +166,18 @@ impl Typechecker {
 
                 Ok(ty)
             }
-            Expr::Lit(lit) => Ok(match lit.data {
-                Literal::Nil => Type::Nil,
-                Literal::Bool(_) => Type::Bool,
-                Literal::Integer(_) => Type::Int,
-                Literal::Float(_) => Type::Float,
-                Literal::String(_) => Type::Array(Box::new(Type::Byte)),
-            }),
+            Expr::Lit(lit) => {
+                let ty = match lit.data {
+                    Literal::Nil => Type::Nil,
+                    Literal::Bool(_) => Type::Bool,
+                    Literal::Integer(_) => Type::Int,
+                    Literal::Float(_) => Type::Float,
+                    Literal::String(_) => Type::Array(Box::new(Type::Byte)),
+                };
+                self.check_infer_type_at(&lit.span, ty.clone());
+
+                Ok(ty)
+            }
             Expr::BinOp {
                 ty: expr_ty,
                 op,
