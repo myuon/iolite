@@ -19,6 +19,7 @@ use dap::{
         StoppedEventReason, Thread, Variable,
     },
 };
+use serde::{Deserialize, Serialize};
 
 use crate::{
     compiler::{
@@ -38,6 +39,13 @@ impl DapContext {
     pub fn new(runtime: Runtime) -> Self {
         DapContext(Arc::new(Mutex::new(runtime)))
     }
+}
+
+#[derive(Deserialize, Serialize, Debug)]
+#[serde(rename_all = "camelCase")]
+struct LaunchAdditionalData {
+    source_file: Option<String>,
+    cwd: Option<String>,
 }
 
 async fn dap_handler(
@@ -141,15 +149,8 @@ async fn dap_handler(
                 supports_single_thread_execution_requests: None,
             }))
         }
-        Command::ConfigurationDone => todo!(),
+        Command::ConfigurationDone => Ok(ResponseBody::ConfigurationDone),
         Command::Launch(arg) => {
-            #[derive(serde::Deserialize, Debug)]
-            #[serde(rename_all = "camelCase")]
-            struct LaunchAdditionalData {
-                source_file: Option<String>,
-                cwd: Option<String>,
-            }
-
             let data =
                 serde_json::from_value::<LaunchAdditionalData>(arg.additional_data.unwrap())?;
 
@@ -539,5 +540,319 @@ impl DapServer<DapContext> for DapImpl {
         req: Command,
     ) -> FutureResult<ResponseBody> {
         Box::pin(dap_handler(ctx, sender, req))
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use std::time::Duration;
+
+    use dap::{
+        requests::{
+            ContinueArguments, InitializeArguments, LaunchRequestArguments, ScopesArguments,
+            SetBreakpointsArguments, VariablesArguments,
+        },
+        types::SourceBreakpoint,
+    };
+    use pretty_assertions::assert_eq;
+
+    use super::*;
+
+    struct CondResp(Arc<dyn Fn(ResponseBody) -> bool>);
+
+    impl CondResp {
+        fn new<F: Fn(ResponseBody) -> bool + 'static>(f: F) -> Self {
+            CondResp(Arc::new(f))
+        }
+    }
+
+    #[tokio::test]
+    async fn test_dap_handler_debug() -> Result<()> {
+        let (sender, mut receiver) = tokio::sync::mpsc::channel::<Sendable>(100);
+        let sender = SimpleSender::new(sender, Arc::new(|event| Sendable::Event(event)));
+
+        let ctx = DapContext::new(Runtime::new(1024, vec![]));
+
+        let reqs = vec![
+            (
+                Command::Initialize(InitializeArguments {
+                    client_id: None,
+                    client_name: None,
+                    adapter_id: "iolite-debugger".to_string(),
+                    locale: None,
+                    lines_start_at1: None,
+                    columns_start_at1: None,
+                    path_format: None,
+                    supports_variable_type: None,
+                    supports_variable_paging: None,
+                    supports_run_in_terminal_request: None,
+                    supports_memory_references: None,
+                    supports_progress_reporting: None,
+                    supports_invalidated_event: None,
+                    supports_memory_event: None,
+                    supports_args_can_be_interpreted_by_shell: None,
+                    supports_start_debugging_request: None,
+                }),
+                CondResp::new(|resp| matches!(resp, ResponseBody::Initialize(_))),
+            ),
+            (
+                Command::Launch(LaunchRequestArguments {
+                    no_debug: None,
+                    restart_data: None,
+                    additional_data: Some(serde_json::to_value(LaunchAdditionalData {
+                        source_file: Some("test1.io".to_string()),
+                        cwd: Some(
+                            std::env::current_dir()?
+                                .join("tests/dap")
+                                .to_str()
+                                .unwrap()
+                                .to_string(),
+                        ),
+                    })?),
+                }),
+                CondResp::new(|resp| matches!(resp, ResponseBody::Launch)),
+            ),
+            (
+                Command::SetBreakpoints(SetBreakpointsArguments {
+                    source: Source {
+                        name: Some("test1.io".to_string()),
+                        path: None,
+                        source_reference: None,
+                        presentation_hint: None,
+                        origin: None,
+                        sources: None,
+                        adapter_data: None,
+                        checksums: None,
+                    },
+                    breakpoints: Some(vec![SourceBreakpoint {
+                        line: 4,
+                        column: None,
+                        condition: None,
+                        hit_condition: None,
+                        log_message: None,
+                    }]),
+                    source_modified: None,
+                    lines: None,
+                }),
+                CondResp::new(|resp| matches!(resp, ResponseBody::SetBreakpoints(_))),
+            ),
+            (
+                Command::ConfigurationDone,
+                CondResp::new(|resp| matches!(resp, ResponseBody::ConfigurationDone)),
+            ),
+            (
+                Command::Threads,
+                CondResp::new(|resp| {
+                    assert_eq!(
+                        serde_json::to_value(resp).unwrap(),
+                        serde_json::to_value(ResponseBody::Threads(ThreadsResponse {
+                            threads: vec![Thread {
+                                id: 1,
+                                name: "main".to_string()
+                            }]
+                        }))
+                        .unwrap()
+                    );
+
+                    true
+                }),
+            ),
+            (
+                Command::Scopes(ScopesArguments { frame_id: 0 }),
+                CondResp::new(|resp| {
+                    assert_eq!(
+                        serde_json::to_value(resp).unwrap(),
+                        serde_json::to_value(ResponseBody::Scopes(ScopesResponse {
+                            scopes: vec![
+                                Scope {
+                                    name: "Runtime Values".to_string(),
+                                    presentation_hint: None,
+                                    variables_reference: 1,
+                                    named_variables: Some(3),
+                                    indexed_variables: None,
+                                    expensive: false,
+                                    source: None,
+                                    line: None,
+                                    column: None,
+                                    end_line: None,
+                                    end_column: None,
+                                },
+                                Scope {
+                                    name: "Locals".to_string(),
+                                    presentation_hint: None,
+                                    variables_reference: 2,
+                                    named_variables: Some(0),
+                                    indexed_variables: None,
+                                    expensive: false,
+                                    source: None,
+                                    line: None,
+                                    column: None,
+                                    end_line: None,
+                                    end_column: None,
+                                }
+                            ]
+                        }))
+                        .unwrap()
+                    );
+
+                    true
+                }),
+            ),
+            (
+                Command::Variables(VariablesArguments {
+                    variables_reference: 1,
+                    filter: None,
+                    start: None,
+                    count: None,
+                    format: None,
+                }),
+                CondResp::new(|resp| {
+                    assert_eq!(
+                        serde_json::to_value(resp).unwrap(),
+                        serde_json::to_value(ResponseBody::Variables(VariablesResponse {
+                            variables: vec![
+                                Variable {
+                                    name: "pc".to_string(),
+                                    value: "0".to_string(),
+                                    type_field: Some("int".to_string()),
+                                    presentation_hint: None,
+                                    evaluate_name: None,
+                                    variables_reference: 0,
+                                    named_variables: None,
+                                    indexed_variables: None,
+                                    memory_reference: None,
+                                },
+                                Variable {
+                                    name: "sp".to_string(),
+                                    value: "1024".to_string(),
+                                    type_field: Some("int".to_string()),
+                                    presentation_hint: None,
+                                    evaluate_name: None,
+                                    variables_reference: 0,
+                                    named_variables: None,
+                                    indexed_variables: None,
+                                    memory_reference: None,
+                                },
+                                Variable {
+                                    name: "bp".to_string(),
+                                    value: "1024".to_string(),
+                                    type_field: Some("int".to_string()),
+                                    presentation_hint: None,
+                                    evaluate_name: None,
+                                    variables_reference: 0,
+                                    named_variables: None,
+                                    indexed_variables: None,
+                                    memory_reference: None,
+                                },
+                            ]
+                        }))
+                        .unwrap()
+                    );
+
+                    true
+                }),
+            ),
+            (
+                Command::Continue(ContinueArguments {
+                    thread_id: 1,
+                    single_thread: None,
+                }),
+                CondResp::new(|resp| {
+                    assert_eq!(
+                        serde_json::to_value(resp).unwrap(),
+                        serde_json::to_value(ResponseBody::Continue(ContinueResponse {
+                            all_threads_continued: None
+                        }))
+                        .unwrap()
+                    );
+
+                    true
+                }),
+            ),
+            (
+                Command::Variables(VariablesArguments {
+                    variables_reference: 1,
+                    filter: None,
+                    start: None,
+                    count: None,
+                    format: None,
+                }),
+                CondResp::new(|resp| {
+                    assert_eq!(
+                        serde_json::to_value(resp).unwrap(),
+                        serde_json::to_value(ResponseBody::Variables(VariablesResponse {
+                            variables: vec![
+                                Variable {
+                                    name: "pc".to_string(),
+                                    value: "0".to_string(),
+                                    type_field: Some("int".to_string()),
+                                    presentation_hint: None,
+                                    evaluate_name: None,
+                                    variables_reference: 0,
+                                    named_variables: None,
+                                    indexed_variables: None,
+                                    memory_reference: None,
+                                },
+                                Variable {
+                                    name: "sp".to_string(),
+                                    value: "1024".to_string(),
+                                    type_field: Some("int".to_string()),
+                                    presentation_hint: None,
+                                    evaluate_name: None,
+                                    variables_reference: 0,
+                                    named_variables: None,
+                                    indexed_variables: None,
+                                    memory_reference: None,
+                                },
+                                Variable {
+                                    name: "bp".to_string(),
+                                    value: "1024".to_string(),
+                                    type_field: Some("int".to_string()),
+                                    presentation_hint: None,
+                                    evaluate_name: None,
+                                    variables_reference: 0,
+                                    named_variables: None,
+                                    indexed_variables: None,
+                                    memory_reference: None,
+                                },
+                            ]
+                        }))
+                        .unwrap()
+                    );
+
+                    true
+                }),
+            ),
+        ];
+        for (req, cond_resp) in reqs {
+            let resp = dap_handler(ctx.clone(), sender.clone(), req).await?;
+            assert!(cond_resp.0(resp));
+        }
+
+        tokio::time::sleep(Duration::from_millis(100)).await;
+
+        let mut received = vec![];
+        receiver.recv_many(&mut received, 100).await;
+        assert_eq!(
+            serde_json::to_value(received)?,
+            serde_json::to_value(vec![
+                Sendable::Event(Event::Stopped(StoppedEventBody {
+                    reason: StoppedEventReason::Entry,
+                    description: Some("Entry".to_string()),
+                    thread_id: Some(1),
+                    preserve_focus_hint: None,
+                    text: None,
+                    all_threads_stopped: None,
+                    hit_breakpoint_ids: None,
+                })),
+                Sendable::Event(Event::Initialized),
+                Sendable::Event(Event::Terminated(Some(TerminatedEventBody {
+                    restart: None
+                }))),
+                Sendable::Event(Event::Exited(ExitedEventBody { exit_code: 0 })),
+            ])?
+        );
+
+        Ok(())
     }
 }

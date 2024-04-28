@@ -294,7 +294,7 @@ impl Type {
                     .map(|p| p.to_string())
                     .collect::<Vec<_>>()
                     .join(", ");
-                format!("fun({}) -> {}", params, ret.to_string())
+                format!("fun({}): {}", params, ret.to_string())
             }
             Type::Struct { name, .. } => name.clone(),
             Type::Ident(name) => name.clone(),
