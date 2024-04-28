@@ -530,18 +530,15 @@ async fn lsp_handler(
                 Ok(Some(RpcMessageResponse::new(
                     req.id,
                     Hover {
-                        contents: HoverContents::Scalar(MarkedString::String(format!("{:?}", ty))),
+                        contents: HoverContents::Scalar(MarkedString::String(format!(
+                            "{}",
+                            ty.to_string()
+                        ))),
                         range: None,
                     },
                 )?))
             } else {
-                Ok(Some(RpcMessageResponse::new(
-                    req.id,
-                    Hover {
-                        contents: HoverContents::Scalar(MarkedString::String("".to_string())),
-                        range: None,
-                    },
-                )?))
+                Ok(None)
             }
         }
         InlayHintRequest::METHOD => {
@@ -567,7 +564,7 @@ async fn lsp_handler(
                         line: line as u32,
                         character: col as u32,
                     },
-                    label: InlayHintLabel::String(format!(": {:?}", ty)),
+                    label: InlayHintLabel::String(format!(": {}", ty.to_string())),
                     kind: None,
                     text_edits: None,
                     tooltip: None,

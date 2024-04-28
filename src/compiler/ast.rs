@@ -266,6 +266,29 @@ impl Type {
             _ => 4,
         }
     }
+
+    pub fn to_string(&self) -> String {
+        match self {
+            Type::Nil => "nil".to_string(),
+            Type::Bool => "bool".to_string(),
+            Type::Int => "int".to_string(),
+            Type::Float => "float".to_string(),
+            Type::Ptr(item) => format!("ptr[{}]", item.to_string()),
+            Type::Array(item) => format!("array[{}]", item.to_string()),
+            Type::Fun(params, ret) => {
+                let params = params
+                    .iter()
+                    .map(|p| p.to_string())
+                    .collect::<Vec<_>>()
+                    .join(", ");
+                format!("fun({}) -> {}", params, ret.to_string())
+            }
+            Type::Struct { name, .. } => name.clone(),
+            Type::Ident(name) => name.clone(),
+            Type::Byte => "byte".to_string(),
+            _ => todo!(),
+        }
+    }
 }
 
 #[derive(Debug, PartialEq, Clone)]
