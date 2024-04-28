@@ -933,7 +933,7 @@ mod tests {
 
     #[test]
     fn test_compile_e2e() -> Result<()> {
-        let paths = std::fs::read_dir("./tests")
+        let paths = std::fs::read_dir("./tests/compiler")
             .unwrap()
             .map(|entry| entry.unwrap().path())
             .collect::<Vec<_>>();
