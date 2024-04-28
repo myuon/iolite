@@ -15,7 +15,7 @@ pub struct RpcMessageRequest {
     pub params: Value,
 }
 
-#[derive(Serialize)]
+#[derive(Serialize, Debug)]
 #[serde(rename_all = "camelCase")]
 pub struct RpcMessageResponse {
     pub jsonrpc: String,
@@ -33,7 +33,7 @@ impl RpcMessageResponse {
     }
 }
 
-#[derive(Serialize)]
+#[derive(Serialize, Debug, PartialEq, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct NotificationMessage {
     pub jsonrpc: String,

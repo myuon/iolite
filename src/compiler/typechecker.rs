@@ -580,12 +580,15 @@ impl Typechecker {
         self.infer_type_at.clone()?.found
     }
 
-    pub fn inlay_hints(&mut self, module: &mut Module) -> Vec<(Span, Type)> {
+    pub fn inlay_hints(
+        &mut self,
+        module: &mut Module,
+    ) -> Result<Vec<(Span, Type)>, TypecheckerError> {
         self.inlay_hints = Some(vec![]);
 
-        self.module(module).unwrap();
+        self.module(module)?;
 
-        self.inlay_hints.clone().unwrap()
+        Ok(self.inlay_hints.clone().unwrap())
     }
 }
 

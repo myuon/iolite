@@ -290,7 +290,9 @@ impl Compiler {
             let module = self.modules.get_mut(&path_target).unwrap();
 
             if path_target == path {
-                return Ok(typechecker.inlay_hints(&mut module.module));
+                return Ok(typechecker
+                    .inlay_hints(&mut module.module)
+                    .unwrap_or(vec![]));
             } else {
                 Self::typecheck_method(&mut typechecker, &mut module.module, &module.source)?;
             }

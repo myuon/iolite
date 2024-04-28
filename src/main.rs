@@ -44,13 +44,14 @@ use lsp_types::{
         Request, SemanticTokensFullRequest,
     },
     DeclarationCapability, Diagnostic, DiagnosticOptions, DiagnosticServerCapabilities,
-    DiagnosticSeverity, FullDocumentDiagnosticReport, Hover, HoverContents, HoverParams,
-    HoverProviderCapability, InitializeResult, InlayHint, InlayHintLabel, InlayHintParams,
-    Location, MarkedString, OneOf, Position, PublishDiagnosticsParams, Range,
-    RelatedFullDocumentDiagnosticReport, SemanticToken, SemanticTokenType, SemanticTokens,
-    SemanticTokensFullOptions, SemanticTokensLegend, SemanticTokensOptions, SemanticTokensParams,
-    SemanticTokensServerCapabilities, ServerCapabilities, TextDocumentPositionParams,
-    TextDocumentSyncCapability, TextDocumentSyncKind, WorkDoneProgressOptions,
+    DiagnosticSeverity, DidSaveTextDocumentParams, FullDocumentDiagnosticReport, Hover,
+    HoverContents, HoverParams, HoverProviderCapability, InitializeResult, InlayHint,
+    InlayHintLabel, InlayHintParams, Location, MarkedString, OneOf, Position,
+    PublishDiagnosticsParams, Range, RelatedFullDocumentDiagnosticReport, SemanticToken,
+    SemanticTokenType, SemanticTokens, SemanticTokensFullOptions, SemanticTokensLegend,
+    SemanticTokensOptions, SemanticTokensParams, SemanticTokensServerCapabilities,
+    ServerCapabilities, TextDocumentIdentifier, TextDocumentPositionParams,
+    TextDocumentSyncCapability, TextDocumentSyncKind, Url, WorkDoneProgressOptions,
 };
 use sender::SimpleSender;
 use server::{FutureResult, ServerProcess};
@@ -587,6 +588,54 @@ impl LspServer for LspImpl {
     ) -> FutureResult<Option<RpcMessageResponse>> {
         Box::pin(lsp_handler(req, sender))
     }
+}
+
+#[tokio::test]
+async fn test_lsp_handler_diagnostics() -> Result<()> {
+    use pretty_assertions::assert_eq;
+
+    let req = RpcMessageRequest {
+        id: None,
+        method: DidSaveTextDocument::METHOD.to_string(),
+        params: serde_json::to_value(&DidSaveTextDocumentParams {
+            text_document: TextDocumentIdentifier::new(Url::parse(&format!(
+                "file:///{}",
+                std::env::current_dir()?
+                    .join("tests/lsp/diagnostics/test1.io")
+                    .to_str()
+                    .unwrap()
+            ))?),
+            text: None,
+        })?,
+        jsonrpc: "".to_string(),
+    };
+    let (sender, mut receiver) = tokio::sync::mpsc::channel::<String>(100);
+    let sender = SimpleSender::new(sender, Arc::new(|m| serde_json::to_string(&m).unwrap()));
+    let res = lsp_handler(req, sender).await?;
+    assert!(res.is_none());
+
+    let r = receiver.recv().await.unwrap();
+    let message = serde_json::from_str::<'_, NotificationMessage>(&r)?;
+    let params = serde_json::from_value::<PublishDiagnosticsParams>(message.params.clone())?;
+    assert_eq!(
+        params
+            .diagnostics
+            .into_iter()
+            .map(|d| d.range)
+            .collect::<Vec<_>>(),
+        vec![Range {
+            start: Position {
+                line: 3,
+                character: 11,
+            },
+            end: Position {
+                line: 3,
+                character: 12,
+            },
+        }],
+    );
+
+    Ok(())
 }
 
 #[derive(Clone)]
