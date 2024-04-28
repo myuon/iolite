@@ -62,7 +62,7 @@ pub struct Token {
 #[derive(Debug, PartialEq, Clone, Error)]
 pub enum LexerError {
     #[error("invalid character: {0}")]
-    InvalidCharacter(char),
+    InvalidCharacter(char, usize),
 }
 
 pub struct Lexer {
@@ -141,6 +141,7 @@ impl Lexer {
 
             return Err(LexerError::InvalidCharacter(
                 self.input.chars().nth(self.position).unwrap(),
+                self.position,
             ));
         }
 

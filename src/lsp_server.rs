@@ -24,6 +24,7 @@ use crate::{
             AstWalker, AstWalkerMode, Span, AST_WALKER_FIELD, AST_WALKER_FUNCTION,
             AST_WALKER_METHOD, AST_WALKER_TYPE,
         },
+        lexer::LexerError,
         parser::ParseError,
         typechecker::TypecheckerError,
         CompilerError,
@@ -234,7 +235,9 @@ async fn lsp_handler(
                 Err(err) => {
                     let message = format!("{:?}", err);
                     let span = match err.downcast::<CompilerError>() {
-                        Ok(CompilerError::LexerError(_)) => Span::unknown(),
+                        Ok(CompilerError::LexerError(err)) => match err {
+                            LexerError::InvalidCharacter(_, pos) => Span::span(pos, pos + 1),
+                        },
                         Ok(CompilerError::ParseError(err)) => match err {
                             ParseError::UnexpectedEos => Span::unknown(),
                             ParseError::UnexpectedToken { got, .. } => got.span,
@@ -368,7 +371,10 @@ async fn lsp_handler(
 
             let mut compiler = compiler::Compiler::new();
             compiler.set_cwd(path.parent().unwrap().to_str().unwrap().to_string());
-            compiler.parse(module_name.clone())?;
+            if let Err(err) = compiler.parse(module_name.clone()) {
+                eprintln!("{:?}", err);
+                return Ok(None);
+            }
 
             let position = compiler.find_line_and_column(&module_name, line, col)?;
             let ty = compiler.infer_type_at(module_name.clone(), position)?;
@@ -469,6 +475,22 @@ mod tests {
                         end: Position {
                             line: 1,
                             character: 11,
+                        },
+                    },
+                )],
+            ),
+            (
+                "test3.io",
+                vec![(
+                    "Lexer error: invalid character",
+                    Range {
+                        start: Position {
+                            line: 1,
+                            character: 8,
+                        },
+                        end: Position {
+                            line: 1,
+                            character: 9,
                         },
                     },
                 )],
