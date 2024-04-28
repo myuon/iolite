@@ -399,7 +399,10 @@ async fn lsp_handler(
 
             let mut compiler = compiler::Compiler::new();
             compiler.set_cwd(path.parent().unwrap().to_str().unwrap().to_string());
-            compiler.parse(module_name.clone())?;
+            if let Err(err) = compiler.parse(module_name.clone()) {
+                eprintln!("{:?}", err);
+                return Ok(None);
+            }
             let types = compiler.inlay_hints(module_name.clone())?;
 
             let mut hints = vec![];
@@ -431,53 +434,84 @@ mod tests {
     use std::sync::Arc;
 
     use lsp_types::{DidSaveTextDocumentParams, TextDocumentIdentifier, Url};
+    use pretty_assertions::assert_eq;
 
     use super::*;
 
     #[tokio::test]
     async fn test_lsp_handler_diagnostics() -> Result<()> {
-        use pretty_assertions::assert_eq;
+        let cases = vec![
+            (
+                "test1.io",
+                vec![(
+                    "Typechecker error: Type mismatch: expected Int, but got Array(Byte)",
+                    Range {
+                        start: Position {
+                            line: 3,
+                            character: 11,
+                        },
+                        end: Position {
+                            line: 3,
+                            character: 12,
+                        },
+                    },
+                )],
+            ),
+            (
+                "test2.io",
+                vec![(
+                    "Parse error: unexpected token",
+                    Range {
+                        start: Position {
+                            line: 1,
+                            character: 8,
+                        },
+                        end: Position {
+                            line: 1,
+                            character: 11,
+                        },
+                    },
+                )],
+            ),
+        ];
 
-        let req = RpcMessageRequest {
-            id: None,
-            method: DidSaveTextDocument::METHOD.to_string(),
-            params: serde_json::to_value(&DidSaveTextDocumentParams {
-                text_document: TextDocumentIdentifier::new(Url::parse(&format!(
-                    "file:///{}",
-                    std::env::current_dir()?
-                        .join("tests/lsp/diagnostics/test1.io")
-                        .to_str()
-                        .unwrap()
-                ))?),
-                text: None,
-            })?,
-            jsonrpc: "".to_string(),
-        };
-        let (sender, mut receiver) = tokio::sync::mpsc::channel::<String>(100);
-        let sender = SimpleSender::new(sender, Arc::new(|m| serde_json::to_string(&m).unwrap()));
-        let res = lsp_handler(req, sender).await?;
-        assert!(res.is_none());
+        for (file, checks) in cases {
+            let req = RpcMessageRequest {
+                id: None,
+                method: DidSaveTextDocument::METHOD.to_string(),
+                params: serde_json::to_value(&DidSaveTextDocumentParams {
+                    text_document: TextDocumentIdentifier::new(Url::parse(&format!(
+                        "file:///{}",
+                        std::env::current_dir()?
+                            .join(format!("tests/lsp/diagnostics/{}", file))
+                            .to_str()
+                            .unwrap()
+                    ))?),
+                    text: None,
+                })?,
+                jsonrpc: "".to_string(),
+            };
+            let (sender, mut receiver) = tokio::sync::mpsc::channel::<String>(100);
+            let sender =
+                SimpleSender::new(sender, Arc::new(|m| serde_json::to_string(&m).unwrap()));
+            let res = lsp_handler(req, sender).await?;
+            assert!(res.is_none());
 
-        let r = receiver.recv().await.unwrap();
-        let message = serde_json::from_str::<'_, NotificationMessage>(&r)?;
-        let params = serde_json::from_value::<PublishDiagnosticsParams>(message.params.clone())?;
-        assert_eq!(
-            params
-                .diagnostics
-                .into_iter()
-                .map(|d| d.range)
-                .collect::<Vec<_>>(),
-            vec![Range {
-                start: Position {
-                    line: 3,
-                    character: 11,
-                },
-                end: Position {
-                    line: 3,
-                    character: 12,
-                },
-            }],
-        );
+            let r = receiver.recv().await.unwrap();
+            let message = serde_json::from_str::<'_, NotificationMessage>(&r)?;
+            let params =
+                serde_json::from_value::<PublishDiagnosticsParams>(message.params.clone())?;
+
+            for (i, (err, range)) in checks.iter().enumerate() {
+                assert!(
+                    params.diagnostics[i].message.contains(*err),
+                    "Failed: {}.contains({})",
+                    params.diagnostics[i].message,
+                    *err,
+                );
+                assert_eq!(params.diagnostics[i].range, *range);
+            }
+        }
 
         Ok(())
     }

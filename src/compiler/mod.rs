@@ -47,7 +47,7 @@ pub enum CompilerError {
 #[derive(Debug, Clone)]
 pub struct LoadedModule {
     pub source: String,
-    pub module: Module,
+    pub module: Option<Module>,
     pub imports: Vec<String>,
     pub parsed_order: usize,
 }
@@ -188,7 +188,17 @@ impl Compiler {
     }
 
     pub fn parse_with_code(&mut self, path: String, source: String) -> Result<()> {
-        let mut lexer = lexer::Lexer::new(source.clone());
+        self.modules.insert(
+            path.clone(),
+            LoadedModule {
+                source: source.clone(),
+                module: None,
+                imports: vec![],
+                parsed_order: self.modules.len(),
+            },
+        );
+
+        let mut lexer = lexer::Lexer::new(source);
 
         let mut tokens = if path != "std" {
             Self::tokens_import_std()
@@ -198,21 +208,15 @@ impl Compiler {
         tokens.extend(lexer.run().map_err(CompilerError::LexerError)?);
 
         let mut parser = parser::Parser::new(tokens);
-        let decls = parser.decls()?;
+        let decls = parser.decls().map_err(CompilerError::ParseError)?;
         let module = Module {
             name: path.clone(),
             declarations: decls,
         };
 
-        self.modules.insert(
-            path.clone(),
-            LoadedModule {
-                source,
-                module: module.clone(),
-                imports: parser.imports.clone(),
-                parsed_order: self.modules.len(),
-            },
-        );
+        let m = self.modules.get_mut(&path).unwrap();
+        m.module = Some(module.clone());
+        m.imports = parser.imports.clone();
 
         for path in parser.imports {
             if self.modules.contains_key(&path) {
@@ -276,7 +280,11 @@ impl Compiler {
         for path in paths {
             let module = self.modules.get_mut(&path).unwrap();
 
-            Self::typecheck_method(&mut typechecker, &mut module.module, &module.source)?;
+            Self::typecheck_method(
+                &mut typechecker,
+                &mut module.module.as_mut().unwrap(),
+                &module.source,
+            )?;
         }
 
         Ok(())
@@ -291,10 +299,14 @@ impl Compiler {
 
             if path_target == path {
                 return Ok(typechecker
-                    .inlay_hints(&mut module.module)
+                    .inlay_hints(&mut module.module.as_mut().unwrap())
                     .unwrap_or(vec![]));
             } else {
-                Self::typecheck_method(&mut typechecker, &mut module.module, &module.source)?;
+                Self::typecheck_method(
+                    &mut typechecker,
+                    &mut module.module.as_mut().unwrap(),
+                    &module.source,
+                )?;
             }
         }
 
@@ -307,7 +319,7 @@ impl Compiler {
         for path in paths {
             let module = self.modules.get_mut(&path).unwrap();
 
-            let ir = Self::ir_code_gen_module(module.module.clone(), HashMap::new())?;
+            let ir = Self::ir_code_gen_module(module.module.clone().unwrap(), HashMap::new())?;
             modules.push(ir);
         }
 
@@ -416,7 +428,7 @@ impl Compiler {
             .ok_or_else(|| anyhow!("Module {} not found in the compiler", path))?;
 
         Ok(Self::search_for_definition_module(
-            &mut module.module,
+            &mut module.module.as_mut().unwrap(),
             position,
         )?)
     }
@@ -429,9 +441,15 @@ impl Compiler {
             let module = self.modules.get_mut(&path_target).unwrap();
 
             if path_target == path {
-                return Ok(typechecker.infer_type_at(&mut module.module, position));
+                return Ok(
+                    typechecker.infer_type_at(&mut module.module.as_mut().unwrap(), position)
+                );
             } else {
-                Self::typecheck_method(&mut typechecker, &mut module.module, &module.source)?;
+                Self::typecheck_method(
+                    &mut typechecker,
+                    &mut module.module.as_mut().unwrap(),
+                    &module.source,
+                )?;
             }
         }
 
@@ -497,7 +515,7 @@ impl Compiler {
         self.parse(path.clone())?;
         self.typecheck(path.clone())?;
 
-        let ir = Self::ir_code_gen_module(module.module.clone(), HashMap::new())?;
+        let ir = Self::ir_code_gen_module(module.module.clone().unwrap(), HashMap::new())?;
         let code = Self::vm_code_gen(ir)?;
         let binary = Self::byte_code_gen(code)?;
 
