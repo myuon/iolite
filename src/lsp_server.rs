@@ -350,7 +350,11 @@ async fn lsp_handler(
                 return Ok(Some(RpcMessageResponse::new(
                     req.id,
                     Location {
-                        uri: params.text_document.uri,
+                        uri: Url::parse(&format!(
+                            "file://{}/{}.io",
+                            cwd,
+                            def_position.module_name.unwrap()
+                        ))?,
                         range: Range {
                             start: Position {
                                 line: start.0 as u32,
@@ -629,6 +633,26 @@ mod tests {
                         end: Position {
                             line: 0,
                             character: 5,
+                        },
+                    },
+                ),
+            ),
+            (
+                "test2/main.io",
+                Position {
+                    line: 3,
+                    character: 12,
+                },
+                (
+                    "test2/lib",
+                    Range {
+                        start: Position {
+                            line: 0,
+                            character: 4,
+                        },
+                        end: Position {
+                            line: 0,
+                            character: 8,
                         },
                     },
                 ),

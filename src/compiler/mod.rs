@@ -433,25 +433,22 @@ impl Compiler {
         Ok(typechecker.types)
     }
 
-    pub fn search_for_definition_module(
-        module: &mut Module,
-        position: usize,
-    ) -> Result<Option<Span>, CompilerError> {
+    pub fn search_for_definition(&mut self, path: String, position: usize) -> Result<Option<Span>> {
         let mut typechecker = typechecker::Typechecker::new();
 
-        Ok(typechecker.search_for_definition(module, position))
-    }
+        for path_target in self.pathes_in_imported_order() {
+            let module = self.modules.get_mut(&path_target).unwrap();
 
-    pub fn search_for_definition(&mut self, path: String, position: usize) -> Result<Option<Span>> {
-        let module = self
-            .modules
-            .get_mut(&path)
-            .ok_or_else(|| anyhow!("Module {} not found in the compiler", path))?;
+            if path_target == path {
+                return Ok(
+                    typechecker.search_for_definition(module.module.as_mut().unwrap(), position)
+                );
+            } else {
+                typechecker.module(module.module.as_mut().unwrap())?;
+            }
+        }
 
-        Ok(Self::search_for_definition_module(
-            &mut module.module.as_mut().unwrap(),
-            position,
-        )?)
+        Ok(None)
     }
 
     pub fn infer_type_at(&mut self, path: String, position: usize) -> Result<Option<Type>> {
