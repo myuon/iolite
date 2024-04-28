@@ -53,17 +53,15 @@ use lsp_types::{
     ServerCapabilities, TextDocumentIdentifier, TextDocumentPositionParams,
     TextDocumentSyncCapability, TextDocumentSyncKind, Url, WorkDoneProgressOptions,
 };
-use sender::SimpleSender;
-use server::{FutureResult, ServerProcess};
+use utils::sender::SimpleSender;
+use utils::server_process::{FutureResult, ServerProcess};
 
 use crate::compiler::{ast::Module, runtime::ControlFlow, vm::Instruction};
 
 mod compiler;
 mod dap;
 mod lsp;
-mod net;
-mod sender;
-mod server;
+mod utils;
 
 #[derive(Parser, Debug)]
 #[clap(name = "iolite")]

@@ -13,9 +13,9 @@ use tokio::{
 };
 
 use crate::{
-    net::read_headers,
-    sender::SimpleSender,
-    server::{FutureResult, ServerProcess},
+    utils::net::read_headers,
+    utils::sender::SimpleSender,
+    utils::server_process::{FutureResult, ServerProcess},
 };
 
 #[derive(Clone)]
