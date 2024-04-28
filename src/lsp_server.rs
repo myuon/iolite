@@ -304,20 +304,48 @@ async fn lsp_handler(
             let params = serde_json::from_value::<TextDocumentPositionParams>(req.params.clone())?;
 
             let path = params.text_document.uri.path();
+            let cwd = Path::new(&path).parent().unwrap().to_str().unwrap();
+
             let mut compiler = compiler::Compiler::new();
+            compiler.set_cwd(cwd.to_string());
 
-            compiler.parse(path.to_string())?;
+            let module_name = Path::new(&path)
+                .file_name()
+                .unwrap()
+                .to_str()
+                .unwrap()
+                .to_string()
+                .replace(".io", "");
 
-            let position = compiler.find_line_and_column(
-                path,
+            match compiler.parse(module_name.clone()) {
+                Ok(_) => {}
+                Err(err) => {
+                    eprintln!("{:?}", err);
+                    return Ok(None);
+                }
+            };
+
+            let position = match compiler.find_line_and_column(
+                &module_name,
                 params.position.line as usize,
                 params.position.character as usize,
-            )?;
-            let def_position = compiler.search_for_definition(path.to_string(), position)?;
+            ) {
+                Ok(pos) => pos,
+                Err(err) => {
+                    eprintln!("{:?}", err);
+                    return Ok(None);
+                }
+            };
+            let def_position = match compiler.search_for_definition(module_name, position) {
+                Ok(pos) => pos,
+                Err(err) => {
+                    eprintln!("{:?}", err);
+                    return Ok(None);
+                }
+            };
 
             if let Some(def_position) = def_position {
-                let start_position = compiler.find_position(path, def_position.start.unwrap())?;
-                let end_position = compiler.find_position(path, def_position.end.unwrap())?;
+                let (start, end) = compiler.find_span(&def_position)?.unwrap();
 
                 return Ok(Some(RpcMessageResponse::new(
                     req.id,
@@ -325,12 +353,12 @@ async fn lsp_handler(
                         uri: params.text_document.uri,
                         range: Range {
                             start: Position {
-                                line: start_position.0 as u32,
-                                character: start_position.1 as u32,
+                                line: start.0 as u32,
+                                character: start.1 as u32,
                             },
                             end: Position {
-                                line: end_position.0 as u32,
-                                character: end_position.1 as u32,
+                                line: end.0 as u32,
+                                character: end.1 as u32,
                             },
                         },
                     },
@@ -429,7 +457,10 @@ async fn lsp_handler(
 mod tests {
     use std::sync::Arc;
 
-    use lsp_types::{DidSaveTextDocumentParams, TextDocumentIdentifier, Url};
+    use lsp_types::{
+        DidSaveTextDocumentParams, GotoDefinitionParams, PartialResultParams,
+        TextDocumentIdentifier, Url, WorkDoneProgressParams,
+    };
     use pretty_assertions::assert_eq;
 
     use super::*;
@@ -552,6 +583,89 @@ mod tests {
                 );
                 assert_eq!(params.diagnostics[i].range, *range);
             }
+        }
+
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn test_lsp_handler_go_to_definition() -> Result<()> {
+        let cases = vec![(
+            "test1.io",
+            Position {
+                line: 9,
+                character: 10,
+            },
+            vec![(
+                "test1",
+                "Typechecker error: Type mismatch: expected Int, but got Array(Byte)",
+                Range {
+                    start: Position {
+                        line: 3,
+                        character: 12,
+                    },
+                    end: Position {
+                        line: 3,
+                        character: 13,
+                    },
+                },
+            )],
+        )];
+
+        for (file, position, checks) in cases {
+            let req = RpcMessageRequest {
+                id: None,
+                method: GotoDefinition::METHOD.to_string(),
+                params: serde_json::to_value(&GotoDefinitionParams {
+                    text_document_position_params: TextDocumentPositionParams {
+                        text_document: TextDocumentIdentifier::new(Url::parse(&format!(
+                            "file://{}",
+                            std::env::current_dir()?
+                                .join(format!("tests/lsp/gotodefinition/{}", file))
+                                .to_str()
+                                .unwrap()
+                        ))?),
+                        position,
+                    },
+                    work_done_progress_params: WorkDoneProgressParams {
+                        work_done_token: None,
+                    },
+                    partial_result_params: PartialResultParams {
+                        partial_result_token: None,
+                    },
+                })?,
+                jsonrpc: "".to_string(),
+            };
+            let (sender, mut receiver) = tokio::sync::mpsc::channel::<String>(100);
+            let sender =
+                SimpleSender::new(sender, Arc::new(|m| serde_json::to_string(&m).unwrap()));
+            let res = lsp_handler(req, sender).await?;
+
+            assert_eq!(
+                serde_json::from_value::<Location>(res.unwrap().result)?,
+                Location {
+                    uri: Url::parse(&format!(
+                        "file://{}",
+                        std::env::current_dir()?
+                            .join(format!("tests/lsp/gotodefinition/{}.io", checks[0].0))
+                            .to_str()
+                            .unwrap()
+                    ))?,
+                    range: Range {
+                        start: Position {
+                            line: 4,
+                            character: 4,
+                        },
+                        end: Position {
+                            line: 4,
+                            character: 5,
+                        },
+                    },
+                },
+            );
+
+            let r = receiver.try_recv();
+            assert!(r.is_err());
         }
 
         Ok(())
