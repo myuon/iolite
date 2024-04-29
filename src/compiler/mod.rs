@@ -1,4 +1,8 @@
-use std::collections::HashMap;
+use std::{
+    collections::HashMap,
+    io::BufWriter,
+    sync::{Arc, Mutex},
+};
 
 use anyhow::{anyhow, Result};
 
@@ -574,6 +578,18 @@ impl Compiler {
         Ok(runtime.pop_i64())
     }
 
+    pub fn run_vm_with_io_trap(
+        program: Vec<u8>,
+        print_stacks: bool,
+        stdout: Arc<Mutex<BufWriter<Vec<u8>>>>,
+    ) -> Result<i64, CompilerError> {
+        let mut runtime = Runtime::new(1024, program);
+        runtime.trap_stdout = Some(stdout);
+        runtime.exec(print_stacks).unwrap();
+
+        Ok(runtime.pop_i64())
+    }
+
     fn exec_vm(program: Vec<u8>, print_stacks: bool) -> Result<Runtime, CompilerError> {
         let mut runtime = Runtime::new(1024, program);
         runtime.exec(print_stacks).unwrap();
@@ -992,13 +1008,24 @@ mod tests {
             let code = Compiler::vm_code_gen(ir)?;
             let binary = Compiler::byte_code_gen(code)?;
 
-            let result = Compiler::run_vm(binary, false)?;
+            let stdout = Arc::new(Mutex::new(BufWriter::new(vec![])));
+            let result = Compiler::run_vm_with_io_trap(binary, false, stdout.clone())?;
 
             let expected = dir_path.join("result.test").display().to_string();
-            let expected = std::fs::read_to_string(expected).unwrap();
-            let expected = expected.trim().parse::<i64>().unwrap();
+            if std::path::Path::new(&expected).exists() {
+                let expected = std::fs::read_to_string(expected).unwrap();
+                let expected = expected.trim().parse::<i64>().unwrap();
 
-            assert_eq!(result, expected, "input: {}", input);
+                assert_eq!(result, expected, "input: {}", input);
+            }
+
+            let expected_stdout = dir_path.join("stdout.test").display().to_string();
+            if std::path::Path::new(&expected_stdout).exists() {
+                let expected = std::fs::read_to_string(expected_stdout).unwrap();
+
+                let got = String::from_utf8(stdout.lock().unwrap().buffer().to_vec()).unwrap();
+                assert_eq!(got, expected, "input: {}", input);
+            }
         }
 
         Ok(())

@@ -1,3 +1,8 @@
+use std::{
+    io::{stdout, BufWriter, Write},
+    sync::{Arc, Mutex},
+};
+
 use thiserror::Error;
 
 use super::{ir::Value, vm::Instruction};
@@ -26,6 +31,7 @@ pub struct Runtime {
     pub(crate) source_file: String,
     pub(crate) source_code: String,
     pub(crate) breakpoints: Vec<usize>,
+    pub(crate) trap_stdout: Option<Arc<Mutex<BufWriter<Vec<u8>>>>>,
     prev_source_map: (usize, usize),
 }
 
@@ -45,6 +51,7 @@ impl Runtime {
             source_code: String::new(),
             breakpoints: vec![],
             prev_source_map: (0, 0),
+            trap_stdout: None,
         }
     }
 
@@ -293,10 +300,40 @@ impl Runtime {
                 self.push(imm);
             }
             // call
-            0x03 => {
+            0x02 => {
                 let pc = self.pop_i64();
                 self.push(self.pc as i64);
                 self.pc = pc as usize;
+            }
+            // extcall
+            0x03 => {
+                let label = self.consume_u64();
+                match label {
+                    1 => {
+                        let fd = self.pop_i64();
+                        let address = self.pop_address();
+                        let size = self.pop_i64();
+
+                        match fd {
+                            1 => {
+                                let data = &self.memory
+                                    [address as usize..(address as usize + size as usize)];
+                                let result = match self.trap_stdout.clone() {
+                                    Some(stdout) => stdout.lock().unwrap().write(data),
+                                    // None => stdout().write(data),
+                                    None => todo!(),
+                                };
+
+                                self.push(match result {
+                                    Ok(_) => 0,
+                                    Err(_) => 1,
+                                });
+                            }
+                            _ => todo!(),
+                        };
+                    }
+                    _ => todo!(),
+                }
             }
             // return
             0x04 => {

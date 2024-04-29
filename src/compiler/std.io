@@ -1,3 +1,5 @@
+declare fun extcall_write(fd: int, buf: rawptr, length: int): int;
+
 let heap_ptr = 0 as ptr[byte];
 
 fun align_int(x: int, alignment: int) {

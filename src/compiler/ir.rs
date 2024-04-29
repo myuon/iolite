@@ -101,6 +101,7 @@ pub enum TypeTag {
     Float,
     Bool,
     Byte,
+    None,
 }
 
 impl TypeTag {
@@ -111,6 +112,7 @@ impl TypeTag {
             TypeTag::Float => 0b10,
             TypeTag::Bool => 0b100,
             TypeTag::Byte => 0b1000,
+            TypeTag::None => 0b0,
         }
     }
 

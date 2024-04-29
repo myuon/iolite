@@ -366,6 +366,9 @@ impl Typechecker {
                     (Type::Int, Type::Byte) => {
                         *conversion = Some(Conversion::Cast(TypeTag::Byte));
                     }
+                    (Type::Ptr(_), Type::RawPtr) => {
+                        *conversion = Some(Conversion::Cast(TypeTag::None));
+                    }
                     _ => {
                         return Err(TypecheckerError::ConversionNotSupported(
                             expr_ty,
@@ -565,6 +568,25 @@ impl Typechecker {
                 );
             }
             Declaration::Import(_) => {}
+            Declaration::DeclareFunction {
+                name,
+                params,
+                result,
+            } => {
+                let mut param_types = vec![];
+
+                for param in params {
+                    param_types.push(param.1.data.clone());
+                }
+
+                self.types.insert(
+                    name.data.clone(),
+                    Source::span(
+                        Type::Fun(param_types.clone(), Box::new(result.data.clone())),
+                        name.span.clone(),
+                    ),
+                );
+            }
         }
 
         Ok(())

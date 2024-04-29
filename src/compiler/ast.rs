@@ -210,6 +210,11 @@ pub enum Declaration {
         fields: Vec<(Source<String>, Source<Type>)>,
     },
     Import(Source<String>),
+    DeclareFunction {
+        name: Source<String>,
+        params: Vec<(Source<String>, Source<Type>)>,
+        result: Source<Type>,
+    },
 }
 
 #[derive(Debug, PartialEq, Clone)]
@@ -234,6 +239,7 @@ pub enum Type {
     },
     Ident(String),
     Byte,
+    RawPtr,
 }
 
 impl Type {
@@ -341,7 +347,7 @@ impl AstWalker {
             Declaration::Function {
                 name,
                 params,
-                result,
+                result: _,
                 body,
             } => {
                 if matches!(self.mode, AstWalkerMode::SemanticTokens) {
@@ -360,6 +366,20 @@ impl AstWalker {
             }
             Declaration::Struct { .. } => {}
             Declaration::Import(_) => {}
+            Declaration::DeclareFunction {
+                name,
+                params,
+                result: _,
+            } => {
+                if matches!(self.mode, AstWalkerMode::SemanticTokens) {
+                    self.tokens
+                        .push((AST_WALKER_FUNCTION.to_string(), name.span.clone()));
+                    for (_, ty) in params {
+                        self.tokens
+                            .push((AST_WALKER_TYPE.to_string(), ty.span.clone()));
+                    }
+                }
+            }
         }
     }
 

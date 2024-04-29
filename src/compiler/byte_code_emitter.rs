@@ -96,6 +96,10 @@ impl ByteCodeEmitter {
                     placeholders.insert(self.push_placeholder()?, label);
                     self.write(&Instruction::Call.to_byte())?;
                 }
+                ExtCall(label) => {
+                    self.write(&Instruction::ExtCall(0).to_byte())?;
+                    self.write(&label.to_le_bytes())?;
+                }
                 _ => {
                     self.write(&inst.to_byte())?;
                 }

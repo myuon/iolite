@@ -6,6 +6,9 @@
       "include": "#functions"
     },
     {
+      "include": "#declare"
+    },
+    {
       "include": "#types"
     },
     {
@@ -48,6 +51,45 @@
           "endCaptures": {
             "0": {
               "name": "punctuation.braces.iolite"
+            }
+          },
+          "patterns": [
+            {
+              "include": "#types"
+            },
+            {
+              "include": "#punctuation"
+            },
+            {
+              "include": "#variables"
+            }
+          ]
+        }
+      ]
+    },
+    "declare": {
+      "patterns": [
+        {
+          "name": "meta.declare.definition.iolite",
+          "begin": "\\b(declare)\\s+(fun)\\s+([a-zA-Z_][a-zA-Z0-9_]*)\\s*(\\()",
+          "beginCaptures": {
+            "1": {
+              "name": "keyword.other.declare.iolite"
+            },
+            "2": {
+              "name": "keyword.other.function.iolite"
+            },
+            "3": {
+              "name": "entity.name.function.iolite"
+            },
+            "4": {
+              "name": "punctuation.definition.parameters.iolite"
+            }
+          },
+          "end": ";",
+          "endCaptures": {
+            "0": {
+              "name": "punctuation.semicolon.iolite"
             }
           },
           "patterns": [

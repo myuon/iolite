@@ -48,6 +48,14 @@ impl VmCodeGenerator {
         }
     }
 
+    pub fn extcall_table() -> HashMap<String, usize> {
+        let mut table = HashMap::new();
+        // table.insert("read".to_string(), 0);
+        table.insert("extcall_write".to_string(), 1);
+        // table.insert("exit".to_string(), 2);
+        table
+    }
+
     fn is_arity(&self, name: &str) -> bool {
         self.arity.iter().any(|s| s == name)
     }
@@ -188,7 +196,7 @@ impl VmCodeGenerator {
             }
             Label(_) => {}
             JumpTo(_) => {}
-            CallLabel(_) => {}
+            CallLabel(_) | ExtCall(_) => {}
             JumpIfTo(_) => {
                 self.stack_pointer -= 1;
             }
@@ -460,7 +468,12 @@ impl VmCodeGenerator {
                     self.term(arg)?;
                 }
 
-                self.emit(Instruction::CallLabel(name));
+                if let Some(label) = Self::extcall_table().get(&name) {
+                    self.emit(Instruction::ExtCall(*label));
+                    return Ok(());
+                } else {
+                    self.emit(Instruction::CallLabel(name));
+                }
 
                 // NOTE: pop arity
                 for _ in 0..args_len {

@@ -48,6 +48,7 @@ pub enum Instruction {
     JumpTo(String),
     JumpIfTo(String),
     CallLabel(String),
+    ExtCall(usize),
     Debug(String),
     Nop,
     Data {
@@ -65,7 +66,8 @@ impl Instruction {
         match self {
             // Control flow
             Push(_) => vec![0x01],
-            Call => vec![0x03],
+            Call => vec![0x02],
+            ExtCall(_) => vec![0x03],
             Return => vec![0x04],
             Jump => vec![0x05],
             JumpIf => vec![0x06],
@@ -127,7 +129,8 @@ impl Instruction {
     pub fn from_byte(bytes: &[u8]) -> Result<Instruction, InstructionError> {
         Ok(match bytes[0] {
             0x01 => Instruction::Push(0),
-            0x03 => Instruction::Call,
+            0x02 => Instruction::Call,
+            0x03 => Instruction::ExtCall(0),
             0x04 => Instruction::Return,
             0x05 => Instruction::Jump,
             0x06 => Instruction::JumpIf,

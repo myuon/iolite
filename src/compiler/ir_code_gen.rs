@@ -168,6 +168,11 @@ impl IrCodeGenerator {
             }
             Declaration::Struct { .. } => Ok(None),
             Declaration::Import(_) => Ok(None),
+            Declaration::DeclareFunction {
+                name,
+                params,
+                result,
+            } => Ok(None),
         }
     }
 

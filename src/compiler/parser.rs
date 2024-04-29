@@ -124,6 +124,9 @@ impl Parser {
 
                 Ok(Source::span(Type::Array(Box::new(t.data)), token.span))
             }
+            Lexeme::Ident(i) if i == "rawptr".to_string() => {
+                Ok(Source::span(Type::RawPtr, token.span))
+            }
             _ => Err(ParseError::UnexpectedToken {
                 expected: None,
                 got: token,
@@ -260,6 +263,42 @@ impl Parser {
                     self.module_name.clone(),
                     start_token.span.start,
                     module_name.span.end,
+                ))
+            }
+            Lexeme::Declare => {
+                let start_token = self.consume()?;
+
+                self.expect(Lexeme::Fun)?;
+
+                let name = self.ident()?;
+                self.expect(Lexeme::LParen)?;
+                let params = self.arity_decl()?;
+                let result_position = self.expect(Lexeme::RParen)?;
+
+                let mut result_ty = Source::new_span(
+                    Type::Unknown,
+                    self.module_name.clone(),
+                    Some(result_position.span.end.unwrap()),
+                    Some(result_position.span.end.unwrap()),
+                );
+
+                if self.is_next_token(Lexeme::Colon) {
+                    self.consume()?;
+
+                    result_ty = self.ty()?;
+                }
+
+                let end_token = self.expect(Lexeme::Semicolon)?;
+
+                Ok(Source::new_span(
+                    Declaration::DeclareFunction {
+                        name: name.clone(),
+                        params: params.clone(),
+                        result: result_ty,
+                    },
+                    self.module_name.clone(),
+                    start_token.span.start,
+                    end_token.span.end,
                 ))
             }
             _ => Err(ParseError::UnexpectedToken {
