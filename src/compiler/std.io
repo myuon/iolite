@@ -42,3 +42,9 @@ fun float_abs(x: float) {
 fun ptr_offset(p: ptr[byte], d: int) {
   return (p as int + d) as ptr[byte];
 }
+
+let fd_stdout = 1;
+
+fun print_str(text: array[byte]) {
+  extcall_write(fd_stdout, text.ptr, text.length);
+}
