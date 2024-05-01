@@ -305,7 +305,8 @@ impl Type {
             Type::Struct { name, .. } => name.clone(),
             Type::Ident(name) => name.clone(),
             Type::Byte => "byte".to_string(),
-            _ => todo!(),
+            Type::RawPtr => "rawptr".to_string(),
+            Type::Unknown => "<unknown>".to_string(),
         }
     }
 }

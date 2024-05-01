@@ -46,5 +46,7 @@ fun ptr_offset(p: ptr[byte], d: int) {
 let fd_stdout = 1;
 
 fun print_str(text: array[byte]) {
-  extcall_write(fd_stdout, text.ptr, text.length);
+  extcall_write(fd_stdout, text.ptr as rawptr, text.length);
+
+  return nil;
 }
