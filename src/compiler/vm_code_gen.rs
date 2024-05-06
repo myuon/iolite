@@ -50,9 +50,13 @@ impl VmCodeGenerator {
 
     pub fn extcall_table() -> HashMap<String, usize> {
         let mut table = HashMap::new();
+        // posix
         // table.insert("read".to_string(), 0);
         table.insert("extcall_write".to_string(), 1);
         // table.insert("exit".to_string(), 2);
+
+        // libui
+        table.insert("extcall_ui_new_window".to_string(), 10001);
         table
     }
 
@@ -185,8 +189,6 @@ impl VmCodeGenerator {
             JumpIf => {
                 self.stack_pointer -= 2;
             }
-            Instruction::Call => todo!(),
-            Instruction::Return => {}
             Xor | And | Or => {
                 self.stack_pointer -= 1;
             }
@@ -205,7 +207,7 @@ impl VmCodeGenerator {
             Data { .. } => {}
             SourceMap(_) => {}
             Call => todo!(),
-            Return => todo!(),
+            Return => {}
         }
 
         self.code.push(inst);

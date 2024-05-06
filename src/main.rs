@@ -87,7 +87,7 @@ async fn main() -> Result<()> {
         CliCommands::Run {
             file,
             stdin,
-            print_stacks: _,
+            print_stacks,
         } => {
             let cwd = match file.clone() {
                 Some(file) => std::path::Path::new(&file)
@@ -128,7 +128,7 @@ async fn main() -> Result<()> {
             let code = compiler::Compiler::vm_code_gen(ir)?;
             let binary = compiler::Compiler::byte_code_gen(code)?;
 
-            let result = compiler::Compiler::run_vm(binary, false)?;
+            let result = compiler::Compiler::run_vm(binary, print_stacks)?;
 
             println!("result: {}", result);
         }

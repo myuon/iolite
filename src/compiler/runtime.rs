@@ -331,6 +331,60 @@ impl Runtime {
                             _ => todo!(),
                         };
                     }
+                    10001 => {
+                        self.print_stack();
+                        println!(
+                            "{}",
+                            String::from_utf8(self.memory[0..200].to_vec()).unwrap()
+                        );
+                        let title_address = self.pop_address();
+                        let width = self.pop_i64();
+                        let height = self.pop_i64();
+                        let has_menubar = self.pop_i64();
+
+                        unsafe {
+                            let mut init_options = libui_ffi::uiInitOptions {
+                                Size: std::mem::size_of::<libui_ffi::uiInitOptions>(),
+                            };
+
+                            let err = libui_ffi::uiInit(&mut init_options);
+
+                            extern "C" fn c_callback(
+                                window: *mut libui_ffi::uiWindow,
+                                data: *mut std::ffi::c_void,
+                            ) -> i32 {
+                                unsafe {
+                                    libui_ffi::uiControlDestroy(
+                                        window as *mut libui_ffi::uiControl,
+                                    );
+                                    libui_ffi::uiQuit();
+                                }
+
+                                0
+                            }
+
+                            let window = libui_ffi::uiNewWindow(
+                                std::ffi::CString::from_vec_unchecked(
+                                    self.memory[title_address as usize..].to_vec(),
+                                )
+                                .as_ptr(),
+                                width as i32,
+                                height as i32,
+                                has_menubar as i32,
+                            );
+
+                            libui_ffi::uiWindowOnClosing(
+                                window,
+                                Some(c_callback),
+                                std::ptr::null_mut(),
+                            );
+                            libui_ffi::uiControlShow(window as *mut libui_ffi::uiControl);
+                            libui_ffi::uiMain();
+                        }
+
+                        self.push(Value::Nil.as_u64() as i64);
+                        self.print_stack();
+                    }
                     _ => todo!(),
                 }
             }
