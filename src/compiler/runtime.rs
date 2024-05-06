@@ -337,6 +337,7 @@ impl Runtime {
                         let height = self.pop_i64();
                         let has_menubar = self.pop_i64();
 
+                        #[cfg(feature = "gui")]
                         unsafe {
                             let mut init_options = libui_ffi::uiInitOptions {
                                 Size: std::mem::size_of::<libui_ffi::uiInitOptions>(),
@@ -376,6 +377,9 @@ impl Runtime {
                             libui_ffi::uiControlShow(window as *mut libui_ffi::uiControl);
                             libui_ffi::uiMain();
                         }
+
+                        #[cfg(not(feature = "gui"))]
+                        todo!();
 
                         self.push(Value::Nil.as_u64() as i64);
                     }
