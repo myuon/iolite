@@ -320,8 +320,7 @@ impl Runtime {
                                     [address as usize..(address as usize + size as usize)];
                                 let result = match self.trap_stdout.clone() {
                                     Some(stdout) => stdout.lock().unwrap().write(data),
-                                    // None => stdout().write(data),
-                                    None => todo!(),
+                                    None => stdout().write(data),
                                 };
 
                                 self.push(match result {
