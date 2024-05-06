@@ -332,11 +332,6 @@ impl Runtime {
                         };
                     }
                     10001 => {
-                        self.print_stack();
-                        println!(
-                            "{}",
-                            String::from_utf8(self.memory[0..200].to_vec()).unwrap()
-                        );
                         let title_address = self.pop_address();
                         let width = self.pop_i64();
                         let height = self.pop_i64();
@@ -383,7 +378,6 @@ impl Runtime {
                         }
 
                         self.push(Value::Nil.as_u64() as i64);
-                        self.print_stack();
                     }
                     _ => todo!(),
                 }
