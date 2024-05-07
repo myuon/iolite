@@ -104,6 +104,7 @@ impl Parser {
     fn ty(&mut self) -> Result<Source<Type>, ParseError> {
         let token = self.consume()?;
         match token.lexeme {
+            Lexeme::Nil => Ok(Source::span(Type::Nil, token.span)),
             Lexeme::Ident(i) if i == "int".to_string() => Ok(Source::span(Type::Int, token.span)),
             Lexeme::Ident(i) if i == "bool".to_string() => Ok(Source::span(Type::Bool, token.span)),
             Lexeme::Ident(i) if i == "byte".to_string() => Ok(Source::span(Type::Byte, token.span)),

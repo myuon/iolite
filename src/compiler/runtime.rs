@@ -1,4 +1,5 @@
 use std::{
+    cell::RefCell,
     io::{stdout, BufWriter, Write},
     sync::{Arc, Mutex},
 };
@@ -20,6 +21,10 @@ pub enum ControlFlow {
     Continue,
     Finish,
     HitBreakpoint,
+}
+
+thread_local! {
+    static WINDOW: RefCell<*mut libui_ffi::uiWindow> = RefCell::new(std::ptr::null_mut());
 }
 
 pub struct Runtime {
@@ -344,7 +349,6 @@ impl Runtime {
                                 panic!("Error: {}", error_string);
                             }
                         }
-
                         #[cfg(not(feature = "gui"))]
                         todo!();
 
@@ -381,16 +385,42 @@ impl Runtime {
                                 height as i32,
                                 has_menubar as i32,
                             );
+                            WINDOW.with(|w| {
+                                *w.borrow_mut() = window;
+                            });
 
                             libui_ffi::uiWindowOnClosing(
                                 window,
                                 Some(c_callback),
                                 std::ptr::null_mut(),
                             );
-                            libui_ffi::uiControlShow(window as *mut libui_ffi::uiControl);
+                        }
+                        #[cfg(not(feature = "gui"))]
+                        todo!();
+
+                        self.push(Value::Nil.as_u64() as i64);
+                    }
+                    10002 => {
+                        let _ = self.pop_address();
+
+                        #[cfg(feature = "gui")]
+                        unsafe {
+                            WINDOW.with(|window| {
+                                libui_ffi::uiControlShow(
+                                    *window.borrow_mut() as *mut libui_ffi::uiControl
+                                );
+                            });
+                        }
+                        #[cfg(not(feature = "gui"))]
+                        todo!();
+
+                        self.push(Value::Nil.as_u64() as i64);
+                    }
+                    10003 => {
+                        #[cfg(feature = "gui")]
+                        unsafe {
                             libui_ffi::uiMain();
                         }
-
                         #[cfg(not(feature = "gui"))]
                         todo!();
 

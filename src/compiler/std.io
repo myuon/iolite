@@ -2,9 +2,13 @@
 declare fun extcall_write(fd: int, buf: rawptr, length: int): int;
 // Requires libui-iol
 // 10000
-declare fun extcall_ui_init(): rawptr;
+declare fun extcall_ui_init(): nil;
 // 10001
 declare fun extcall_ui_new_window(title: rawptr, width: int, height: int, has_menubar: int): rawptr;
+// 10002
+declare fun extcall_ui_control_show(window: rawptr): nil;
+// 10003
+declare fun extcall_ui_main(): nil;
 
 let heap_ptr = 0 as ptr[byte];
 
