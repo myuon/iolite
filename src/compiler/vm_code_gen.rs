@@ -56,6 +56,7 @@ impl VmCodeGenerator {
         // table.insert("exit".to_string(), 2);
 
         // libui
+        table.insert("extcall_ui_init".to_string(), 10000);
         table.insert("extcall_ui_new_window".to_string(), 10001);
         table
     }

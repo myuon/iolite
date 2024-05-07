@@ -1,6 +1,8 @@
 // Requires posix-iol
 declare fun extcall_write(fd: int, buf: rawptr, length: int): int;
 // Requires libui-iol
+// 10000
+declare fun extcall_ui_init(): rawptr;
 // 10001
 declare fun extcall_ui_new_window(title: rawptr, width: int, height: int, has_menubar: int): rawptr;
 
@@ -60,7 +62,7 @@ fun to_cstr(text: array[byte]): ptr[byte] {
 
   let i = 0;
   while (i < text.length) {
-    cstr.(i) = text.ptr.(i);
+    cstr.(i) = text.(i);
     i = i + 1;
   }
 

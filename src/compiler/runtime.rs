@@ -331,6 +331,25 @@ impl Runtime {
                             _ => todo!(),
                         };
                     }
+                    10000 => {
+                        #[cfg(feature = "gui")]
+                        unsafe {
+                            let mut init_options = libui_ffi::uiInitOptions {
+                                Size: std::mem::size_of::<libui_ffi::uiInitOptions>(),
+                            };
+
+                            let err = libui_ffi::uiInit(&mut init_options);
+                            if !err.is_null() {
+                                let error_string = std::ffi::CStr::from_ptr(err).to_str().unwrap();
+                                panic!("Error: {}", error_string);
+                            }
+                        }
+
+                        #[cfg(not(feature = "gui"))]
+                        todo!();
+
+                        self.push(Value::Nil.as_u64() as i64);
+                    }
                     10001 => {
                         let title_address = self.pop_address();
                         let width = self.pop_i64();
@@ -339,15 +358,9 @@ impl Runtime {
 
                         #[cfg(feature = "gui")]
                         unsafe {
-                            let mut init_options = libui_ffi::uiInitOptions {
-                                Size: std::mem::size_of::<libui_ffi::uiInitOptions>(),
-                            };
-
-                            let err = libui_ffi::uiInit(&mut init_options);
-
                             extern "C" fn c_callback(
                                 window: *mut libui_ffi::uiWindow,
-                                data: *mut std::ffi::c_void,
+                                _data: *mut std::ffi::c_void,
                             ) -> i32 {
                                 unsafe {
                                     libui_ffi::uiControlDestroy(
