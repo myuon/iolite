@@ -128,6 +128,28 @@ impl Parser {
             Lexeme::Ident(i) if i == "rawptr".to_string() => {
                 Ok(Source::span(Type::RawPtr, token.span))
             }
+            Lexeme::LParen => {
+                let mut params = vec![];
+                while self.is_next_token(Lexeme::RParen) {
+                    let t = self.ty()?;
+                    params.push(t.data);
+
+                    if self.is_next_token(Lexeme::Comma) {
+                        self.consume()?;
+                    } else {
+                        break;
+                    }
+                }
+
+                self.expect(Lexeme::Arrow)?;
+
+                let result = self.ty()?;
+
+                Ok(Source::span(
+                    Type::Fun(params, Box::new(result.data)),
+                    token.span,
+                ))
+            }
             _ => Err(ParseError::UnexpectedToken {
                 expected: None,
                 got: token,
