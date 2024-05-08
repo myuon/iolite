@@ -369,6 +369,9 @@ impl Typechecker {
                     (Type::Ptr(_), Type::RawPtr) => {
                         *conversion = Some(Conversion::Cast(TypeTag::None));
                     }
+                    (Type::Nil, Type::RawPtr) => {
+                        *conversion = Some(Conversion::Cast(TypeTag::None));
+                    }
                     _ => {
                         return Err(TypecheckerError::ConversionNotSupported(
                             expr_ty,

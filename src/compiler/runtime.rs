@@ -426,6 +426,38 @@ impl Runtime {
 
                         self.push(Value::Nil.as_u64() as i64);
                     }
+                    10004 => {
+                        let title_address = self.pop_address();
+                        let parent = self.pop_i64();
+
+                        #[cfg(feature = "gui")]
+                        unsafe {
+                            WINDOW.with(|window| {
+                                libui_ffi::uiDrawFill(
+                                    *window.borrow_mut() as *mut libui_ffi::uiDrawContext,
+                                    libui_ffi::uiDrawNewPath(libui_ffi::uiDrawFillModeWinding),
+                                    &mut libui_ffi::uiDrawBrush {
+                                        Type: libui_ffi::uiDrawBrushTypeSolid,
+                                        R: 1.0,
+                                        G: 0.0,
+                                        B: 0.0,
+                                        A: 1.0,
+                                        X0: 0.0,
+                                        Y0: 0.0,
+                                        X1: 0.0,
+                                        Y1: 0.0,
+                                        OuterRadius: 0.0,
+                                        Stops: std::ptr::null_mut(),
+                                        NumStops: 0,
+                                    },
+                                )
+                            });
+                        }
+                        #[cfg(not(feature = "gui"))]
+                        todo!();
+
+                        self.push(Value::Nil.as_u64() as i64);
+                    }
                     _ => todo!(),
                 }
             }

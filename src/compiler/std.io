@@ -9,6 +9,10 @@ declare fun extcall_ui_new_window(title: rawptr, width: int, height: int, has_me
 declare fun extcall_ui_control_show(window: rawptr): nil;
 // 10003
 declare fun extcall_ui_main(): nil;
+// 10004
+declare fun extcall_ui_draw_fill(context: rawptr, path: rawptr, brush: rawptr): nil;
+// 10005
+declare fun extcall_ui_struct_ui_draw_brush(type: int, r: int, g: int, b: int, a: int, x0: float, y0: float, x1: float, y1: float, outer_radius: float, stops: rawptr, num_stops: int): nil;
 
 let heap_ptr = 0 as ptr[byte];
 
