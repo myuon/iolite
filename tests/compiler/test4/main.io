@@ -4,7 +4,7 @@ fun call(f: () => nil) {
 
 fun main() {
   call(fun () {
-    println("Hello, World!");
+    print_str("Hello, World!\n");
     return nil;
   });
 }

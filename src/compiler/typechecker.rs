@@ -439,6 +439,31 @@ impl Typechecker {
                     }
                 }
             }
+            Expr::Closure {
+                params,
+                result,
+                body,
+            } => {
+                let types_cloned = self.types.clone();
+                let mut param_types = vec![];
+
+                for param in params {
+                    param_types.push(param.1.data.clone());
+                    self.types.insert(
+                        param.0.data.clone(),
+                        Source::span(param.1.data.clone(), param.0.span.clone()),
+                    );
+                }
+
+                self.return_ty = result.data.clone();
+
+                self.block(body)?;
+                let ty = Type::Fun(param_types.clone(), Box::new(self.return_ty.clone()));
+
+                self.types = types_cloned;
+
+                Ok(ty)
+            }
         }
     }
 

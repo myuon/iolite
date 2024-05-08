@@ -166,6 +166,11 @@ pub enum Expr {
         ty: Source<Type>,
         conversion: Option<Conversion>,
     },
+    Closure {
+        params: Vec<(Source<String>, Source<Type>)>,
+        result: Source<Type>,
+        body: Box<Source<Block>>,
+    },
 }
 
 #[derive(Debug, PartialEq, Clone)]
@@ -484,6 +489,23 @@ impl AstWalker {
                 }
 
                 self.expr(expr)
+            }
+            Expr::Closure {
+                params,
+                result,
+                body,
+            } => {
+                for (_, ty) in params {
+                    self.tokens
+                        .push((AST_WALKER_TYPE.to_string(), ty.span.clone()));
+                }
+
+                if matches!(self.mode, AstWalkerMode::SemanticTokens) {
+                    self.tokens
+                        .push((AST_WALKER_TYPE.to_string(), result.span.clone()));
+                }
+
+                self.block(body)
             }
         }
     }
