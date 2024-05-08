@@ -501,6 +501,9 @@ impl VmCodeGenerator {
             IrTerm::SourceMap { span } => {
                 self.emit(Instruction::SourceMap(span));
             }
+            IrTerm::Function(name) => {
+                self.emit(Instruction::Label(name));
+            }
         }
 
         Ok(())

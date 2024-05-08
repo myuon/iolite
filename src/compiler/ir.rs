@@ -72,6 +72,7 @@ pub enum IrTerm {
     SourceMap {
         span: Span,
     },
+    Function(String),
 }
 
 #[derive(Debug, PartialEq, Clone)]

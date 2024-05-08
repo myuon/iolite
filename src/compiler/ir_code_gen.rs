@@ -17,6 +17,7 @@ pub struct IrCodeGenerator {
     globals: Vec<String>,
     types: HashMap<String, Source<Type>>,
     data: HashMap<String, Vec<u8>>,
+    closures: Vec<IrDecl>,
 }
 
 impl IrCodeGenerator {
@@ -26,6 +27,7 @@ impl IrCodeGenerator {
             globals: vec![],
             types: HashMap::new(),
             data: HashMap::new(),
+            closures: vec![],
         }
     }
 
@@ -115,6 +117,10 @@ impl IrCodeGenerator {
             body: Box::new(IrTerm::Items(self.init_function.clone())),
         });
 
+        for closure in self.closures.clone() {
+            decls.push(closure);
+        }
+
         Ok(IrModule {
             name: module.name,
             decls,
@@ -168,11 +174,7 @@ impl IrCodeGenerator {
             }
             Declaration::Struct { .. } => Ok(None),
             Declaration::Import(_) => Ok(None),
-            Declaration::DeclareFunction {
-                name,
-                params,
-                result,
-            } => Ok(None),
+            Declaration::DeclareFunction { .. } => Ok(None),
         }
     }
 
@@ -393,6 +395,22 @@ impl IrCodeGenerator {
                         address: Box::new(term),
                     }],
                 })
+            }
+            Expr::Closure {
+                params,
+                result: _,
+                body,
+            } => {
+                let term = self.block(*body)?;
+                let name = format!("closure_{}", nanoid!());
+
+                self.closures.push(IrDecl::Fun {
+                    name: name.clone(),
+                    args: params.into_iter().map(|p| p.0.data).collect(),
+                    body: Box::new(term),
+                });
+
+                Ok(IrTerm::Function(name))
             }
             _ => {
                 let term = self.expr_left_value(expr)?;
