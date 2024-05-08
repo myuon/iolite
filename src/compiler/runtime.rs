@@ -25,6 +25,7 @@ pub enum ControlFlow {
 
 thread_local! {
     static WINDOW: RefCell<*mut libui_ffi::uiWindow> = RefCell::new(std::ptr::null_mut());
+    static AREA: RefCell<libui_ffi::uiAreaHandler> = RefCell::new(libui_ffi::uiAreaHandler { Draw: None, MouseEvent: None, MouseCrossed:None, DragBroken: None, KeyEvent: None});
 }
 
 pub struct Runtime {
@@ -451,6 +452,74 @@ impl Runtime {
                                         NumStops: 0,
                                     },
                                 )
+                            });
+                        }
+                        #[cfg(not(feature = "gui"))]
+                        todo!();
+
+                        self.push(Value::Nil.as_u64() as i64);
+                    }
+                    10006 => {
+                        #[cfg(feature = "gui")]
+                        unsafe {
+                            WINDOW.with(|window| {
+                                extern "C" fn c_draw(
+                                    _handler: *mut libui_ffi::uiAreaHandler,
+                                    _area: *mut libui_ffi::uiArea,
+                                    _draw_params: *mut libui_ffi::uiAreaDrawParams,
+                                ) {
+                                    println!("draw");
+                                }
+                                extern "C" fn c_mouse_event(
+                                    _handler: *mut libui_ffi::uiAreaHandler,
+                                    _area: *mut libui_ffi::uiArea,
+                                    _draw_params: *mut libui_ffi::uiAreaMouseEvent,
+                                ) {
+                                }
+                                extern "C" fn c_mouse_crossed(
+                                    _handler: *mut libui_ffi::uiAreaHandler,
+                                    _area: *mut libui_ffi::uiArea,
+                                    _left: std::ffi::c_int,
+                                ) {
+                                }
+                                extern "C" fn c_drag_broken(
+                                    _handler: *mut libui_ffi::uiAreaHandler,
+                                    _area: *mut libui_ffi::uiArea,
+                                ) {
+                                }
+                                extern "C" fn c_key_event(
+                                    _handler: *mut libui_ffi::uiAreaHandler,
+                                    _area: *mut libui_ffi::uiArea,
+                                    _key_event: *mut libui_ffi::uiAreaKeyEvent,
+                                ) -> std::ffi::c_int {
+                                    0
+                                }
+
+                                let hbox = libui_ffi::uiNewHorizontalBox();
+                                AREA.with(|area| {
+                                    *area.borrow_mut() = libui_ffi::uiAreaHandler {
+                                        Draw: Some(c_draw),
+                                        MouseEvent: Some(c_mouse_event),
+                                        MouseCrossed: Some(c_mouse_crossed),
+                                        DragBroken: Some(c_drag_broken),
+                                        KeyEvent: Some(c_key_event),
+                                    };
+                                });
+
+                                AREA.with(|area_handler| {
+                                    let area = libui_ffi::uiNewArea(area_handler.as_ptr());
+
+                                    libui_ffi::uiBoxAppend(
+                                        hbox,
+                                        area as *mut libui_ffi::uiControl,
+                                        0,
+                                    );
+
+                                    libui_ffi::uiWindowSetChild(
+                                        *window.borrow_mut(),
+                                        hbox as *mut libui_ffi::uiControl,
+                                    );
+                                });
                             });
                         }
                         #[cfg(not(feature = "gui"))]
