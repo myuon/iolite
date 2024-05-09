@@ -37,7 +37,7 @@ impl IrCodeGenerator {
 
     fn allocate(&self, term: IrTerm) -> IrTerm {
         IrTerm::Call {
-            name: "alloc".to_string(),
+            callee: Box::new(IrTerm::Ident("alloc".to_string())),
             args: vec![term],
         }
     }
@@ -143,7 +143,7 @@ impl IrCodeGenerator {
                     if name.data == "main" {
                         IrTerm::Items(vec![
                             IrTerm::Call {
-                                name: "init".to_string(),
+                                callee: Box::new(IrTerm::Ident("init".to_string())),
                                 args: vec![],
                             },
                             term,
@@ -246,14 +246,16 @@ impl IrCodeGenerator {
                     args: vec![left, right],
                 })
             }
-            Expr::Call { name, args } => {
+            Expr::Call { callee, args } => {
                 let mut ir_args = vec![];
                 for arg in args {
                     ir_args.push(self.expr(arg)?);
                 }
 
+                let callee = self.expr(*callee)?;
+
                 Ok(IrTerm::Call {
-                    name: name.data,
+                    callee: Box::new(callee),
                     args: ir_args,
                 })
             }
@@ -366,7 +368,7 @@ impl IrCodeGenerator {
                     .clone();
 
                 Ok(IrTerm::Call {
-                    name,
+                    callee: Box::new(IrTerm::Ident(name)),
                     args: ir_args,
                 })
             }

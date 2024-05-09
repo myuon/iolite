@@ -129,7 +129,7 @@ pub enum Expr {
         right: Box<Source<Expr>>,
     },
     Call {
-        name: Source<String>,
+        callee: Box<Source<Expr>>,
         args: Vec<Source<Expr>>,
     },
     MethodCall {
@@ -431,7 +431,7 @@ impl AstWalker {
                 self.expr(left);
                 self.expr(right);
             }
-            Expr::Call { args, name } => {
+            Expr::Call { args, callee: name } => {
                 self.tokens
                     .push((AST_WALKER_FUNCTION.to_string(), name.span.clone()));
                 for arg in args {

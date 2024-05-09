@@ -111,20 +111,33 @@ impl Typechecker {
         }
     }
 
-    fn get_type(&self, name: &Source<String>) -> Result<Source<Type>, TypecheckerError> {
+    fn get_type(&self, name: &str, span: &Span) -> Result<Source<Type>, TypecheckerError> {
         self.types
-            .get(&name.data)
+            .get(name)
             .cloned()
-            .ok_or(TypecheckerError::IdentNotFound(name.clone()))
+            .ok_or(TypecheckerError::IdentNotFound(Source::span(
+                name.to_string(),
+                span.clone(),
+            )))
     }
 
-    fn check_search_ident(&mut self, ident: &Source<String>) {
+    fn check_search_ident(&mut self, ident: &Source<Expr>) {
         if let Some(search) = &self.search_def {
             if ident.span.has(search.position) {
-                self.search_def = Some(SearchDefinition {
-                    position: search.position,
-                    found: Some(self.get_type(ident).unwrap().span.clone()),
-                });
+                match &ident.data {
+                    Expr::Ident(ident) => {
+                        self.search_def = Some(SearchDefinition {
+                            position: search.position,
+                            found: Some(
+                                self.get_type(&ident.data, &ident.span)
+                                    .unwrap()
+                                    .span
+                                    .clone(),
+                            ),
+                        });
+                    }
+                    _ => todo!(),
+                }
             }
         }
     }
@@ -159,9 +172,9 @@ impl Typechecker {
     pub fn expr(&mut self, expr: &mut Source<Expr>) -> Result<Type, TypecheckerError> {
         match &mut expr.data {
             Expr::Ident(i) => {
-                self.check_search_ident(i);
+                self.check_search_ident(&Source::span(Expr::Ident(i.clone()), i.span.clone()));
 
-                let ty = self.get_type(i)?.data;
+                let ty = self.get_type(&i.data, &i.span)?.data;
                 self.check_infer_type_at(&expr.span, ty.clone());
 
                 Ok(ty)
@@ -226,8 +239,8 @@ impl Typechecker {
                     }
                 }
             }
-            Expr::Call { name, args } => {
-                self.check_search_ident(name);
+            Expr::Call { callee, args } => {
+                self.check_search_ident(callee);
 
                 let mut arg_types_actual = vec![];
 
@@ -235,7 +248,7 @@ impl Typechecker {
                     arg_types_actual.push(self.expr(arg)?);
                 }
 
-                let fun_ty = self.get_type(name)?.data;
+                let fun_ty = self.expr(callee)?;
                 self.check_infer_type_at(&expr.span, fun_ty.clone());
 
                 match fun_ty {
@@ -287,7 +300,7 @@ impl Typechecker {
             }
             Expr::Block(block) => self.block(block),
             Expr::Struct { name, fields } => {
-                let struct_ty = self.get_type(name)?.data;
+                let struct_ty = self.get_type(&name.data, &name.span)?.data;
                 match struct_ty.clone() {
                     Type::Struct {
                         fields: field_types,

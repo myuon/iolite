@@ -49,6 +49,7 @@ pub enum Instruction {
     JumpIfTo(String),
     CallLabel(String),
     ExtCall(usize),
+    ExtLabel(usize),
     Debug(String),
     Nop,
     Data {
@@ -120,6 +121,7 @@ impl Instruction {
 
             // Labels
             Label(_) => todo!(),
+            ExtLabel(_) => todo!(),
             JumpTo(_) => todo!(),
             JumpIfTo(_) => todo!(),
             CallLabel(_) => todo!(),

@@ -62,7 +62,7 @@ pub enum IrTerm {
         else_: Box<IrTerm>,
     },
     Call {
-        name: String,
+        callee: Box<IrTerm>,
         args: Vec<IrTerm>,
     },
     Index {

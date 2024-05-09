@@ -1005,7 +1005,13 @@ impl Parser {
                         }
                         Expr::Ident(name) => {
                             current = Source::new_span(
-                                Expr::Call { name, args },
+                                Expr::Call {
+                                    callee: Box::new(Source::span(
+                                        Expr::Ident(name.clone()),
+                                        name.span.clone(),
+                                    )),
+                                    args,
+                                },
                                 self.module_name.clone(),
                                 start,
                                 end,

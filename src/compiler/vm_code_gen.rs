@@ -29,6 +29,7 @@ pub struct VmCodeGenerator {
     arity: Vec<String>,
     locals: Vec<Scope>,
     globals: Vec<String>,
+    functions: Vec<String>,
     stack_pointer: usize,
     pub code: Vec<Instruction>,
     data_section: HashMap<String, usize>,
@@ -41,6 +42,7 @@ impl VmCodeGenerator {
             arity: vec![],
             locals: vec![],
             globals: vec![],
+            functions: vec![],
             stack_pointer: 0,
             code: vec![],
             data_section: HashMap::new(),
@@ -202,7 +204,7 @@ impl VmCodeGenerator {
             Eq | NotEq | Lt | Gt | Le | Ge => {
                 self.stack_pointer -= 1;
             }
-            Label(_) => {}
+            Label(_) | ExtLabel(_) => {}
             JumpTo(_) => {}
             CallLabel(_) | ExtCall(_) => {}
             JumpIfTo(_) => {
@@ -242,6 +244,10 @@ impl VmCodeGenerator {
             self.push_local(index);
         } else if self.is_global(&name) {
             self.push_global(name);
+        } else if let Some(label) = Self::extcall_table().get(&name) {
+            self.emit(Instruction::ExtLabel(*label));
+        } else if self.functions.contains(&name) {
+            self.emit(Instruction::Label(name));
         } else {
             return Err(VmCodeGeneratorError::IdentNotFound(name));
         }
@@ -463,7 +469,7 @@ impl VmCodeGenerator {
                 self.emit(Instruction::Label(label_if_end.clone()));
                 self.stack_pointer = stack_pointer + 1;
             }
-            IrTerm::Call { name, args } => {
+            IrTerm::Call { callee, args } => {
                 self.emit(Instruction::Push(0));
                 self.emit(Instruction::Debug(
                     "allocated for the return value".to_string(),
@@ -476,12 +482,7 @@ impl VmCodeGenerator {
                     self.term(arg)?;
                 }
 
-                if let Some(label) = Self::extcall_table().get(&name) {
-                    self.emit(Instruction::ExtCall(*label));
-                    return Ok(());
-                } else {
-                    self.emit(Instruction::CallLabel(name));
-                }
+                self.term(*callee)?;
 
                 // NOTE: pop arity
                 for _ in 0..args_len {
@@ -526,15 +527,25 @@ impl VmCodeGenerator {
 
                 self.term(*body)?;
             }
-            IrDecl::Let { name } => {
-                self.globals.push(name);
-            }
+            _ => {}
         }
 
         Ok(())
     }
 
     pub fn module(&mut self, decls: Vec<IrDecl>) -> Result<(), VmCodeGeneratorError> {
+        // collect defined things
+        for decl in &decls {
+            match decl {
+                IrDecl::Fun { name, .. } => {
+                    self.functions.push(name.clone());
+                }
+                IrDecl::Let { name } => {
+                    self.globals.push(name.clone());
+                }
+            }
+        }
+
         for decl in decls {
             self.decl(decl)?;
         }

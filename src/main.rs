@@ -7,8 +7,6 @@ use dap_server::{DapContext, DapImpl};
 use lsp_server::LspImpl;
 use utils::{dap::server::Dap, lsp::server::Lsp, server_process::ServerProcess};
 
-use crate::compiler::{ast::Module, vm::Instruction};
-
 mod compiler;
 mod dap_server;
 mod lsp_server;
@@ -23,12 +21,6 @@ struct Cli {
 
 #[derive(Debug, Subcommand)]
 enum CliCommands {
-    Compile {
-        file: Option<String>,
-
-        #[clap(long)]
-        stdin: bool,
-    },
     Run {
         file: Option<String>,
 
@@ -36,34 +28,11 @@ enum CliCommands {
         stdin: bool,
         #[clap(long = "print-stacks")]
         print_stacks: bool,
+        #[clap(long = "emit-ir")]
+        emit_ir: Option<String>,
     },
     Lsp {},
     Dap {},
-}
-
-fn compile(input: String) -> Result<Vec<u8>> {
-    let decls = compiler::Compiler::parse_decls(compiler::Compiler::create_input(input.clone()))?;
-    let mut module = Module {
-        name: "main".to_string(),
-        declarations: decls,
-    };
-    let types = compiler::Compiler::typecheck_module(&mut module, &input).unwrap();
-
-    let ir = compiler::Compiler::ir_code_gen_module(module, types).unwrap();
-    let code = compiler::Compiler::vm_code_gen(ir).unwrap();
-    for inst in &code {
-        match inst {
-            Instruction::Label(label) => {
-                println!("\n{}:", label);
-            }
-            _ => {
-                println!("    {:?}", inst);
-            }
-        }
-    }
-    let binary = compiler::Compiler::byte_code_gen(code).unwrap();
-
-    Ok(binary)
 }
 
 #[tokio::main]
@@ -72,22 +41,11 @@ async fn main() -> Result<()> {
     let mut compiler = compiler::Compiler::new();
 
     match cli.command {
-        CliCommands::Compile { file, stdin } => {
-            let input = if stdin {
-                let mut buf = Vec::new();
-                std::io::stdin().read_to_end(&mut buf).unwrap();
-
-                String::from_utf8(buf)?
-            } else {
-                file.unwrap()
-            };
-
-            compile(input)?;
-        }
         CliCommands::Run {
             file,
             stdin,
             print_stacks,
+            emit_ir,
         } => {
             let cwd = match file.clone() {
                 Some(file) => std::path::Path::new(&file)
@@ -122,11 +80,22 @@ async fn main() -> Result<()> {
             let main = "main".to_string();
 
             compiler.parse_with_code(main.clone(), source_code)?;
+            eprintln!("Parsed");
+
             compiler.typecheck(main.clone())?;
+            eprintln!("Typechecked");
 
             let ir = compiler.ir_code_gen(main.clone())?;
+            eprintln!("IR generated");
+
+            if let Some(file) = emit_ir {
+                std::fs::write(file, format!("{:#?}", ir))?;
+            }
             let code = compiler::Compiler::vm_code_gen(ir)?;
+            eprintln!("VM code generated");
+
             let binary = compiler::Compiler::byte_code_gen(code)?;
+            eprintln!("Byte code generated");
 
             let result = compiler::Compiler::run_vm(binary, print_stacks)?;
 
