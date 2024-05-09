@@ -250,7 +250,7 @@ impl Runtime {
 
     fn print_stack(&self) {
         let mut p = self.memory.len() - 8;
-        print!("[{}] |", self.pc);
+        print!("[{}:{:x}] |", self.pc, self.pc);
         while p >= self.sp {
             let val = Value::from_u64(self.load_i64(p as u64) as u64);
 

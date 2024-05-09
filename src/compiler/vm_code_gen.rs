@@ -485,7 +485,10 @@ impl VmCodeGenerator {
                         } else if self.functions.contains(&name) {
                             self.emit(Instruction::CallLabel(name));
                         } else {
-                            self.ident(name)?;
+                            self.term(IrTerm::Load {
+                                size: Value::size() as usize,
+                                address: Box::new(IrTerm::Ident(name.clone())),
+                            })?;
                             self.emit(Instruction::Call);
                         }
                     }
