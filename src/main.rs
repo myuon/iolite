@@ -1,4 +1,4 @@
-use std::io::Read;
+use std::io::{Read, Write};
 
 use anyhow::{anyhow, bail, Result};
 use clap::{Parser, Subcommand};
@@ -6,6 +6,8 @@ use compiler::runtime::Runtime;
 use dap_server::{DapContext, DapImpl};
 use lsp_server::LspImpl;
 use utils::{dap::server::Dap, lsp::server::Lsp, server_process::ServerProcess};
+
+use crate::compiler::ir::Value;
 
 mod compiler;
 mod dap_server;
@@ -30,6 +32,8 @@ enum CliCommands {
         print_stacks: bool,
         #[clap(long = "emit-ir")]
         emit_ir: Option<String>,
+        #[clap(long = "emit-vm")]
+        emit_vm: Option<String>,
     },
     Lsp {},
     Dap {},
@@ -46,6 +50,7 @@ async fn main() -> Result<()> {
             stdin,
             print_stacks,
             emit_ir,
+            emit_vm,
         } => {
             let cwd = match file.clone() {
                 Some(file) => std::path::Path::new(&file)
@@ -86,20 +91,25 @@ async fn main() -> Result<()> {
             eprintln!("Typechecked");
 
             let ir = compiler.ir_code_gen(main.clone())?;
-            eprintln!("IR generated");
-
             if let Some(file) = emit_ir {
                 std::fs::write(file, format!("{:#?}", ir))?;
             }
+            eprintln!("IR generated");
+
             let code = compiler::Compiler::vm_code_gen(ir)?;
+            if let Some(file) = emit_vm {
+                let mut file = std::fs::File::create(file)?;
+                for (i, code) in code.iter().enumerate() {
+                    file.write(format!("{}: {:?}\n", i, code).as_bytes())?;
+                }
+            }
             eprintln!("VM code generated");
 
             let binary = compiler::Compiler::byte_code_gen(code)?;
             eprintln!("Byte code generated");
 
             let result = compiler::Compiler::run_vm(binary, print_stacks)?;
-
-            println!("result: {}", result);
+            println!("result: {:?}", Value::from_u64(result as u64));
         }
         CliCommands::Lsp {} => {
             Lsp::new(LspImpl).start((), 3030).await?;

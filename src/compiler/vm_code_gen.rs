@@ -204,7 +204,7 @@ impl VmCodeGenerator {
             Eq | NotEq | Lt | Gt | Le | Ge => {
                 self.stack_pointer -= 1;
             }
-            Label(_) | ExtLabel(_) => {}
+            Label(_) => {}
             JumpTo(_) => {}
             CallLabel(_) | ExtCall(_) => {}
             JumpIfTo(_) => {
@@ -214,7 +214,7 @@ impl VmCodeGenerator {
             Nop => {}
             Data { .. } => {}
             SourceMap(_) => {}
-            Call => todo!(),
+            Call => {}
             Return => {}
         }
 
@@ -244,10 +244,6 @@ impl VmCodeGenerator {
             self.push_local(index);
         } else if self.is_global(&name) {
             self.push_global(name);
-        } else if let Some(label) = Self::extcall_table().get(&name) {
-            self.emit(Instruction::ExtLabel(*label));
-        } else if self.functions.contains(&name) {
-            self.emit(Instruction::Label(name));
         } else {
             return Err(VmCodeGeneratorError::IdentNotFound(name));
         }
@@ -482,7 +478,19 @@ impl VmCodeGenerator {
                     self.term(arg)?;
                 }
 
-                self.term(*callee)?;
+                match *callee {
+                    IrTerm::Ident(name) => {
+                        if let Some(label) = Self::extcall_table().get(&name) {
+                            self.emit(Instruction::ExtCall(*label));
+                        } else if self.functions.contains(&name) {
+                            self.emit(Instruction::CallLabel(name));
+                        } else {
+                            self.ident(name)?;
+                            self.emit(Instruction::Call);
+                        }
+                    }
+                    _ => todo!(),
+                }
 
                 // NOTE: pop arity
                 for _ in 0..args_len {

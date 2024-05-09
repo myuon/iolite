@@ -252,7 +252,7 @@ impl IrCodeGenerator {
                     ir_args.push(self.expr(arg)?);
                 }
 
-                let callee = self.expr(*callee)?;
+                let callee = self.expr_left_value(*callee)?;
 
                 Ok(IrTerm::Call {
                     callee: Box::new(callee),

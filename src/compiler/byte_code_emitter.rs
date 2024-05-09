@@ -100,9 +100,6 @@ impl ByteCodeEmitter {
                     self.write(&Instruction::ExtCall(0).to_byte())?;
                     self.write(&label.to_le_bytes())?;
                 }
-                ExtLabel(label) => {
-                    self.write(&label.to_le_bytes())?;
-                }
                 _ => {
                     self.write(&inst.to_byte())?;
                 }
