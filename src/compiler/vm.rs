@@ -45,6 +45,7 @@ pub enum Instruction {
     Le,
     Ge,
     Label(String),
+    PushLabel(String),
     JumpTo(String),
     JumpIfTo(String),
     CallLabel(String),
@@ -120,6 +121,7 @@ impl Instruction {
 
             // Labels
             Label(_) => todo!(),
+            PushLabel(_) => todo!(),
             JumpTo(_) => todo!(),
             JumpIfTo(_) => todo!(),
             CallLabel(_) => todo!(),

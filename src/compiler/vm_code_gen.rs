@@ -188,7 +188,7 @@ impl VmCodeGenerator {
             StoreSp => {
                 self.stack_pointer -= 1;
             }
-            Push(_) => {
+            Push(_) | PushLabel(_) => {
                 self.stack_pointer += 1;
             }
             Jump => {
@@ -514,7 +514,7 @@ impl VmCodeGenerator {
                 self.emit(Instruction::SourceMap(span));
             }
             IrTerm::Function(name) => {
-                self.emit(Instruction::Label(name));
+                self.emit(Instruction::PushLabel(name));
             }
         }
 

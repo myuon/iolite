@@ -84,6 +84,9 @@ impl ByteCodeEmitter {
                 Label(label) => {
                     labels.insert(label, self.position);
                 }
+                PushLabel(label) => {
+                    placeholders.insert(self.push_placeholder()?, label);
+                }
                 JumpTo(label) => {
                     placeholders.insert(self.push_placeholder()?, label);
                     self.write(&Instruction::Jump.to_byte())?;
