@@ -223,6 +223,16 @@ impl Runtime {
                 ]))
                 .as_u64(),
             ),
+            Instruction::ExtCall(_) => Instruction::ExtCall(u64::from_le_bytes([
+                self.program[self.pc + 1],
+                self.program[self.pc + 2],
+                self.program[self.pc + 3],
+                self.program[self.pc + 4],
+                self.program[self.pc + 5],
+                self.program[self.pc + 6],
+                self.program[self.pc + 7],
+                self.program[self.pc + 8],
+            ]) as usize),
             _ => inst,
         }
     }
