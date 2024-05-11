@@ -14,6 +14,7 @@ pub enum IrCodeGeneratorError {}
 #[derive(Debug)]
 pub struct IrCodeGenerator {
     init_function: Vec<IrTerm>,
+    init_functions: Vec<String>,
     globals: Vec<String>,
     types: HashMap<String, Source<Type>>,
     data: HashMap<String, Vec<u8>>,
@@ -24,6 +25,7 @@ impl IrCodeGenerator {
     pub fn new() -> Self {
         Self {
             init_function: vec![],
+            init_functions: vec![],
             globals: vec![],
             types: HashMap::new(),
             data: HashMap::new(),
@@ -77,7 +79,13 @@ impl IrCodeGenerator {
         IrTerm::Items(block)
     }
 
-    pub fn module(&mut self, module: Module) -> Result<IrModule, IrCodeGeneratorError> {
+    pub fn module(
+        &mut self,
+        module: Module,
+        init_functions: Vec<String>,
+    ) -> Result<IrModule, IrCodeGeneratorError> {
+        self.init_functions = init_functions;
+
         let mut decls = vec![];
 
         for decl in module.declarations {
@@ -111,8 +119,9 @@ impl IrCodeGenerator {
         self.init_function
             .push(IrTerm::Return(Box::new(IrTerm::Nil)));
 
+        let init_function_name = format!("init_{}", nanoid!());
         decls.push(IrDecl::Fun {
-            name: "init".to_string(),
+            name: init_function_name.clone(),
             args: vec![],
             body: Box::new(IrTerm::Items(self.init_function.clone())),
         });
@@ -123,6 +132,7 @@ impl IrCodeGenerator {
 
         Ok(IrModule {
             name: module.name,
+            init_function: Some(init_function_name),
             decls,
             data_section,
             global_offset: offset,
@@ -141,13 +151,18 @@ impl IrCodeGenerator {
                     let term = self.block(body)?;
 
                     if name.data == "main" {
-                        IrTerm::Items(vec![
-                            IrTerm::Call {
-                                callee: Box::new(IrTerm::Ident("init".to_string())),
+                        let mut terms = vec![];
+
+                        for name in &self.init_functions {
+                            terms.push(IrTerm::Call {
+                                callee: Box::new(IrTerm::Ident(name.to_string())),
                                 args: vec![],
-                            },
-                            term,
-                        ])
+                            });
+                        }
+
+                        terms.push(term);
+
+                        IrTerm::Items(terms)
                     } else {
                         term
                     }

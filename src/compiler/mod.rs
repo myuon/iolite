@@ -341,10 +341,19 @@ impl Compiler {
     pub fn ir_code_gen(&mut self, path: String) -> Result<IrModule> {
         let paths = self.pathes_in_imported_order();
         let mut modules = vec![];
+        let mut init_functions = vec![];
         for path in paths {
             let module = self.modules.get_mut(&path).unwrap();
 
-            let ir = Self::ir_code_gen_module(module.module.clone().unwrap(), HashMap::new())?;
+            let ir = Self::ir_code_gen_module(
+                module.module.clone().unwrap(),
+                HashMap::new(),
+                init_functions.clone(),
+            )?;
+            if let Some(name) = ir.init_function.clone() {
+                init_functions.push(name);
+            }
+
             modules.push(ir);
         }
 
@@ -358,6 +367,7 @@ impl Compiler {
             decls: vec![],
             data_section: vec![],
             global_offset: 0,
+            init_function: None,
         };
         for path in self.pathes_in_imported_order() {
             let module = modules_map.get(&path).unwrap().clone();
@@ -481,12 +491,13 @@ impl Compiler {
     pub fn ir_code_gen_module(
         block: Module,
         types: HashMap<String, Source<Type>>,
+        init_functions: Vec<String>,
     ) -> Result<ir::IrModule, CompilerError> {
         let mut ir_code_gen = ir_code_gen::IrCodeGenerator::new();
         ir_code_gen.set_types(types);
 
         let ir = ir_code_gen
-            .module(block)
+            .module(block, init_functions)
             .map_err(CompilerError::IrCodeGeneratorError)?;
 
         Ok(ir)
@@ -537,7 +548,7 @@ impl Compiler {
         self.parse(path.clone())?;
         self.typecheck(path.clone())?;
 
-        let ir = Self::ir_code_gen_module(module.module.clone().unwrap(), HashMap::new())?;
+        let ir = Self::ir_code_gen_module(module.module.clone().unwrap(), HashMap::new(), vec![])?;
         let code = Self::vm_code_gen(ir)?;
         let binary = Self::byte_code_gen(code)?;
 
@@ -549,7 +560,7 @@ impl Compiler {
         let mut module = Self::create_module(decls);
         let types = Self::typecheck_module(&mut module, &input)?;
 
-        let ir = Self::ir_code_gen_module(module, types)?;
+        let ir = Self::ir_code_gen_module(module, types, vec![])?;
         let code = Self::vm_code_gen(ir)?;
         let binary = Self::byte_code_gen(code)?;
 

@@ -90,6 +90,7 @@ pub enum IrDecl {
 #[derive(Debug, PartialEq, Clone)]
 pub struct IrModule {
     pub name: String,
+    pub init_function: Option<String>,
     pub decls: Vec<IrDecl>,
     pub data_section: Vec<(String, usize, Vec<u8>)>,
     pub global_offset: usize,
