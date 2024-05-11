@@ -1,5 +1,7 @@
 import lib;
 
+let global2 = 200;
+
 fun main(): int {
-  return get_global();
+  return global2 - get_global();
 }

@@ -699,7 +699,7 @@ impl Runtime {
                 let value = self.pop_i64();
                 let address = self.pop_address();
                 if print_stacks {
-                    println!("store {} {:x}", address as u32, value);
+                    println!("store 0x{:x} {:?}", address, Value::from_u64(value as u64));
                 }
                 self.store_i64(address as u32 as u64, value);
             }

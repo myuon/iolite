@@ -142,7 +142,7 @@ impl TypeTag {
     }
 }
 
-#[derive(Debug, PartialEq, Clone)]
+#[derive(PartialEq, Clone)]
 pub enum Value {
     Nil,
     Int(i32),
@@ -182,5 +182,18 @@ impl Value {
 
     pub fn size() -> i32 {
         8
+    }
+}
+
+impl std::fmt::Debug for Value {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Value::Nil => write!(f, "nil"),
+            Value::Int(val) => write!(f, "{}", val),
+            Value::Float(val) => write!(f, "Float({})", val),
+            Value::Bool(val) => write!(f, "Bool({})", val),
+            Value::Pointer(val) => write!(f, "<0x{:x}>", val),
+            Value::Byte(val) => write!(f, "Byte({})", val),
+        }
     }
 }
