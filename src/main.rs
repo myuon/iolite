@@ -174,7 +174,8 @@ fn emit_disassemble(writer: &mut impl std::io::Write, binary: Vec<u8>) -> Result
                 writeln!(writer, ";; CALL")?;
             }
             0x03 => {
-                writeln!(writer, ";; EXTCALL")?;
+                let value = consume_u64(&mut position);
+                writeln!(writer, ";; EXTCALL {}", value)?;
             }
             0x04 => {
                 writeln!(writer, ";; RET")?;

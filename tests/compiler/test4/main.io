@@ -4,7 +4,9 @@ fun call(f: () => nil) {
 
 fun main() {
   call(fun () {
-    print_str("Hello, World!\n");
+    let text = "Hello, World!\n";
+    extcall_write(1, text.ptr as rawptr, text.length);
+
     return nil;
   });
 }
