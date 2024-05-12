@@ -35,7 +35,11 @@ impl Linker {
                 });
             }
 
-            module_offset += module.data_section.iter().map(|t| t.2.len()).sum::<usize>();
+            module_offset += module
+                .data_section
+                .iter()
+                .map(|t| t.2.len() + 8)
+                .sum::<usize>();
         }
 
         code.extend(vec![Instruction::JumpTo("main".to_string())]);
