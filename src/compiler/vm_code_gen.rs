@@ -566,25 +566,13 @@ impl VmCodeGenerator {
     }
 
     pub fn program(&mut self, module: IrModule) -> Result<(), VmCodeGeneratorError> {
-        // self.emit(Instruction::Push(0)); // 1 word for the return value
-        // self.emit(Instruction::Push(Value::Pointer(0xffffffff).as_u64())); // return address
-
         self.global_offset = module.global_offset;
 
-        for (id, offset, value) in module.data_section {
+        for (id, offset, _) in module.data_section {
             self.data_section.insert(id, offset);
-            self.emit(Instruction::Data {
-                offset: offset as u64,
-                length: value.len() as u64,
-                data: value,
-            });
         }
 
-        // self.emit(Instruction::JumpTo("main".to_string()));
-
         self.module(module.decls)?;
-
-        // self.emit(Instruction::Label("exit".to_string()));
 
         Ok(())
     }

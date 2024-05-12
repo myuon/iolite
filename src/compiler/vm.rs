@@ -250,6 +250,7 @@ proptest! {
 pub struct VmModule {
     pub(crate) name: String,
     pub(crate) instructions: Vec<Instruction>,
+    pub(crate) data_section: Vec<(String, usize, Vec<u8>)>,
 }
 
 #[derive(Debug, Clone, PartialEq)]

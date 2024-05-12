@@ -504,6 +504,7 @@ impl Compiler {
 
         for m in ir.modules {
             let module_name = m.name.clone();
+            let data_section = m.data_section.clone();
             let mut vm_code_gen = vm_code_gen::VmCodeGenerator::new();
             vm_code_gen
                 .program(m)
@@ -512,6 +513,7 @@ impl Compiler {
             modules.push(VmModule {
                 name: module_name,
                 instructions: vm_code_gen.code,
+                data_section,
             })
         }
 
