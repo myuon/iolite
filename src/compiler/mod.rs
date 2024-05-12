@@ -11,13 +11,14 @@ use crate::compiler::lexer::Lexeme;
 use self::{
     ast::{Declaration, Module, Source, Span, Type},
     byte_code_emitter::{ByteCodeEmitter, ByteCodeEmitterError},
-    ir::IrModule,
+    ir::IrProgram,
     ir_code_gen::IrCodeGeneratorError,
     lexer::{LexerError, Token},
+    linker::{Linker, LinkerError},
     parser::ParseError,
     runtime::Runtime,
     typechecker::TypecheckerError,
-    vm::Instruction,
+    vm::{Instruction, VmModule, VmProgram},
     vm_code_gen::VmCodeGeneratorError,
 };
 
@@ -26,6 +27,7 @@ pub mod byte_code_emitter;
 pub mod ir;
 pub mod ir_code_gen;
 pub mod lexer;
+pub mod linker;
 pub mod parser;
 pub mod runtime;
 pub mod typechecker;
@@ -44,6 +46,8 @@ pub enum CompilerError {
     IrCodeGeneratorError(IrCodeGeneratorError),
     #[error("VM code generator error: {0}")]
     VmCodeGeneratorError(VmCodeGeneratorError),
+    #[error("Linker error: {0}")]
+    LinkerError(LinkerError),
     #[error("Byte code emitter error: {0}")]
     ByteCodeEmitterError(ByteCodeEmitterError),
 }
@@ -338,7 +342,7 @@ impl Compiler {
         Ok(vec![])
     }
 
-    pub fn ir_code_gen(&mut self, path: String) -> Result<IrModule> {
+    pub fn ir_code_gen(&mut self, path: String) -> Result<IrProgram> {
         let paths = self.pathes_in_imported_order();
         let mut modules = vec![];
         let mut init_functions = vec![];
@@ -362,21 +366,13 @@ impl Compiler {
             .map(|module| (module.name.clone(), module.clone()))
             .collect::<HashMap<_, _>>();
 
-        let mut ir = IrModule {
-            name: path.clone(),
-            decls: vec![],
-            data_section: vec![],
-            global_offset: 0,
-            init_function: None,
-        };
+        let mut irs = vec![];
         for path in self.pathes_in_imported_order() {
             let module = modules_map.get(&path).unwrap().clone();
-            ir.decls.extend(module.decls);
-            ir.data_section.extend(module.data_section);
-            ir.global_offset += module.global_offset;
+            irs.push(module);
         }
 
-        Ok(ir)
+        Ok(IrProgram { modules: irs })
     }
 
     fn typecheck_method(
@@ -503,13 +499,23 @@ impl Compiler {
         Ok(ir)
     }
 
-    pub fn vm_code_gen(ir: ir::IrModule) -> Result<Vec<Instruction>, CompilerError> {
-        let mut vm_code_gen = vm_code_gen::VmCodeGenerator::new();
-        vm_code_gen
-            .program(ir)
-            .map_err(CompilerError::VmCodeGeneratorError)?;
+    pub fn vm_code_gen(ir: IrProgram) -> Result<VmProgram, CompilerError> {
+        let mut modules = vec![];
 
-        Ok(vm_code_gen.code)
+        for m in ir.modules {
+            let module_name = m.name.clone();
+            let mut vm_code_gen = vm_code_gen::VmCodeGenerator::new();
+            vm_code_gen
+                .program(m)
+                .map_err(CompilerError::VmCodeGeneratorError)?;
+
+            modules.push(VmModule {
+                name: module_name,
+                instructions: vm_code_gen.code,
+            })
+        }
+
+        Ok(VmProgram { modules })
     }
 
     pub fn byte_code_gen(code: Vec<Instruction>) -> Result<Vec<u8>, CompilerError> {
@@ -519,6 +525,12 @@ impl Compiler {
             .map_err(CompilerError::ByteCodeEmitterError)?;
 
         Ok(emitter.buffer)
+    }
+
+    pub fn link(vm: VmProgram) -> Result<Vec<Instruction>, CompilerError> {
+        let mut linker = Linker::new();
+
+        linker.link(vm).map_err(CompilerError::LinkerError)
     }
 
     pub fn create_input(input: String) -> String {
@@ -549,8 +561,8 @@ impl Compiler {
         self.typecheck(path.clone())?;
 
         let ir = Self::ir_code_gen_module(module.module.clone().unwrap(), HashMap::new(), vec![])?;
-        let code = Self::vm_code_gen(ir)?;
-        let binary = Self::byte_code_gen(code)?;
+        let code = Self::vm_code_gen(todo!())?;
+        let binary = Self::byte_code_gen(todo!())?;
 
         Ok(binary)
     }
@@ -561,8 +573,8 @@ impl Compiler {
         let types = Self::typecheck_module(&mut module, &input)?;
 
         let ir = Self::ir_code_gen_module(module, types, vec![])?;
-        let code = Self::vm_code_gen(ir)?;
-        let binary = Self::byte_code_gen(code)?;
+        let code = Self::vm_code_gen(todo!())?;
+        let binary = Self::byte_code_gen(todo!())?;
 
         Ok(binary)
     }
@@ -1017,7 +1029,8 @@ mod tests {
 
             let ir = compiler.ir_code_gen(main.clone())?;
             let code = Compiler::vm_code_gen(ir)?;
-            let binary = Compiler::byte_code_gen(code)?;
+            let linked = Compiler::link(code)?;
+            let binary = Compiler::byte_code_gen(linked)?;
 
             let stdout = Arc::new(Mutex::new(BufWriter::new(vec![])));
             let result = Compiler::run_vm_with_io_trap(binary, false, stdout.clone())?;

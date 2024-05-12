@@ -245,3 +245,14 @@ proptest! {
         prop_assert_eq!(instruction, new_instruction);
     }
 }
+
+#[derive(Debug, Clone, PartialEq)]
+pub struct VmModule {
+    pub(crate) name: String,
+    pub(crate) instructions: Vec<Instruction>,
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub struct VmProgram {
+    pub(crate) modules: Vec<VmModule>,
+}

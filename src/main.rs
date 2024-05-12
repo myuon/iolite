@@ -1,7 +1,6 @@
 use std::io::{Read, Write};
 
 use anyhow::{anyhow, bail, Result};
-use base64::write;
 use clap::{Parser, Subcommand};
 use compiler::runtime::Runtime;
 use dap_server::{DapContext, DapImpl};
@@ -35,6 +34,8 @@ enum CliCommands {
         emit_ir: Option<String>,
         #[clap(long = "emit-vm")]
         emit_vm: Option<String>,
+        #[clap(long = "emit-linked-vm")]
+        emit_linked_vm: Option<String>,
         #[clap(long = "emit-asm")]
         emit_asm: Option<String>,
     },
@@ -54,6 +55,7 @@ async fn main() -> Result<()> {
             print_stacks,
             emit_ir,
             emit_vm,
+            emit_linked_vm,
             emit_asm,
         } => {
             let cwd = match file.clone() {
@@ -100,16 +102,31 @@ async fn main() -> Result<()> {
             }
             eprintln!("IR generated");
 
-            let code = compiler::Compiler::vm_code_gen(ir)?;
+            let vm = compiler::Compiler::vm_code_gen(ir)?;
             if let Some(file) = emit_vm {
                 let mut file = std::fs::File::create(file)?;
-                for (i, code) in code.iter().enumerate() {
-                    file.write(format!("{}: {:?}\n", i, code).as_bytes())?;
+
+                for module in &vm.modules {
+                    file.write(format!(".module: {}\n", module.name).as_bytes())?;
+
+                    for (i, code) in module.instructions.iter().enumerate() {
+                        file.write(format!("{}: {:?}\n", i, code).as_bytes())?;
+                    }
                 }
             }
             eprintln!("VM code generated");
 
-            let binary = compiler::Compiler::byte_code_gen(code)?;
+            let linked = compiler::Compiler::link(vm)?;
+            eprintln!("Linked");
+            if let Some(file) = emit_linked_vm {
+                let mut file = std::fs::File::create(file)?;
+
+                for (i, code) in linked.iter().enumerate() {
+                    file.write(format!("{}: {:?}\n", i, code).as_bytes())?;
+                }
+            }
+
+            let binary = compiler::Compiler::byte_code_gen(linked)?;
             eprintln!("Byte code generated");
             if let Some(file) = emit_asm {
                 let mut file = std::fs::File::create(file)?;

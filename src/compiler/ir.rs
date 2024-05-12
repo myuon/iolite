@@ -97,6 +97,11 @@ pub struct IrModule {
 }
 
 #[derive(Debug, PartialEq, Clone)]
+pub struct IrProgram {
+    pub modules: Vec<IrModule>,
+}
+
+#[derive(Debug, PartialEq, Clone)]
 pub enum TypeTag {
     Pointer,
     Int,

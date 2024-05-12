@@ -245,7 +245,8 @@ impl VmCodeGenerator {
         } else if self.is_global(&name) {
             self.push_global(name);
         } else {
-            return Err(VmCodeGeneratorError::IdentNotFound(name));
+            // Refer to symbols in other modules; should be treated in link phase
+            self.push_global(name);
         }
 
         Ok(())
@@ -565,8 +566,8 @@ impl VmCodeGenerator {
     }
 
     pub fn program(&mut self, module: IrModule) -> Result<(), VmCodeGeneratorError> {
-        self.emit(Instruction::Push(0)); // 1 word for the return value
-        self.emit(Instruction::Push(Value::Pointer(0xffffffff).as_u64())); // return address
+        // self.emit(Instruction::Push(0)); // 1 word for the return value
+        // self.emit(Instruction::Push(Value::Pointer(0xffffffff).as_u64())); // return address
 
         self.global_offset = module.global_offset;
 
@@ -579,11 +580,11 @@ impl VmCodeGenerator {
             });
         }
 
-        self.emit(Instruction::JumpTo("main".to_string()));
+        // self.emit(Instruction::JumpTo("main".to_string()));
 
         self.module(module.decls)?;
 
-        self.emit(Instruction::Label("exit".to_string()));
+        // self.emit(Instruction::Label("exit".to_string()));
 
         Ok(())
     }
