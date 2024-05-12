@@ -103,8 +103,8 @@ async fn main() -> Result<()> {
             eprintln!("IR generated");
 
             let vm = compiler::Compiler::vm_code_gen(ir)?;
-            if let Some(file) = emit_vm {
-                let mut file = std::fs::File::create(file)?;
+            if let Some(file_path) = emit_vm {
+                let mut file = std::fs::File::create(file_path.clone())?;
 
                 for module in &vm.modules {
                     file.write(format!(".module: {}\n", module.name).as_bytes())?;
@@ -113,24 +113,33 @@ async fn main() -> Result<()> {
                         file.write(format!("{}: {:?}\n", i, code).as_bytes())?;
                     }
                 }
+
+                eprintln!("VM code generated: {}", file_path);
+            } else {
+                eprintln!("VM code generated");
             }
-            eprintln!("VM code generated");
 
             let linked = compiler::Compiler::link(vm)?;
-            eprintln!("Linked");
-            if let Some(file) = emit_linked_vm {
-                let mut file = std::fs::File::create(file)?;
+            if let Some(file_path) = emit_linked_vm {
+                let mut file = std::fs::File::create(file_path.clone())?;
 
                 for (i, code) in linked.iter().enumerate() {
                     file.write(format!("{}: {:?}\n", i, code).as_bytes())?;
                 }
+
+                eprintln!("Linked: {}", file_path);
+            } else {
+                eprintln!("Linked");
             }
 
             let binary = compiler::Compiler::byte_code_gen(linked)?;
-            eprintln!("Byte code generated");
-            if let Some(file) = emit_asm {
-                let mut file = std::fs::File::create(file)?;
+            if let Some(file_path) = emit_asm {
+                let mut file = std::fs::File::create(file_path.clone())?;
                 emit_disassemble(&mut file, binary.clone())?;
+
+                eprintln!("Byte code generated: {}", file_path);
+            } else {
+                eprintln!("Byte code generated");
             }
 
             let result = compiler::Compiler::run_vm(binary, print_stacks)?;
