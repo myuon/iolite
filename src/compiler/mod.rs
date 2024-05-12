@@ -561,8 +561,9 @@ impl Compiler {
         self.typecheck(path.clone())?;
 
         let ir = Self::ir_code_gen_module(module.module.clone().unwrap(), HashMap::new(), vec![])?;
-        let code = Self::vm_code_gen(todo!())?;
-        let binary = Self::byte_code_gen(todo!())?;
+        let program = Self::vm_code_gen(IrProgram { modules: vec![ir] })?;
+        let linked = Self::link(program)?;
+        let binary = Self::byte_code_gen(linked)?;
 
         Ok(binary)
     }
@@ -573,8 +574,9 @@ impl Compiler {
         let types = Self::typecheck_module(&mut module, &input)?;
 
         let ir = Self::ir_code_gen_module(module, types, vec![])?;
-        let code = Self::vm_code_gen(todo!())?;
-        let binary = Self::byte_code_gen(todo!())?;
+        let program = Self::vm_code_gen(IrProgram { modules: vec![ir] })?;
+        let linked = Self::link(program)?;
+        let binary = Self::byte_code_gen(linked)?;
 
         Ok(binary)
     }
