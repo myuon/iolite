@@ -79,13 +79,7 @@ impl IrCodeGenerator {
         IrTerm::Items(block)
     }
 
-    pub fn module(
-        &mut self,
-        module: Module,
-        init_functions: Vec<String>,
-    ) -> Result<IrModule, IrCodeGeneratorError> {
-        self.init_functions = init_functions;
-
+    pub fn module(&mut self, module: Module) -> Result<IrModule, IrCodeGeneratorError> {
         let mut decls = vec![];
 
         for decl in module.declarations {

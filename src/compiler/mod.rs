@@ -345,18 +345,9 @@ impl Compiler {
     pub fn ir_code_gen(&mut self, path: String) -> Result<IrProgram> {
         let paths = self.pathes_in_imported_order();
         let mut modules = vec![];
-        let mut init_functions = vec![];
         for path in paths {
             let module = self.modules.get_mut(&path).unwrap();
-
-            let ir = Self::ir_code_gen_module(
-                module.module.clone().unwrap(),
-                HashMap::new(),
-                init_functions.clone(),
-            )?;
-            if let Some(name) = ir.init_function.clone() {
-                init_functions.push(name);
-            }
+            let ir = Self::ir_code_gen_module(module.module.clone().unwrap(), HashMap::new())?;
 
             modules.push(ir);
         }
@@ -487,13 +478,12 @@ impl Compiler {
     pub fn ir_code_gen_module(
         block: Module,
         types: HashMap<String, Source<Type>>,
-        init_functions: Vec<String>,
     ) -> Result<ir::IrModule, CompilerError> {
         let mut ir_code_gen = ir_code_gen::IrCodeGenerator::new();
         ir_code_gen.set_types(types);
 
         let ir = ir_code_gen
-            .module(block, init_functions)
+            .module(block)
             .map_err(CompilerError::IrCodeGeneratorError)?;
 
         Ok(ir)
@@ -506,6 +496,7 @@ impl Compiler {
             let module_name = m.name.clone();
             let data_section = m.data_section.clone();
             let global_section = m.global_section.clone();
+            let init_function_name = m.init_function.clone().unwrap();
 
             let mut vm_code_gen = vm_code_gen::VmCodeGenerator::new();
             vm_code_gen
@@ -517,6 +508,7 @@ impl Compiler {
                 instructions: vm_code_gen.code,
                 data_section,
                 global_section,
+                init_function_name,
             })
         }
 
@@ -565,7 +557,7 @@ impl Compiler {
         self.parse(path.clone())?;
         self.typecheck(path.clone())?;
 
-        let ir = Self::ir_code_gen_module(module.module.clone().unwrap(), HashMap::new(), vec![])?;
+        let ir = Self::ir_code_gen_module(module.module.clone().unwrap(), HashMap::new())?;
         let program = Self::vm_code_gen(IrProgram { modules: vec![ir] })?;
         let linked = Self::link(program)?;
         let binary = Self::byte_code_gen(linked)?;
@@ -578,7 +570,7 @@ impl Compiler {
         let mut module = Self::create_module(decls);
         let types = Self::typecheck_module(&mut module, &input)?;
 
-        let ir = Self::ir_code_gen_module(module, types, vec![])?;
+        let ir = Self::ir_code_gen_module(module, types)?;
         let program = Self::vm_code_gen(IrProgram { modules: vec![ir] })?;
         let linked = Self::link(program)?;
         let binary = Self::byte_code_gen(linked)?;

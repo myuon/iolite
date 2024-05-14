@@ -54,6 +54,10 @@ impl Linker {
 
         let heap_ptr_offset = data_offset + global_offset;
 
+        for module in &vm.modules {
+            code.push(Instruction::CallLabel(module.init_function_name.clone()));
+        }
+
         code.extend(vec![Instruction::JumpTo("main".to_string())]);
 
         for module in vm.modules {

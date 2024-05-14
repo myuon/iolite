@@ -256,6 +256,7 @@ pub struct VmModule {
     pub(crate) instructions: Vec<Instruction>,
     pub(crate) data_section: Vec<(String, usize, Vec<u8>)>,
     pub(crate) global_section: Vec<String>,
+    pub(crate) init_function_name: String,
 }
 
 #[derive(Debug, Clone, PartialEq)]
