@@ -108,6 +108,20 @@ async fn main() -> Result<()> {
 
                 for module in &vm.modules {
                     file.write(format!(".module: {}\n", module.name).as_bytes())?;
+                    if !module.global_section.is_empty() {
+                        file.write(
+                            format!(
+                                ".globals: {}\n",
+                                module
+                                    .global_section
+                                    .iter()
+                                    .map(|t| format!("{}", t))
+                                    .collect::<Vec<_>>()
+                                    .join(", ")
+                            )
+                            .as_bytes(),
+                        )?;
+                    }
 
                     for (_id, offset, value) in &module.data_section {
                         file.write(

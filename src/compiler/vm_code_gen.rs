@@ -139,9 +139,7 @@ impl VmCodeGenerator {
                 self.globals.push(name.clone());
                 self.globals.len() - 1
             });
-        self.push_value(Value::Int(
-            self.global_offset as i32 + index as i32 * Value::size(),
-        ));
+        self.emit(Instruction::PushGlobal(index));
     }
 
     fn is_global(&self, name: &str) -> bool {
@@ -216,7 +214,10 @@ impl VmCodeGenerator {
             SourceMap(_) => {}
             Call => {}
             Return => {}
-            HeapPtrOffset => {
+            PushHeapPtrOffset => {
+                self.stack_pointer += 1;
+            }
+            PushGlobal(_) => {
                 self.stack_pointer += 1;
             }
         }
@@ -522,7 +523,7 @@ impl VmCodeGenerator {
                 self.emit(Instruction::PushLabel(name));
             }
             IrTerm::HeapPtrOffset => {
-                self.emit(Instruction::HeapPtrOffset);
+                self.emit(Instruction::PushHeapPtrOffset);
             }
         }
 
@@ -573,8 +574,6 @@ impl VmCodeGenerator {
     }
 
     pub fn program(&mut self, module: IrModule) -> Result<(), VmCodeGeneratorError> {
-        self.global_offset = module.global_offset;
-
         for (id, offset, _) in module.data_section {
             self.data_section.insert(id, offset);
         }

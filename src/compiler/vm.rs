@@ -58,7 +58,8 @@ pub enum Instruction {
         data: Vec<u8>,
     },
     SourceMap(Span),
-    HeapPtrOffset,
+    PushHeapPtrOffset,
+    PushGlobal(usize),
 }
 
 impl Instruction {
@@ -126,7 +127,8 @@ impl Instruction {
             JumpTo(_) => todo!(),
             JumpIfTo(_) => todo!(),
             CallLabel(_) => todo!(),
-            HeapPtrOffset => todo!(),
+            PushHeapPtrOffset => todo!(),
+            PushGlobal(_) => todo!(),
         }
     }
 
@@ -253,6 +255,7 @@ pub struct VmModule {
     pub(crate) name: String,
     pub(crate) instructions: Vec<Instruction>,
     pub(crate) data_section: Vec<(String, usize, Vec<u8>)>,
+    pub(crate) global_section: Vec<String>,
 }
 
 #[derive(Debug, Clone, PartialEq)]

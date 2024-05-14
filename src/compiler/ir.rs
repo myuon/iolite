@@ -94,7 +94,7 @@ pub struct IrModule {
     pub init_function: Option<String>,
     pub decls: Vec<IrDecl>,
     pub data_section: Vec<(String, usize, Vec<u8>)>,
-    pub global_offset: usize,
+    pub global_section: Vec<String>,
 }
 
 #[derive(Debug, PartialEq, Clone)]

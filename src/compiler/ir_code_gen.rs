@@ -135,7 +135,7 @@ impl IrCodeGenerator {
             init_function: Some(init_function_name),
             decls,
             data_section,
-            global_offset: offset,
+            global_section: self.globals.clone(),
         })
     }
 
