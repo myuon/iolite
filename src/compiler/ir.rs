@@ -73,6 +73,7 @@ pub enum IrTerm {
         span: Span,
     },
     Function(String),
+    HeapPtrOffset,
 }
 
 #[derive(Debug, PartialEq, Clone)]

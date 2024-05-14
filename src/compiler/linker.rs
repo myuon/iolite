@@ -41,6 +41,7 @@ impl Linker {
                 .map(|t| t.2.len() + 8)
                 .sum::<usize>();
         }
+        let heap_ptr_offset = module_offset;
 
         code.extend(vec![Instruction::JumpTo("main".to_string())]);
 
@@ -54,6 +55,15 @@ impl Linker {
         }
 
         code.extend(vec![Instruction::Label("exit".to_string())]);
+
+        for i in 0..code.len() {
+            match code[i] {
+                Instruction::HeapPtrOffset => {
+                    code[i] = Instruction::Push(heap_ptr_offset as u64);
+                }
+                _ => (),
+            }
+        }
 
         Ok(code)
     }

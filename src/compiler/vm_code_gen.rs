@@ -216,6 +216,9 @@ impl VmCodeGenerator {
             SourceMap(_) => {}
             Call => {}
             Return => {}
+            HeapPtrOffset => {
+                self.stack_pointer += 1;
+            }
         }
 
         self.code.push(inst);
@@ -486,11 +489,12 @@ impl VmCodeGenerator {
                         } else if self.functions.contains(&name) {
                             self.emit(Instruction::CallLabel(name));
                         } else {
-                            self.term(IrTerm::Load {
-                                size: Value::size() as usize,
-                                address: Box::new(IrTerm::Ident(name.clone())),
-                            })?;
-                            self.emit(Instruction::Call);
+                            // self.term(IrTerm::Load {
+                            //     size: Value::size() as usize,
+                            //     address: Box::new(IrTerm::Ident(name.clone())),
+                            // })?;
+                            // self.emit(Instruction::Call);
+                            self.emit(Instruction::CallLabel(name));
                         }
                     }
                     _ => todo!(),
@@ -516,6 +520,9 @@ impl VmCodeGenerator {
             }
             IrTerm::Function(name) => {
                 self.emit(Instruction::PushLabel(name));
+            }
+            IrTerm::HeapPtrOffset => {
+                self.emit(Instruction::HeapPtrOffset);
             }
         }
 

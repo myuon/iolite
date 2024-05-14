@@ -109,6 +109,17 @@ async fn main() -> Result<()> {
                 for module in &vm.modules {
                     file.write(format!(".module: {}\n", module.name).as_bytes())?;
 
+                    for (_id, offset, value) in &module.data_section {
+                        file.write(
+                            format!(
+                                ".data: {} {:?}\n",
+                                offset,
+                                String::from_utf8(value.clone()).unwrap()
+                            )
+                            .as_bytes(),
+                        )?;
+                    }
+
                     for (i, code) in module.instructions.iter().enumerate() {
                         file.write(format!("{}: {:?}\n", i, code).as_bytes())?;
                     }

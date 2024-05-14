@@ -58,6 +58,7 @@ pub enum Instruction {
         data: Vec<u8>,
     },
     SourceMap(Span),
+    HeapPtrOffset,
 }
 
 impl Instruction {
@@ -125,6 +126,7 @@ impl Instruction {
             JumpTo(_) => todo!(),
             JumpIfTo(_) => todo!(),
             CallLabel(_) => todo!(),
+            HeapPtrOffset => todo!(),
         }
     }
 
