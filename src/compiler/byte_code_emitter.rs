@@ -58,7 +58,9 @@ impl ByteCodeEmitter {
                     self.write(&Instruction::Push(0).to_byte())?;
                     self.write(&val.to_le_bytes())?;
                 }
-                Debug(_) => {}
+                Debug(_) => {
+                    self.write(&Instruction::Nop.to_byte())?;
+                }
                 SourceMap(span) => {
                     self.write(&Instruction::SourceMap(Span::unknown()).to_byte())?;
                     self.write(&(span.start.unwrap_or(0xFFFFFFFF) as u64).to_le_bytes())?;
