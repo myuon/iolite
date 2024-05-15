@@ -131,15 +131,7 @@ impl VmCodeGenerator {
     }
 
     fn push_global(&mut self, name: String) {
-        let index = self
-            .globals
-            .iter()
-            .position(|s| s == &name)
-            .unwrap_or_else(|| {
-                self.globals.push(name.clone());
-                self.globals.len() - 1
-            });
-        self.emit(Instruction::PushGlobal(index));
+        self.emit(Instruction::PushGlobal(name));
     }
 
     fn is_global(&self, name: &str) -> bool {

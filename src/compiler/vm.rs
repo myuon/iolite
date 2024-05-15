@@ -59,7 +59,7 @@ pub enum Instruction {
     },
     SourceMap(Span),
     PushHeapPtrOffset,
-    PushGlobal(usize),
+    PushGlobal(String),
 }
 
 impl Instruction {

@@ -47,9 +47,10 @@ impl Linker {
         let mut global_offset = data_offset;
         let mut global_offsets = HashMap::new();
         for module in &vm.modules {
-            global_offsets.insert(module.name.clone(), global_offset);
-
-            global_offset += module.global_section.len() * Value::size() as usize;
+            for g in &module.global_section {
+                global_offsets.insert(g.clone(), global_offset);
+                global_offset += Value::size() as usize;
+            }
         }
 
         let heap_ptr_offset = data_offset + global_offset;
@@ -68,8 +69,8 @@ impl Linker {
                         code.push(Instruction::Debug("pushHeapPtrOffset".to_string()));
                         code.push(Instruction::Push(heap_ptr_offset as u64));
                     }
-                    Instruction::PushGlobal(g) => {
-                        let offset = global_offsets[&module.name] + g * Value::size() as usize;
+                    Instruction::PushGlobal(name) => {
+                        let offset = global_offsets[&name];
                         code.push(Instruction::Push(offset as u64));
                     }
                     _ => {
