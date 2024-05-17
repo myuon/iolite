@@ -28,13 +28,16 @@ impl Linker {
         ]);
 
         let mut data_offset = 0;
+        let mut data_pointers = HashMap::new();
         for module in &vm.modules {
-            for (_id, offset, value) in module.data_section.clone() {
+            for (id, offset, value) in module.data_section.clone() {
+                let target = data_offset as u64 + offset as u64;
                 code.push(Instruction::Data {
-                    offset: data_offset as u64 + offset as u64,
+                    offset: target,
                     length: value.len() as u64,
                     data: value,
                 });
+                data_pointers.insert(id, target);
             }
 
             data_offset += module
@@ -71,6 +74,10 @@ impl Linker {
                     }
                     Instruction::PushGlobal(name) => {
                         let offset = global_offsets[&name];
+                        code.push(Instruction::Push(offset as u64));
+                    }
+                    Instruction::PushDataPointer(name) => {
+                        let offset = data_pointers[&name];
                         code.push(Instruction::Push(offset as u64));
                     }
                     _ => {

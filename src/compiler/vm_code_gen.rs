@@ -14,8 +14,6 @@ pub enum VmCodeGeneratorError {
     ArityNotFound(String),
     #[error("Local not found: {0}")]
     LocalNotFound(String),
-    #[error("Ident not found: {0}")]
-    IdentNotFound(String),
 }
 
 #[derive(Debug)]
@@ -33,7 +31,6 @@ pub struct VmCodeGenerator {
     stack_pointer: usize,
     pub code: Vec<Instruction>,
     data_section: HashMap<String, usize>,
-    global_offset: usize,
 }
 
 impl VmCodeGenerator {
@@ -46,7 +43,6 @@ impl VmCodeGenerator {
             stack_pointer: 0,
             code: vec![],
             data_section: HashMap::new(),
-            global_offset: 0,
         }
     }
 
@@ -210,6 +206,9 @@ impl VmCodeGenerator {
                 self.stack_pointer += 1;
             }
             PushGlobal(_) => {
+                self.stack_pointer += 1;
+            }
+            PushDataPointer(_) => {
                 self.stack_pointer += 1;
             }
         }
@@ -482,11 +481,6 @@ impl VmCodeGenerator {
                         } else if self.functions.contains(&name) {
                             self.emit(Instruction::CallLabel(name));
                         } else {
-                            // self.term(IrTerm::Load {
-                            //     size: Value::size() as usize,
-                            //     address: Box::new(IrTerm::Ident(name.clone())),
-                            // })?;
-                            // self.emit(Instruction::Call);
                             self.emit(Instruction::CallLabel(name));
                         }
                     }
@@ -504,9 +498,7 @@ impl VmCodeGenerator {
                 self.emit(Instruction::AddInt);
             }
             IrTerm::DataPointer(id) => {
-                self.emit(Instruction::Push(
-                    Value::Pointer(*self.data_section.get(&id).unwrap() as u32).as_u64(),
-                ));
+                self.emit(Instruction::PushDataPointer(id));
             }
             IrTerm::SourceMap { span } => {
                 self.emit(Instruction::SourceMap(span));

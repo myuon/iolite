@@ -60,6 +60,7 @@ pub enum Instruction {
     SourceMap(Span),
     PushHeapPtrOffset,
     PushGlobal(String),
+    PushDataPointer(String),
 }
 
 impl Instruction {
@@ -129,6 +130,7 @@ impl Instruction {
             CallLabel(_) => todo!(),
             PushHeapPtrOffset => todo!(),
             PushGlobal(_) => todo!(),
+            PushDataPointer(_) => todo!(),
         }
     }
 
