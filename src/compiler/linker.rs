@@ -65,7 +65,7 @@ impl Linker {
         code.extend(vec![Instruction::JumpTo("main".to_string())]);
 
         for module in vm.modules {
-            println!("linking module: {}", module.name);
+            eprintln!("Linking module: {}", module.name);
             for inst in module.instructions {
                 match inst {
                     Instruction::PushHeapPtrOffset => {
