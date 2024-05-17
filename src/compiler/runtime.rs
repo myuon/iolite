@@ -6,7 +6,7 @@ use std::{
 
 use thiserror::Error;
 
-use super::{ir::Value, vm::Instruction};
+use super::{ast::Span, ir::Value, vm::Instruction};
 
 #[derive(Debug, Clone, Error)]
 pub enum RuntimeError {
@@ -234,6 +234,29 @@ impl Runtime {
                 self.program[self.pc + 7],
                 self.program[self.pc + 8],
             ]) as usize),
+            Instruction::SourceMap(_) => Instruction::SourceMap(Span::span(
+                "_".to_string(),
+                u64::from_le_bytes([
+                    self.program[self.pc + 1],
+                    self.program[self.pc + 2],
+                    self.program[self.pc + 3],
+                    self.program[self.pc + 4],
+                    self.program[self.pc + 5],
+                    self.program[self.pc + 6],
+                    self.program[self.pc + 7],
+                    self.program[self.pc + 8],
+                ]) as usize,
+                u64::from_le_bytes([
+                    self.program[self.pc + 9],
+                    self.program[self.pc + 10],
+                    self.program[self.pc + 11],
+                    self.program[self.pc + 12],
+                    self.program[self.pc + 13],
+                    self.program[self.pc + 14],
+                    self.program[self.pc + 15],
+                    self.program[self.pc + 16],
+                ]) as usize,
+            )),
             _ => inst,
         }
     }
