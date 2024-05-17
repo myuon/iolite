@@ -491,6 +491,7 @@ impl Compiler {
 
     pub fn vm_code_gen(ir: IrProgram) -> Result<VmProgram, CompilerError> {
         let mut modules = vec![];
+        let mut functions = vec![];
 
         for m in ir.modules {
             let module_name = m.name.clone();
@@ -499,9 +500,12 @@ impl Compiler {
             let init_function_name = m.init_function.clone().unwrap();
 
             let mut vm_code_gen = vm_code_gen::VmCodeGenerator::new();
+            vm_code_gen.functions = functions;
             vm_code_gen
                 .program(m)
                 .map_err(CompilerError::VmCodeGeneratorError)?;
+
+            functions = vm_code_gen.functions;
 
             modules.push(VmModule {
                 name: module_name,
@@ -1015,6 +1019,7 @@ mod tests {
             .collect::<Vec<_>>();
 
         for dir_path in paths {
+            println!("{}", dir_path.to_str().unwrap());
             let mut compiler = Compiler::new();
             compiler.set_cwd(dir_path.display().to_string());
 

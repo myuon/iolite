@@ -27,7 +27,7 @@ pub struct VmCodeGenerator {
     arity: Vec<String>,
     locals: Vec<Scope>,
     globals: Vec<String>,
-    functions: Vec<String>,
+    pub functions: Vec<String>,
     stack_pointer: usize,
     pub code: Vec<Instruction>,
     data_section: HashMap<String, usize>,
@@ -481,7 +481,12 @@ impl VmCodeGenerator {
                         } else if self.functions.contains(&name) {
                             self.emit(Instruction::CallLabel(name));
                         } else {
-                            self.emit(Instruction::CallLabel(name));
+                            println!("name: {}, {:?}", name, self.functions);
+                            self.term(IrTerm::Load {
+                                size: Value::size() as usize,
+                                address: Box::new(IrTerm::Ident(name)),
+                            })?;
+                            self.emit(Instruction::Call);
                         }
                     }
                     _ => todo!(),

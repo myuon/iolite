@@ -9,7 +9,10 @@ use super::{
 };
 
 #[derive(Error, Debug)]
-pub enum LinkerError {}
+pub enum LinkerError {
+    #[error("Global variable not found: {0}")]
+    GlobalVariableNotFound(String),
+}
 
 #[derive(Debug)]
 pub struct Linker {}
@@ -62,7 +65,7 @@ impl Linker {
             code.push(Instruction::CallLabel(module.init_function_name.clone()));
         }
 
-        code.extend(vec![Instruction::JumpTo("main".to_string())]);
+        code.push(Instruction::JumpTo("main".to_string()));
 
         for module in vm.modules {
             eprintln!("Linking module: {}", module.name);
@@ -73,8 +76,10 @@ impl Linker {
                         code.push(Instruction::Push(heap_ptr_offset as u64));
                     }
                     Instruction::PushGlobal(name) => {
-                        let offset = global_offsets[&name];
-                        code.push(Instruction::Push(offset as u64));
+                        let offset = global_offsets
+                            .get(&name)
+                            .ok_or(LinkerError::GlobalVariableNotFound(name))?;
+                        code.push(Instruction::Push(*offset as u64));
                     }
                     Instruction::PushDataPointer(name) => {
                         let offset = data_pointers[&name];
