@@ -23,6 +23,7 @@ pub enum ControlFlow {
     HitBreakpoint,
 }
 
+#[cfg(feature = "gui")]
 thread_local! {
     static WINDOW: RefCell<*mut libui_ffi::uiWindow> = RefCell::new(std::ptr::null_mut());
     static AREA: RefCell<libui_ffi::uiAreaHandler> = RefCell::new(libui_ffi::uiAreaHandler { Draw: None, MouseEvent: None, MouseCrossed:None, DragBroken: None, KeyEvent: None});

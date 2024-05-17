@@ -43,7 +43,7 @@ impl Linker {
             data_offset += module
                 .data_section
                 .iter()
-                .map(|t| t.2.len() + 8)
+                .map(|t| t.2.len() + Value::size() as usize)
                 .sum::<usize>();
         }
 
