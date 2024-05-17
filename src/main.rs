@@ -1,7 +1,6 @@
 use std::io::{Read, Write};
 
 use anyhow::{anyhow, bail, Result};
-use base64::write;
 use clap::{Parser, Subcommand};
 use compiler::runtime::Runtime;
 use dap_server::{DapContext, DapImpl};
@@ -35,6 +34,8 @@ enum CliCommands {
         emit_ir: Option<String>,
         #[clap(long = "emit-vm")]
         emit_vm: Option<String>,
+        #[clap(long = "emit-linked-vm")]
+        emit_linked_vm: Option<String>,
         #[clap(long = "emit-asm")]
         emit_asm: Option<String>,
     },
@@ -54,6 +55,7 @@ async fn main() -> Result<()> {
             print_stacks,
             emit_ir,
             emit_vm,
+            emit_linked_vm,
             emit_asm,
         } => {
             let cwd = match file.clone() {
@@ -100,20 +102,69 @@ async fn main() -> Result<()> {
             }
             eprintln!("IR generated");
 
-            let code = compiler::Compiler::vm_code_gen(ir)?;
-            if let Some(file) = emit_vm {
-                let mut file = std::fs::File::create(file)?;
-                for (i, code) in code.iter().enumerate() {
+            let vm = compiler::Compiler::vm_code_gen(ir)?;
+            if let Some(file_path) = emit_vm {
+                let mut file = std::fs::File::create(file_path.clone())?;
+
+                for module in &vm.modules {
+                    file.write(format!(".module: {}\n", module.name).as_bytes())?;
+                    if !module.global_section.is_empty() {
+                        file.write(
+                            format!(
+                                ".globals: {}\n",
+                                module
+                                    .global_section
+                                    .iter()
+                                    .map(|t| format!("{}", t))
+                                    .collect::<Vec<_>>()
+                                    .join(", ")
+                            )
+                            .as_bytes(),
+                        )?;
+                    }
+
+                    for (_id, offset, value) in &module.data_section {
+                        file.write(
+                            format!(
+                                ".data: {} {:?}\n",
+                                offset,
+                                String::from_utf8(value.clone()).unwrap()
+                            )
+                            .as_bytes(),
+                        )?;
+                    }
+
+                    for (i, code) in module.instructions.iter().enumerate() {
+                        file.write(format!("{}: {:?}\n", i, code).as_bytes())?;
+                    }
+                }
+
+                eprintln!("VM code generated: {}", file_path);
+            } else {
+                eprintln!("VM code generated");
+            }
+
+            let linked = compiler::Compiler::link(vm)?;
+            if let Some(file_path) = emit_linked_vm {
+                let mut file = std::fs::File::create(file_path.clone())?;
+
+                for (i, code) in linked.iter().enumerate() {
                     file.write(format!("{}: {:?}\n", i, code).as_bytes())?;
                 }
-            }
-            eprintln!("VM code generated");
 
-            let binary = compiler::Compiler::byte_code_gen(code)?;
-            eprintln!("Byte code generated");
-            if let Some(file) = emit_asm {
-                let mut file = std::fs::File::create(file)?;
+                eprintln!("Linked: {}", file_path);
+            } else {
+                eprintln!("Linked");
+            }
+
+            let binary = compiler::Compiler::byte_code_gen(linked)?;
+            if let Some(file_path) = emit_asm {
+                let mut file = std::fs::File::create(file_path.clone())?;
                 emit_disassemble(&mut file, binary.clone())?;
+
+                eprintln!("Byte code generated: {}", file_path);
+            } else {
+                eprintln!("Byte code generated");
             }
 
             let result = compiler::Compiler::run_vm(binary, print_stacks)?;

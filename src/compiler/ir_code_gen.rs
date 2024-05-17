@@ -79,13 +79,7 @@ impl IrCodeGenerator {
         IrTerm::Items(block)
     }
 
-    pub fn module(
-        &mut self,
-        module: Module,
-        init_functions: Vec<String>,
-    ) -> Result<IrModule, IrCodeGeneratorError> {
-        self.init_functions = init_functions;
-
+    pub fn module(&mut self, module: Module) -> Result<IrModule, IrCodeGeneratorError> {
         let mut decls = vec![];
 
         for decl in module.declarations {
@@ -103,17 +97,17 @@ impl IrCodeGenerator {
             offset += value.len() + 8; // NOTE: 8 bytes for length
         }
 
-        // NOTE: update heap_ptr
-        self.init_function.push(IrTerm::Store {
-            size: Value::size() as usize,
-            address: Box::new(IrTerm::Ident("heap_ptr".to_string())),
-            value: Box::new(IrTerm::Op {
-                op: IrOp::Cast(TypeTag::Pointer),
-                args: vec![IrTerm::Int(
-                    offset as i32 + self.globals.len() as i32 * Value::size(),
-                )],
-            }),
-        });
+        if module.name == "main" {
+            // NOTE: update heap_ptr
+            self.init_function.push(IrTerm::Store {
+                size: Value::size() as usize,
+                address: Box::new(IrTerm::Ident("heap_ptr".to_string())),
+                value: Box::new(IrTerm::Op {
+                    op: IrOp::Cast(TypeTag::Pointer),
+                    args: vec![IrTerm::HeapPtrOffset],
+                }),
+            });
+        }
 
         // NOTE: hoist initial process to the init function
         self.init_function
@@ -135,7 +129,7 @@ impl IrCodeGenerator {
             init_function: Some(init_function_name),
             decls,
             data_section,
-            global_offset: offset,
+            global_section: self.globals.clone(),
         })
     }
 

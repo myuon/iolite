@@ -58,7 +58,9 @@ impl ByteCodeEmitter {
                     self.write(&Instruction::Push(0).to_byte())?;
                     self.write(&val.to_le_bytes())?;
                 }
-                Debug(_) => {}
+                Debug(_) => {
+                    self.write(&Instruction::Nop.to_byte())?;
+                }
                 SourceMap(span) => {
                     self.write(&Instruction::SourceMap(Span::unknown()).to_byte())?;
                     self.write(&(span.start.unwrap_or(0xFFFFFFFF) as u64).to_le_bytes())?;
@@ -145,12 +147,15 @@ mod tests {
         assert_eq!(
             vec![
                 0x40, // load
-                0x01, 0x1d, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, // push *end
+                0x07, // nop
+                // .start
+                0x01, 0x1e, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, // push *end
                 0x05, // jump
                 0x01, 0x01, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, // push 1
                 0x01, 0x02, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, // push 2
+                // .end
                 0x01, 0x03, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, // push 3
-                0x01, 0x01, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, // push *start
+                0x01, 0x02, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, // push *start
                 0x06, // jump_if
             ],
             emitter.buffer,

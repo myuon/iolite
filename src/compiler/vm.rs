@@ -58,6 +58,9 @@ pub enum Instruction {
         data: Vec<u8>,
     },
     SourceMap(Span),
+    PushHeapPtrOffset,
+    PushGlobal(String),
+    PushDataPointer(String),
 }
 
 impl Instruction {
@@ -125,6 +128,9 @@ impl Instruction {
             JumpTo(_) => todo!(),
             JumpIfTo(_) => todo!(),
             CallLabel(_) => todo!(),
+            PushHeapPtrOffset => todo!(),
+            PushGlobal(_) => todo!(),
+            PushDataPointer(_) => todo!(),
         }
     }
 
@@ -244,4 +250,18 @@ proptest! {
 
         prop_assert_eq!(instruction, new_instruction);
     }
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub struct VmModule {
+    pub(crate) name: String,
+    pub(crate) instructions: Vec<Instruction>,
+    pub(crate) data_section: Vec<(String, usize, Vec<u8>)>,
+    pub(crate) global_section: Vec<String>,
+    pub(crate) init_function_name: String,
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub struct VmProgram {
+    pub(crate) modules: Vec<VmModule>,
 }

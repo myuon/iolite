@@ -14,8 +14,6 @@ pub enum VmCodeGeneratorError {
     ArityNotFound(String),
     #[error("Local not found: {0}")]
     LocalNotFound(String),
-    #[error("Ident not found: {0}")]
-    IdentNotFound(String),
 }
 
 #[derive(Debug)]
@@ -29,11 +27,10 @@ pub struct VmCodeGenerator {
     arity: Vec<String>,
     locals: Vec<Scope>,
     globals: Vec<String>,
-    functions: Vec<String>,
+    pub functions: Vec<String>,
     stack_pointer: usize,
     pub code: Vec<Instruction>,
     data_section: HashMap<String, usize>,
-    global_offset: usize,
 }
 
 impl VmCodeGenerator {
@@ -46,7 +43,6 @@ impl VmCodeGenerator {
             stack_pointer: 0,
             code: vec![],
             data_section: HashMap::new(),
-            global_offset: 0,
         }
     }
 
@@ -131,17 +127,7 @@ impl VmCodeGenerator {
     }
 
     fn push_global(&mut self, name: String) {
-        let index = self
-            .globals
-            .iter()
-            .position(|s| s == &name)
-            .unwrap_or_else(|| {
-                self.globals.push(name.clone());
-                self.globals.len() - 1
-            });
-        self.push_value(Value::Int(
-            self.global_offset as i32 + index as i32 * Value::size(),
-        ));
+        self.emit(Instruction::PushGlobal(name));
     }
 
     fn is_global(&self, name: &str) -> bool {
@@ -216,6 +202,15 @@ impl VmCodeGenerator {
             SourceMap(_) => {}
             Call => {}
             Return => {}
+            PushHeapPtrOffset => {
+                self.stack_pointer += 1;
+            }
+            PushGlobal(_) => {
+                self.stack_pointer += 1;
+            }
+            PushDataPointer(_) => {
+                self.stack_pointer += 1;
+            }
         }
 
         self.code.push(inst);
@@ -245,7 +240,8 @@ impl VmCodeGenerator {
         } else if self.is_global(&name) {
             self.push_global(name);
         } else {
-            return Err(VmCodeGeneratorError::IdentNotFound(name));
+            // Refer to symbols in other modules; should be treated in link phase
+            self.push_global(name);
         }
 
         Ok(())
@@ -485,9 +481,10 @@ impl VmCodeGenerator {
                         } else if self.functions.contains(&name) {
                             self.emit(Instruction::CallLabel(name));
                         } else {
+                            println!("name: {}, {:?}", name, self.functions);
                             self.term(IrTerm::Load {
                                 size: Value::size() as usize,
-                                address: Box::new(IrTerm::Ident(name.clone())),
+                                address: Box::new(IrTerm::Ident(name)),
                             })?;
                             self.emit(Instruction::Call);
                         }
@@ -506,15 +503,16 @@ impl VmCodeGenerator {
                 self.emit(Instruction::AddInt);
             }
             IrTerm::DataPointer(id) => {
-                self.emit(Instruction::Push(
-                    Value::Pointer(*self.data_section.get(&id).unwrap() as u32).as_u64(),
-                ));
+                self.emit(Instruction::PushDataPointer(id));
             }
             IrTerm::SourceMap { span } => {
                 self.emit(Instruction::SourceMap(span));
             }
             IrTerm::Function(name) => {
                 self.emit(Instruction::PushLabel(name));
+            }
+            IrTerm::HeapPtrOffset => {
+                self.emit(Instruction::PushHeapPtrOffset);
             }
         }
 
@@ -565,25 +563,11 @@ impl VmCodeGenerator {
     }
 
     pub fn program(&mut self, module: IrModule) -> Result<(), VmCodeGeneratorError> {
-        self.emit(Instruction::Push(0)); // 1 word for the return value
-        self.emit(Instruction::Push(Value::Pointer(0xffffffff).as_u64())); // return address
-
-        self.global_offset = module.global_offset;
-
-        for (id, offset, value) in module.data_section {
+        for (id, offset, _) in module.data_section {
             self.data_section.insert(id, offset);
-            self.emit(Instruction::Data {
-                offset: offset as u64,
-                length: value.len() as u64,
-                data: value,
-            });
         }
 
-        self.emit(Instruction::JumpTo("main".to_string()));
-
         self.module(module.decls)?;
-
-        self.emit(Instruction::Label("exit".to_string()));
 
         Ok(())
     }
