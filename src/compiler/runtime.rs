@@ -5,7 +5,11 @@ use std::{
     sync::{Arc, Mutex},
 };
 
-use nanoid::nanoid;
+use fltk::{
+    app::{self, App},
+    prelude::*,
+    window::Window,
+};
 use thiserror::Error;
 
 use super::{ast::Span, ir::Value, vm::Instruction};
@@ -27,9 +31,7 @@ pub enum ControlFlow {
 
 #[cfg(feature = "gui")]
 thread_local! {
-    static WINDOW: RefCell<*mut libui_ffi::uiWindow> = RefCell::new(std::ptr::null_mut());
-    static AREA: RefCell<libui_ffi::uiAreaHandler> = RefCell::new(libui_ffi::uiAreaHandler { Draw: None, MouseEvent: None, MouseCrossed:None, DragBroken: None, KeyEvent: None});
-    static CHANNEL: RefCell<(tokio::sync::mpsc::Sender<String>, tokio::sync::mpsc::Receiver<String>)> = RefCell::new(tokio::sync::mpsc::channel(100));
+    static APP: RefCell<Option<app::App>> = RefCell::new(None);
 }
 
 pub struct Runtime {
@@ -427,16 +429,22 @@ impl Runtime {
                     }
                     10000 => {
                         #[cfg(feature = "gui")]
-                        unsafe {
-                            let mut init_options = libui_ffi::uiInitOptions {
-                                Size: std::mem::size_of::<libui_ffi::uiInitOptions>(),
-                            };
+                        {
+                            let x = self.pop_i64() as i32;
+                            let y = self.pop_i64() as i32;
+                            let width = self.pop_i64() as i32;
+                            let height = self.pop_i64() as i32;
+                            let title_ptr = self.pop_i64() as u64;
+                            let title_len = self.pop_i64() as usize;
+                            let title = String::from_utf8(
+                                self.memory[title_ptr as usize..(title_ptr as usize + title_len)]
+                                    .to_vec(),
+                            )
+                            .unwrap();
 
-                            let err = libui_ffi::uiInit(&mut init_options);
-                            if !err.is_null() {
-                                let error_string = std::ffi::CStr::from_ptr(err).to_str().unwrap();
-                                panic!("Error: {}", error_string);
-                            }
+                            let mut window = Window::new(x, y, width, height, title.as_str());
+                            window.end();
+                            window.show();
                         }
                         #[cfg(not(feature = "gui"))]
                         todo!();
@@ -444,45 +452,13 @@ impl Runtime {
                         self.push(Value::Nil.as_u64() as i64);
                     }
                     10001 => {
-                        let title_address = self.pop_address();
-                        let width = self.pop_i64();
-                        let height = self.pop_i64();
-                        let has_menubar = self.pop_i64();
-
                         #[cfg(feature = "gui")]
-                        unsafe {
-                            extern "C" fn c_callback(
-                                window: *mut libui_ffi::uiWindow,
-                                _data: *mut std::ffi::c_void,
-                            ) -> i32 {
-                                unsafe {
-                                    libui_ffi::uiControlDestroy(
-                                        window as *mut libui_ffi::uiControl,
-                                    );
-                                    libui_ffi::uiQuit();
-                                }
+                        {
+                            let app = app::App::default();
 
-                                0
-                            }
-
-                            let window = libui_ffi::uiNewWindow(
-                                std::ffi::CString::from_vec_unchecked(
-                                    self.memory[title_address as usize..].to_vec(),
-                                )
-                                .as_ptr(),
-                                width as i32,
-                                height as i32,
-                                has_menubar as i32,
-                            );
-                            WINDOW.with(|w| {
-                                *w.borrow_mut() = window;
+                            APP.with(|app_ref| {
+                                *app_ref.borrow_mut() = Some(app);
                             });
-
-                            libui_ffi::uiWindowOnClosing(
-                                window,
-                                Some(c_callback),
-                                std::ptr::null_mut(),
-                            );
                         }
                         #[cfg(not(feature = "gui"))]
                         todo!();
@@ -490,141 +466,13 @@ impl Runtime {
                         self.push(Value::Nil.as_u64() as i64);
                     }
                     10002 => {
-                        let _ = self.pop_address();
-
-                        #[cfg(feature = "gui")]
-                        unsafe {
-                            WINDOW.with(|window| {
-                                libui_ffi::uiControlShow(
-                                    *window.borrow_mut() as *mut libui_ffi::uiControl
-                                );
-                            });
-                        }
-                        #[cfg(not(feature = "gui"))]
-                        todo!();
-
-                        self.push(Value::Nil.as_u64() as i64);
-                    }
-                    10003 => {
-                        #[cfg(feature = "gui")]
-                        unsafe {
-                            libui_ffi::uiMain();
-                        }
-                        #[cfg(not(feature = "gui"))]
-                        todo!();
-
-                        self.push(Value::Nil.as_u64() as i64);
-                    }
-                    10004 => {
-                        let title_address = self.pop_address();
-                        let parent = self.pop_i64();
-
-                        #[cfg(feature = "gui")]
-                        unsafe {
-                            WINDOW.with(|window| {
-                                libui_ffi::uiDrawFill(
-                                    *window.borrow_mut() as *mut libui_ffi::uiDrawContext,
-                                    libui_ffi::uiDrawNewPath(libui_ffi::uiDrawFillModeWinding),
-                                    &mut libui_ffi::uiDrawBrush {
-                                        Type: libui_ffi::uiDrawBrushTypeSolid,
-                                        R: 1.0,
-                                        G: 0.0,
-                                        B: 0.0,
-                                        A: 1.0,
-                                        X0: 0.0,
-                                        Y0: 0.0,
-                                        X1: 0.0,
-                                        Y1: 0.0,
-                                        OuterRadius: 0.0,
-                                        Stops: std::ptr::null_mut(),
-                                        NumStops: 0,
-                                    },
-                                )
-                            });
-                        }
-                        #[cfg(not(feature = "gui"))]
-                        todo!();
-
-                        self.push(Value::Nil.as_u64() as i64);
-                    }
-                    10006 => {
-                        #[cfg(feature = "gui")]
-                        unsafe {
-                            WINDOW.with(|window| {
-                                extern "C" fn c_draw(
-                                    _handler: *mut libui_ffi::uiAreaHandler,
-                                    _area: *mut libui_ffi::uiArea,
-                                    _draw_params: *mut libui_ffi::uiAreaDrawParams,
-                                ) {
-                                    println!("draw");
-                                }
-                                extern "C" fn c_mouse_event(
-                                    _handler: *mut libui_ffi::uiAreaHandler,
-                                    _area: *mut libui_ffi::uiArea,
-                                    _draw_params: *mut libui_ffi::uiAreaMouseEvent,
-                                ) {
-                                }
-                                extern "C" fn c_mouse_crossed(
-                                    _handler: *mut libui_ffi::uiAreaHandler,
-                                    _area: *mut libui_ffi::uiArea,
-                                    _left: std::ffi::c_int,
-                                ) {
-                                }
-                                extern "C" fn c_drag_broken(
-                                    _handler: *mut libui_ffi::uiAreaHandler,
-                                    _area: *mut libui_ffi::uiArea,
-                                ) {
-                                }
-                                extern "C" fn c_key_event(
-                                    _handler: *mut libui_ffi::uiAreaHandler,
-                                    _area: *mut libui_ffi::uiArea,
-                                    _key_event: *mut libui_ffi::uiAreaKeyEvent,
-                                ) -> std::ffi::c_int {
-                                    0
-                                }
-
-                                let hbox = libui_ffi::uiNewHorizontalBox();
-                                AREA.with(|area| {
-                                    *area.borrow_mut() = libui_ffi::uiAreaHandler {
-                                        Draw: Some(c_draw),
-                                        MouseEvent: Some(c_mouse_event),
-                                        MouseCrossed: Some(c_mouse_crossed),
-                                        DragBroken: Some(c_drag_broken),
-                                        KeyEvent: Some(c_key_event),
-                                    };
-                                });
-
-                                AREA.with(|area_handler| {
-                                    let area = libui_ffi::uiNewArea(area_handler.as_ptr());
-
-                                    libui_ffi::uiBoxAppend(
-                                        hbox,
-                                        area as *mut libui_ffi::uiControl,
-                                        0,
-                                    );
-
-                                    libui_ffi::uiWindowSetChild(
-                                        *window.borrow_mut(),
-                                        hbox as *mut libui_ffi::uiControl,
-                                    );
-                                });
-                            });
-                        }
-                        #[cfg(not(feature = "gui"))]
-                        todo!();
-
-                        self.push(Value::Nil.as_u64() as i64);
-                    }
-                    10007 => {
                         #[cfg(feature = "gui")]
                         {
-                            let closure = self.pop_i64();
-                            let env = self.pop_i64();
-                            let closure_id = nanoid!();
-                            self.closure_tasks
-                                .insert(closure_id.clone(), (closure as u64, env as u64));
+                            let _ = self.pop_i64();
 
-                            todo!();
+                            APP.with(|app_ref| {
+                                app_ref.borrow().unwrap().run().unwrap();
+                            });
                         }
                         #[cfg(not(feature = "gui"))]
                         todo!();
