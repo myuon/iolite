@@ -6,6 +6,7 @@ use std::{
 };
 
 use fltk::{app, button::Button, group::Flex, prelude::*, window::Window};
+use nanoid::nanoid;
 use thiserror::Error;
 
 use crate::compiler::vm_code_gen::VmCodeGenerator;
@@ -46,6 +47,10 @@ pub struct Runtime {
     prev_source_map: (usize, usize),
     protected_section: usize,
     closure_tasks: HashMap<String, (u64, u64)>,
+    channel: (
+        std::sync::mpsc::Sender<String>,
+        std::sync::mpsc::Receiver<String>,
+    ),
 }
 
 impl Runtime {
@@ -67,6 +72,7 @@ impl Runtime {
             trap_stdout: None,
             protected_section: 0,
             closure_tasks: HashMap::new(),
+            channel: std::sync::mpsc::channel(),
         }
     }
 
@@ -387,6 +393,18 @@ impl Runtime {
             }
         }
 
+        if let Ok(task_id) = self.channel.1.try_recv() {
+            let (callback_ptr, callback_env) = self.closure_tasks.get(&task_id).unwrap().clone();
+            self.push(callback_env as i64);
+
+            // call
+            let pc = callback_ptr & 0xffffffff; // remove type tag
+            self.push(self.pc as i64);
+            self.pc = pc as usize;
+
+            return Ok(ControlFlow::Continue);
+        }
+
         let inst = self.consume();
         match inst {
             // push
@@ -441,10 +459,22 @@ impl Runtime {
                             let _ = self.pop_i64();
 
                             APP.with(|app_ref| {
-                                app_ref.borrow().unwrap().run().unwrap();
+                                let app = app_ref.borrow().unwrap();
+                                app.run().unwrap();
                             });
 
                             self.push(Value::Nil.as_u64() as i64);
+                        } else if index as usize == table["extcall_app_wait"] {
+                            let _ = self.pop_i64();
+
+                            let mut result = false;
+                            APP.with(|app_ref| {
+                                let app = app_ref.borrow().unwrap();
+
+                                result = app.wait();
+                            });
+
+                            self.push(Value::Bool(result).as_u64() as i64);
                         } else if index as usize == table["extcall_window_new"] {
                             let x = self.pop_i64() as i32;
                             let y = self.pop_i64() as i32;
@@ -516,6 +546,28 @@ impl Runtime {
                             });
 
                             self.push(Value::Int(id as i32).as_u64() as i64);
+                        } else if index as usize == table["extcall_button_set_callback"] {
+                            let button_id = self.pop_i64() as i32;
+
+                            let callback_ptr = self.pop_i64() as u64;
+                            let callback_env = self.pop_i64() as u64;
+                            let task_id = nanoid!();
+                            self.closure_tasks
+                                .insert(task_id.clone(), (callback_ptr, callback_env));
+
+                            WIDGETS.with(|widgets_ref| {
+                                let mut widgets = widgets_ref.borrow_mut();
+                                let button = widgets[button_id as usize]
+                                    .downcast_mut::<Button>()
+                                    .unwrap();
+
+                                let sender = self.channel.0.clone();
+                                button.set_callback(move |_| {
+                                    sender.send(task_id.clone()).unwrap();
+                                });
+                            });
+
+                            self.push(Value::Nil.as_u64() as i64);
                         } else if index as usize == table["extcall_flex_default_fill"] {
                             let flex = Flex::default_fill();
 

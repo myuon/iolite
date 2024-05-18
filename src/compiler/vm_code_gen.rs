@@ -60,7 +60,9 @@ impl VmCodeGenerator {
             "extcall_window_show",
             "extcall_app_default",
             "extcall_app_run",
+            "extcall_app_wait",
             "extcall_button_default",
+            "extcall_button_set_callback",
             "extcall_flex_default_fill",
             "extcall_flex_column",
             "extcall_flex_set_margins",
@@ -481,10 +483,10 @@ impl VmCodeGenerator {
                 let extcall_label = Self::extcall_table().get(&name).cloned();
 
                 if extcall_label.is_none() {
-                self.emit(Instruction::Push(0));
-                self.emit(Instruction::Debug(
-                    "allocated for the return value".to_string(),
-                ));
+                    self.emit(Instruction::Push(0));
+                    self.emit(Instruction::Debug(
+                        "allocated for the return value".to_string(),
+                    ));
                 }
 
                 let args_len = args.len();
@@ -497,46 +499,43 @@ impl VmCodeGenerator {
                 if let Some(label) = extcall_label {
                     self.emit(Instruction::ExtCall(label));
 
-                            self.stack_pointer = self.stack_pointer - args_len + 1;
-                        } else if self.functions.contains(&name) {
-                            self.emit(Instruction::CallLabel(name));
+                    self.stack_pointer = self.stack_pointer - args_len + 1;
+                } else if self.functions.contains(&name) {
+                    self.emit(Instruction::CallLabel(name));
 
-                            // NOTE: pop arity
-                            for _ in 0..args_len {
-                                self.pop();
-                            }
-                        } else {
-                            // closure call
-                            // These process should be done in the IR phase?
-                            self.term(IrTerm::Load {
-                                size: Value::size() as usize,
-                                address: Box::new(IrTerm::Index {
-                                    ptr: Box::new(IrTerm::Load {
-                                        size: Value::size() as usize,
-                                        address: Box::new(IrTerm::Ident(name.clone())),
-                                    }),
-                                    index: Box::new(IrTerm::Int(0)),
-                                }),
-                            })?;
-                            self.term(IrTerm::Load {
-                                size: Value::size() as usize,
-                                address: Box::new(IrTerm::Index {
-                                    ptr: Box::new(IrTerm::Load {
-                                        size: Value::size() as usize,
-                                        address: Box::new(IrTerm::Ident(name.clone())),
-                                    }),
-                                    index: Box::new(IrTerm::Int(Value::size() as i32)),
-                                }),
-                            })?;
-                            self.emit(Instruction::Call);
-
-                            // NOTE: pop arity + closure env
-                            for _ in 0..args_len + 1 {
-                                self.pop();
-                            }
-                        }
+                    // NOTE: pop arity
+                    for _ in 0..args_len {
+                        self.pop();
                     }
-                    _ => todo!(),
+                } else {
+                    // closure call
+                    // These process should be done in the IR phase?
+                    self.term(IrTerm::Load {
+                        size: Value::size() as usize,
+                        address: Box::new(IrTerm::Index {
+                            ptr: Box::new(IrTerm::Load {
+                                size: Value::size() as usize,
+                                address: Box::new(IrTerm::Ident(name.clone())),
+                            }),
+                            index: Box::new(IrTerm::Int(0)),
+                        }),
+                    })?;
+                    self.term(IrTerm::Load {
+                        size: Value::size() as usize,
+                        address: Box::new(IrTerm::Index {
+                            ptr: Box::new(IrTerm::Load {
+                                size: Value::size() as usize,
+                                address: Box::new(IrTerm::Ident(name.clone())),
+                            }),
+                            index: Box::new(IrTerm::Int(Value::size() as i32)),
+                        }),
+                    })?;
+                    self.emit(Instruction::Call);
+
+                    // NOTE: pop arity + closure env
+                    for _ in 0..args_len + 1 {
+                        self.pop();
+                    }
                 }
             }
             IrTerm::Index { ptr, index } => {
