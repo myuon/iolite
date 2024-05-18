@@ -4,7 +4,7 @@ fun call(f: () => int): int {
 
 let global = 10;
 
-fun main() {
+fun main(): int {
   let captured = 20;
 
   return call(fun () {

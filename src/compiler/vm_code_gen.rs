@@ -510,8 +510,8 @@ impl VmCodeGenerator {
                             })?;
                             self.emit(Instruction::Call);
 
-                            // NOTE: pop arity
-                            for _ in 0..args_len {
+                            // NOTE: pop arity + closure env
+                            for _ in 0..args_len + 1 {
                                 self.pop();
                             }
                         }
