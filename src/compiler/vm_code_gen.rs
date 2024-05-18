@@ -61,6 +61,7 @@ impl VmCodeGenerator {
         table.insert("extcall_ui_draw_fill".to_string(), 10004);
         table.insert("extcall_ui_struct_ui_draw_brush".to_string(), 10005);
         table.insert("extcall_ui_new_area".to_string(), 10006);
+        table.insert("extcall_ui_new_area_handler".to_string(), 10007);
         table
     }
 

@@ -332,8 +332,8 @@ impl Typechecker {
                 expr,
                 field,
             } => {
-                let struct_ty = self.expr(expr)?;
-                let field_types = match struct_ty.clone() {
+                let ty = self.expr(expr)?;
+                let field_types = match ty.clone() {
                     Type::Struct {
                         fields: field_types,
                         name,
@@ -343,9 +343,14 @@ impl Typechecker {
                         field_types
                     }
                     Type::Array(arr) => {
-                        *expr_ty = struct_ty.clone();
+                        *expr_ty = ty.clone();
 
                         Type::fields_array(arr)
+                    }
+                    Type::Fun(_, _) => {
+                        *expr_ty = ty.clone();
+
+                        Type::fields_closure()
                     }
                     _ => {
                         return Err(TypecheckerError::IdentNotFound(field.clone()));

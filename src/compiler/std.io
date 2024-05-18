@@ -15,6 +15,8 @@ declare fun extcall_ui_draw_fill(context: rawptr, path: rawptr, brush: rawptr): 
 declare fun extcall_ui_struct_ui_draw_brush(type: int, r: int, g: int, b: int, a: int, x0: float, y0: float, x1: float, y1: float, outer_radius: float, stops: rawptr, num_stops: int): nil;
 // 10006
 declare fun extcall_ui_new_area(): nil;
+// 10007
+declare fun extcall_ui_new_area_handler(draw_ptr: rawptr, draw_env: rawptr): nil;
 
 let heap_ptr = 0 as ptr[byte];
 

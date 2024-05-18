@@ -1,9 +1,11 @@
 use std::{
     cell::RefCell,
+    collections::HashMap,
     io::{stdout, BufWriter, Write},
     sync::{Arc, Mutex},
 };
 
+use nanoid::nanoid;
 use thiserror::Error;
 
 use super::{ast::Span, ir::Value, vm::Instruction};
@@ -27,6 +29,7 @@ pub enum ControlFlow {
 thread_local! {
     static WINDOW: RefCell<*mut libui_ffi::uiWindow> = RefCell::new(std::ptr::null_mut());
     static AREA: RefCell<libui_ffi::uiAreaHandler> = RefCell::new(libui_ffi::uiAreaHandler { Draw: None, MouseEvent: None, MouseCrossed:None, DragBroken: None, KeyEvent: None});
+    static CHANNEL: RefCell<(tokio::sync::mpsc::Sender<String>, tokio::sync::mpsc::Receiver<String>)> = RefCell::new(tokio::sync::mpsc::channel(100));
 }
 
 pub struct Runtime {
@@ -41,6 +44,7 @@ pub struct Runtime {
     pub(crate) trap_stdout: Option<Arc<Mutex<BufWriter<Vec<u8>>>>>,
     prev_source_map: (usize, usize),
     protected_section: usize,
+    closure_tasks: HashMap<String, (u64, u64)>,
 }
 
 impl Runtime {
@@ -61,6 +65,7 @@ impl Runtime {
             prev_source_map: (0, 0),
             trap_stdout: None,
             protected_section: 0,
+            closure_tasks: HashMap::new(),
         }
     }
 
@@ -604,6 +609,22 @@ impl Runtime {
                                     );
                                 });
                             });
+                        }
+                        #[cfg(not(feature = "gui"))]
+                        todo!();
+
+                        self.push(Value::Nil.as_u64() as i64);
+                    }
+                    10007 => {
+                        #[cfg(feature = "gui")]
+                        {
+                            let closure = self.pop_i64();
+                            let env = self.pop_i64();
+                            let closure_id = nanoid!();
+                            self.closure_tasks
+                                .insert(closure_id.clone(), (closure as u64, env as u64));
+
+                            todo!();
                         }
                         #[cfg(not(feature = "gui"))]
                         todo!();

@@ -128,6 +128,9 @@ impl Parser {
             Lexeme::Ident(i) if i == "rawptr".to_string() => {
                 Ok(Source::span(Type::RawPtr, token.span))
             }
+            Lexeme::Ident(i) if i == "unknown".to_string() => {
+                Ok(Source::span(Type::Unknown, token.span))
+            }
             Lexeme::LParen => {
                 let mut params = vec![];
                 while !self.is_next_token(Lexeme::RParen) {

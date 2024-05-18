@@ -536,6 +536,7 @@ impl IrCodeGenerator {
                         .unwrap()
                         .clone(),
                     Type::Array(arr) => Type::fields_array(arr),
+                    Type::Fun(_, _) => Type::fields_closure(),
                     _ => todo!(),
                 };
 

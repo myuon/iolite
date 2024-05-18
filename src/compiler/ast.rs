@@ -263,6 +263,13 @@ impl Type {
         ]
     }
 
+    pub fn fields_closure() -> Vec<(String, Type)> {
+        vec![
+            ("env".to_string(), Type::RawPtr),
+            ("ptr".to_string(), Type::RawPtr),
+        ]
+    }
+
     pub fn methods_builtin(ty: &Type) -> Vec<(String, Type, String)> {
         match ty {
             Type::Int => vec![(
