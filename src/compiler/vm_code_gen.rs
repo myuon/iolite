@@ -53,15 +53,10 @@ impl VmCodeGenerator {
         table.insert("extcall_write".to_string(), 1);
         // table.insert("exit".to_string(), 2);
 
-        // libui
-        table.insert("extcall_ui_init".to_string(), 10000);
-        table.insert("extcall_ui_new_window".to_string(), 10001);
-        table.insert("extcall_ui_control_show".to_string(), 10002);
-        table.insert("extcall_ui_main".to_string(), 10003);
-        table.insert("extcall_ui_draw_fill".to_string(), 10004);
-        table.insert("extcall_ui_struct_ui_draw_brush".to_string(), 10005);
-        table.insert("extcall_ui_new_area".to_string(), 10006);
-        table.insert("extcall_ui_new_area_handler".to_string(), 10007);
+        // fltk
+        table.insert("extcall_window_new".to_string(), 10000);
+        table.insert("extcall_app_default".to_string(), 10001);
+        table.insert("extcall_app_run".to_string(), 10002);
         table
     }
 
@@ -479,6 +474,8 @@ impl VmCodeGenerator {
                     IrTerm::Ident(name) => {
                         if let Some(label) = Self::extcall_table().get(&name) {
                             self.emit(Instruction::ExtCall(*label));
+
+                            self.stack_pointer = self.stack_pointer - args_len + 1;
                         } else if self.functions.contains(&name) {
                             self.emit(Instruction::CallLabel(name));
 
