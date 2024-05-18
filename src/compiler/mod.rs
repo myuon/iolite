@@ -584,7 +584,7 @@ impl Compiler {
 
     pub fn run_input(input: String, print_stacks: bool) -> Result<i64, CompilerError> {
         let program = Self::compile_with_input(input)?;
-        Self::run_vm(program, print_stacks)
+        Self::run_vm(program, print_stacks, false)
     }
 
     pub fn run(&self, path: String, print_stacks: bool) -> Result<i64> {
@@ -595,11 +595,15 @@ impl Compiler {
 
         let program = Self::compile_with_input(module.source.clone())?;
 
-        Ok(Self::run_vm(program, print_stacks)?)
+        Ok(Self::run_vm(program, print_stacks, false)?)
     }
 
-    pub fn run_vm(program: Vec<u8>, print_stacks: bool) -> Result<i64, CompilerError> {
-        let mut runtime = Self::exec_vm(program, print_stacks)?;
+    pub fn run_vm(
+        program: Vec<u8>,
+        print_stacks: bool,
+        print_memory_store: bool,
+    ) -> Result<i64, CompilerError> {
+        let mut runtime = Self::exec_vm(program, print_stacks, print_memory_store)?;
 
         Ok(runtime.pop_i64())
     }
@@ -611,14 +615,18 @@ impl Compiler {
     ) -> Result<i64, CompilerError> {
         let mut runtime = Runtime::new(1024, program);
         runtime.trap_stdout = Some(stdout);
-        runtime.exec(print_stacks).unwrap();
+        runtime.exec(print_stacks, false).unwrap();
 
         Ok(runtime.pop_i64())
     }
 
-    fn exec_vm(program: Vec<u8>, print_stacks: bool) -> Result<Runtime, CompilerError> {
+    fn exec_vm(
+        program: Vec<u8>,
+        print_stacks: bool,
+        print_memory_store: bool,
+    ) -> Result<Runtime, CompilerError> {
         let mut runtime = Runtime::new(1024, program);
-        runtime.exec(print_stacks).unwrap();
+        runtime.exec(print_stacks, print_memory_store).unwrap();
 
         Ok(runtime)
     }
@@ -678,7 +686,7 @@ mod tests {
             let program =
                 Compiler::compile_with_input(format!("fun main() {{ return {}; }}", input))
                     .unwrap();
-            let mut runtime = Compiler::exec_vm(program, false).unwrap();
+            let mut runtime = Compiler::exec_vm(program, false, false).unwrap();
             assert_eq!(
                 runtime.pop_value(),
                 Value::Float(expected),
@@ -711,7 +719,7 @@ mod tests {
             let program =
                 Compiler::compile_with_input(format!("fun main() {{ return {}; }}", input))
                     .unwrap();
-            let mut runtime = Compiler::exec_vm(program, false).unwrap();
+            let mut runtime = Compiler::exec_vm(program, false, false).unwrap();
             assert_eq!(
                 runtime.pop_value(),
                 Value::Bool(expected),

@@ -736,7 +736,7 @@ mod tests {
         emitter.exec(gen.code).unwrap();
 
         let mut vm = Runtime::new(1000, emitter.buffer);
-        vm.exec(false).unwrap();
+        vm.exec(false, false).unwrap();
 
         assert_eq!(vm.memory_view_64(), vec![1, 10, 3, 10]);
     }

@@ -30,6 +30,8 @@ enum CliCommands {
         stdin: bool,
         #[clap(long = "print-stacks")]
         print_stacks: bool,
+        #[clap(long = "print-memory-store")]
+        print_memory_store: bool,
         #[clap(long = "emit-ir")]
         emit_ir: Option<String>,
         #[clap(long = "emit-vm")]
@@ -53,6 +55,7 @@ async fn main() -> Result<()> {
             file,
             stdin,
             print_stacks,
+            print_memory_store,
             emit_ir,
             emit_vm,
             emit_linked_vm,
@@ -167,7 +170,7 @@ async fn main() -> Result<()> {
                 eprintln!("Byte code generated");
             }
 
-            let result = compiler::Compiler::run_vm(binary, print_stacks)?;
+            let result = compiler::Compiler::run_vm(binary, print_stacks, print_memory_store)?;
             println!("result: {:?}", Value::from_u64(result as u64));
         }
         CliCommands::Lsp {} => {

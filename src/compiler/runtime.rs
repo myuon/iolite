@@ -321,7 +321,11 @@ impl Runtime {
         ])
     }
 
-    pub fn step(&mut self, print_stacks: bool) -> Result<ControlFlow, RuntimeError> {
+    pub fn step(
+        &mut self,
+        print_stacks: bool,
+        print_memory_store: bool,
+    ) -> Result<ControlFlow, RuntimeError> {
         if print_stacks {
             self.print_stack();
         }
@@ -722,7 +726,7 @@ impl Runtime {
             0x42 => {
                 let value = self.pop_i64();
                 let address = self.pop_address();
-                if print_stacks {
+                if print_stacks || print_memory_store {
                     println!("store 0x{:x} {:?}", address, Value::from_u64(value as u64));
                 }
                 self.store_i64(address as u32 as u64, value);
@@ -746,8 +750,8 @@ impl Runtime {
             0x45 => {
                 let value = self.pop_i64();
                 let address = self.pop_address();
-                if print_stacks {
-                    println!("store8 {} {:x}", address as u32, value);
+                if print_stacks || print_memory_store {
+                    println!("store8 0x{:x} {:x}", address as u32, value);
                 }
                 self.store_u8(address as u32, value as u8);
             }
@@ -760,8 +764,8 @@ impl Runtime {
             0x47 => {
                 let value = self.pop_i64();
                 let address = self.pop_address();
-                if print_stacks {
-                    println!("store32 {} {:x}", address as u32, value);
+                if print_stacks || print_memory_store {
+                    println!("store32 0x{:x} {:x}", address as u32, value);
                 }
                 self.store_u32(address as u32, value as u32);
             }
@@ -820,8 +824,15 @@ impl Runtime {
         })
     }
 
-    pub fn exec(&mut self, print_stacks: bool) -> Result<(), RuntimeError> {
-        while !matches!(self.step(print_stacks)?, ControlFlow::Finish) {}
+    pub fn exec(
+        &mut self,
+        print_stacks: bool,
+        print_memory_store: bool,
+    ) -> Result<(), RuntimeError> {
+        while !matches!(
+            self.step(print_stacks, print_memory_store)?,
+            ControlFlow::Finish
+        ) {}
 
         Ok(())
     }
@@ -913,7 +924,7 @@ mod tests {
             runtime.sp = sp;
             runtime.bp = sp;
             runtime.memory = memory;
-            runtime.exec(false).unwrap();
+            runtime.exec(false, false).unwrap();
 
             assert_eq!(
                 runtime.memory, want,
