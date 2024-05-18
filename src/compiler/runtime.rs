@@ -163,7 +163,7 @@ impl Runtime {
 
     fn store_i64(&mut self, address: u64, value: i64) {
         assert!(
-            self.protected_section < address as usize,
+            self.protected_section <= address as usize,
             "Section protected"
         );
 
@@ -172,7 +172,7 @@ impl Runtime {
 
     fn store_u32(&mut self, address: u32, value: u32) {
         assert!(
-            self.protected_section < address as usize,
+            self.protected_section <= address as usize,
             "Section protected"
         );
 
@@ -181,7 +181,7 @@ impl Runtime {
 
     fn store_u8(&mut self, address: u32, value: u8) {
         assert!(
-            self.protected_section < address as usize,
+            self.protected_section <= address as usize,
             "Section protected"
         );
 
