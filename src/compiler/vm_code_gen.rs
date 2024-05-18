@@ -474,10 +474,18 @@ impl VmCodeGenerator {
                 self.stack_pointer = stack_pointer + 1;
             }
             IrTerm::Call { callee, args } => {
+                let name = match *callee {
+                    IrTerm::Ident(name) => name,
+                    _ => todo!(),
+                };
+                let extcall_label = Self::extcall_table().get(&name).cloned();
+
+                if extcall_label.is_none() {
                 self.emit(Instruction::Push(0));
                 self.emit(Instruction::Debug(
                     "allocated for the return value".to_string(),
                 ));
+                }
 
                 let args_len = args.len();
 
@@ -486,10 +494,8 @@ impl VmCodeGenerator {
                     self.term(arg)?;
                 }
 
-                match *callee {
-                    IrTerm::Ident(name) => {
-                        if let Some(label) = Self::extcall_table().get(&name) {
-                            self.emit(Instruction::ExtCall(*label));
+                if let Some(label) = extcall_label {
+                    self.emit(Instruction::ExtCall(label));
 
                             self.stack_pointer = self.stack_pointer - args_len + 1;
                         } else if self.functions.contains(&name) {
