@@ -57,6 +57,11 @@ impl VmCodeGenerator {
         table.insert("extcall_window_new".to_string(), 10000);
         table.insert("extcall_app_default".to_string(), 10001);
         table.insert("extcall_app_run".to_string(), 10002);
+        table.insert("extcall_button_new".to_string(), 10003);
+        table.insert("extcall_flex_default".to_string(), 10004);
+        table.insert("extcall_flex_column".to_string(), 10005);
+        table.insert("extcall_window_end".to_string(), 10006);
+        table.insert("extcall_window_show".to_string(), 10007);
         table
     }
 

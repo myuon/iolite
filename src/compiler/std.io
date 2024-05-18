@@ -2,11 +2,21 @@
 declare fun extcall_write(fd: int, buf: rawptr, length: int): int;
 // Requires fltk-lib
 // 10000
-declare fun extcall_window_new(x: int, y: int, width: int, height: int, title_ptr: rawptr, title_len: int): int;
+declare fun extcall_window_new(x: int, y: int, width: int, height: int, title_ptr: rawptr, title_len: int): rawptr;
 // 10001
 declare fun extcall_app_default(): rawptr;
 // 10002
 declare fun extcall_app_run(app: rawptr);
+// 10003
+declare fun extcall_button_new(x: int, y: int, width: int, height: int, title_ptr: rawptr, title_len: int): rawptr;
+// 10004
+declare fun extcall_flex_default(): rawptr;
+// 10004
+declare fun extcall_flex_column(flex: rawptr): rawptr;
+// 10005
+declare fun extcall_window_end(window: rawptr);
+// 10006
+declare fun extcall_window_show(window: rawptr);
 
 let heap_ptr = 0 as ptr[byte];
 

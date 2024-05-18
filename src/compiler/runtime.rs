@@ -5,11 +5,7 @@ use std::{
     sync::{Arc, Mutex},
 };
 
-use fltk::{
-    app::{self, App},
-    prelude::*,
-    window::Window,
-};
+use fltk::{app, button::Button, group::Flex, prelude::*, window::Window};
 use thiserror::Error;
 
 use super::{ast::Span, ir::Value, vm::Instruction};
@@ -31,7 +27,8 @@ pub enum ControlFlow {
 
 #[cfg(feature = "gui")]
 thread_local! {
-    static APP: RefCell<Option<app::App>> = RefCell::new(None);
+    static APP: RefCell<Option<app::App >> = RefCell::new(None);
+    static WIDGETS: RefCell<Vec<Box<dyn std::any::Any>>> = RefCell::new(vec![]);
 }
 
 pub struct Runtime {
@@ -442,14 +439,20 @@ impl Runtime {
                             )
                             .unwrap();
 
-                            let mut window = Window::new(x, y, width, height, title.as_str());
-                            window.end();
-                            window.show();
+                            let mut id = 0;
+                            let window = Window::new(x, y, width, height, title.as_str());
+
+                            WIDGETS.with(|widgets_ref| {
+                                id = widgets_ref.borrow().len();
+
+                                let mut widgets = widgets_ref.borrow_mut();
+                                widgets.push(Box::new(window));
+                            });
+
+                            self.push(Value::Int(id as i32).as_u64() as i64);
                         }
                         #[cfg(not(feature = "gui"))]
                         todo!();
-
-                        self.push(Value::Nil.as_u64() as i64);
                     }
                     10001 => {
                         #[cfg(feature = "gui")]
@@ -459,11 +462,11 @@ impl Runtime {
                             APP.with(|app_ref| {
                                 *app_ref.borrow_mut() = Some(app);
                             });
+
+                            self.push(Value::Nil.as_u64() as i64);
                         }
                         #[cfg(not(feature = "gui"))]
                         todo!();
-
-                        self.push(Value::Nil.as_u64() as i64);
                     }
                     10002 => {
                         #[cfg(feature = "gui")]
@@ -473,11 +476,116 @@ impl Runtime {
                             APP.with(|app_ref| {
                                 app_ref.borrow().unwrap().run().unwrap();
                             });
+
+                            self.push(Value::Nil.as_u64() as i64);
                         }
                         #[cfg(not(feature = "gui"))]
                         todo!();
+                    }
+                    10003 => {
+                        #[cfg(feature = "gui")]
+                        {
+                            let x = self.pop_i64() as i32;
+                            let y = self.pop_i64() as i32;
+                            let width = self.pop_i64() as i32;
+                            let height = self.pop_i64() as i32;
+                            let title_ptr = self.pop_i64() as u64;
+                            let title_len = self.pop_i64() as usize;
+                            let title = String::from_utf8(
+                                self.memory[title_ptr as usize..(title_ptr as usize + title_len)]
+                                    .to_vec(),
+                            );
 
-                        self.push(Value::Nil.as_u64() as i64);
+                            let button = Button::new(x, y, width, height, title.unwrap().as_str());
+
+                            let mut id = 0;
+
+                            WIDGETS.with(|widgets_ref| {
+                                let mut widgets = widgets_ref.borrow_mut();
+
+                                id = widgets.len();
+                                widgets.push(Box::new(button));
+                            });
+
+                            self.push(Value::Int(id as i32).as_u64() as i64);
+                        }
+                        #[cfg(not(feature = "gui"))]
+                        todo!();
+                    }
+                    10004 => {
+                        #[cfg(feature = "gui")]
+                        {
+                            let flex = Flex::default();
+
+                            let mut id = 0;
+
+                            WIDGETS.with(|widgets_ref| {
+                                let mut widgets = widgets_ref.borrow_mut();
+
+                                id = widgets.len();
+                                widgets.push(Box::new(flex));
+                            });
+
+                            self.push(Value::Int(id as i32).as_u64() as i64);
+                        }
+                        #[cfg(not(feature = "gui"))]
+                        todo!();
+                    }
+                    10005 => {
+                        #[cfg(feature = "gui")]
+                        {
+                            let flex_id = self.pop_i64() as i32;
+
+                            WIDGETS.with(|widgets_ref| {
+                                let mut widgets = widgets_ref.borrow_mut();
+                                let flex =
+                                    widgets[flex_id as usize].downcast_ref::<Flex>().unwrap();
+
+                                widgets[flex_id as usize] = Box::new(flex.clone().column());
+                            });
+
+                            self.push(Value::Nil.as_u64() as i64);
+                        }
+                        #[cfg(not(feature = "gui"))]
+                        todo!();
+                    }
+                    10006 => {
+                        #[cfg(feature = "gui")]
+                        {
+                            let window_id = self.pop_i64() as i32;
+
+                            WIDGETS.with(|widgets_ref| {
+                                let widgets = widgets_ref.borrow_mut();
+                                let window = widgets[window_id as usize]
+                                    .downcast_ref::<Window>()
+                                    .unwrap();
+
+                                window.end();
+                            });
+
+                            self.push(Value::Nil.as_u64() as i64);
+                        }
+                        #[cfg(not(feature = "gui"))]
+                        todo!();
+                    }
+                    10007 => {
+                        #[cfg(feature = "gui")]
+                        {
+                            let window_id = self.pop_i64() as i32;
+
+                            WIDGETS.with(|widgets_ref| {
+                                let mut widgets = widgets_ref.borrow_mut();
+                                let window = widgets[window_id as usize]
+                                    .downcast_mut::<Window>()
+                                    .unwrap();
+
+                                window.show();
+                            });
+
+                            self.push(Value::Nil.as_u64() as i64);
+                        }
+                        #[cfg(not(feature = "gui"))]
+                        todo!();
                     }
                     _ => todo!(),
                 }
