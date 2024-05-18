@@ -480,21 +480,25 @@ impl VmCodeGenerator {
                             self.emit(Instruction::ExtCall(*label));
                         } else if self.functions.contains(&name) {
                             self.emit(Instruction::CallLabel(name));
+
+                            // NOTE: pop arity
+                            for _ in 0..args_len {
+                                self.pop();
+                            }
                         } else {
-                            println!("name: {}, {:?}", name, self.functions);
                             self.term(IrTerm::Load {
                                 size: Value::size() as usize,
                                 address: Box::new(IrTerm::Ident(name)),
                             })?;
                             self.emit(Instruction::Call);
+
+                            // NOTE: pop arity
+                            for _ in 0..args_len {
+                                self.pop();
+                            }
                         }
                     }
                     _ => todo!(),
-                }
-
-                // NOTE: pop arity
-                for _ in 0..args_len {
-                    self.pop();
                 }
             }
             IrTerm::Index { ptr, index } => {

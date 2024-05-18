@@ -2,3 +2,4 @@
 *.ir
 *.vm
 *.asm
+out/

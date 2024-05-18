@@ -4,7 +4,7 @@ fun main() {
   f();
 
   let name = "main.io\n";
-  extcall_write(1, name.ptr as rawptr, name.length);
+  print_str(name);
 
   return nil;
 }
