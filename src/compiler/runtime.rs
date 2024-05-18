@@ -411,7 +411,6 @@ impl Runtime {
                                     Some(stdout) => stdout.lock().unwrap().write(data),
                                     None => stdout().write(data),
                                 };
-                                println!("extcall {} {:x} {} {:x?}", fd, address, size, data);
 
                                 self.push(match result {
                                     Ok(_) => 0,

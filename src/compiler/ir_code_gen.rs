@@ -99,7 +99,7 @@ impl IrCodeGenerator {
             offset += value.len() + 8; // NOTE: 8 bytes for length
         }
 
-        if module.name == "main" {
+        if module.name == "std" {
             // NOTE: update heap_ptr
             self.init_function.push(IrTerm::Store {
                 size: Value::size() as usize,
