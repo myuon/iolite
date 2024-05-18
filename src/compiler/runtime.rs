@@ -40,6 +40,7 @@ pub struct Runtime {
     pub(crate) breakpoints: Vec<usize>,
     pub(crate) trap_stdout: Option<Arc<Mutex<BufWriter<Vec<u8>>>>>,
     prev_source_map: (usize, usize),
+    protected_section: usize,
 }
 
 impl Runtime {
@@ -59,6 +60,7 @@ impl Runtime {
             breakpoints: vec![],
             prev_source_map: (0, 0),
             trap_stdout: None,
+            protected_section: 0,
         }
     }
 
@@ -160,14 +162,29 @@ impl Runtime {
     }
 
     fn store_i64(&mut self, address: u64, value: i64) {
+        assert!(
+            self.protected_section < address as usize,
+            "Section protected"
+        );
+
         self.memory[address as usize..(address as usize + 8)].copy_from_slice(&value.to_le_bytes());
     }
 
     fn store_u32(&mut self, address: u32, value: u32) {
+        assert!(
+            self.protected_section < address as usize,
+            "Section protected"
+        );
+
         self.memory[address as usize..(address as usize + 4)].copy_from_slice(&value.to_le_bytes());
     }
 
     fn store_u8(&mut self, address: u32, value: u8) {
+        assert!(
+            self.protected_section < address as usize,
+            "Section protected"
+        );
+
         self.memory[address as usize] = value;
     }
 
@@ -257,6 +274,34 @@ impl Runtime {
                     self.program[self.pc + 16],
                 ]) as usize,
             )),
+            Instruction::Data { .. } => {
+                let offset = u64::from_le_bytes([
+                    self.program[self.pc + 1],
+                    self.program[self.pc + 2],
+                    self.program[self.pc + 3],
+                    self.program[self.pc + 4],
+                    self.program[self.pc + 5],
+                    self.program[self.pc + 6],
+                    self.program[self.pc + 7],
+                    self.program[self.pc + 8],
+                ]) as usize;
+                let length = u64::from_le_bytes([
+                    self.program[self.pc + 9],
+                    self.program[self.pc + 10],
+                    self.program[self.pc + 11],
+                    self.program[self.pc + 12],
+                    self.program[self.pc + 13],
+                    self.program[self.pc + 14],
+                    self.program[self.pc + 15],
+                    self.program[self.pc + 16],
+                ]) as usize;
+
+                Instruction::Data {
+                    offset: offset as u64,
+                    length: length as u64,
+                    data: self.program[self.pc + 17..self.pc + 17 + length].to_vec(),
+                }
+            }
             _ => inst,
         }
     }
@@ -366,6 +411,7 @@ impl Runtime {
                                     Some(stdout) => stdout.lock().unwrap().write(data),
                                     None => stdout().write(data),
                                 };
+                                println!("extcall {} {:x} {} {:x?}", fd, address, size, data);
 
                                 self.push(match result {
                                     Ok(_) => 0,
@@ -590,6 +636,7 @@ impl Runtime {
             0x08 => {
                 let offset = self.consume_u64();
                 let length = self.consume_u64();
+                self.protected_section = offset as usize + length as usize;
 
                 for i in 0..length {
                     let b = self.consume();

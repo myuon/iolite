@@ -143,6 +143,11 @@ impl Instruction {
             0x05 => Instruction::Jump,
             0x06 => Instruction::JumpIf,
             0x07 => Instruction::Nop,
+            0x08 => Instruction::Data {
+                offset: 0,
+                length: 0,
+                data: vec![],
+            },
 
             0x10 => Instruction::AddInt,
             0x11 => Instruction::SubInt,
