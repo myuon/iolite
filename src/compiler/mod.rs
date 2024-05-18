@@ -64,6 +64,7 @@ pub struct LoadedModule {
 pub struct Compiler {
     pub cwd: String,
     pub modules: HashMap<String, LoadedModule>,
+    pub types: HashMap<String, Source<Type>>,
 }
 
 impl Compiler {
@@ -71,6 +72,7 @@ impl Compiler {
         Self {
             cwd: "".to_string(),
             modules: HashMap::new(),
+            types: HashMap::new(),
         }
     }
 
@@ -317,6 +319,8 @@ impl Compiler {
             )?;
         }
 
+        self.types = typechecker.types;
+
         Ok(())
     }
 
@@ -348,7 +352,7 @@ impl Compiler {
         let mut modules = vec![];
         for path in paths {
             let module = self.modules.get_mut(&path).unwrap();
-            let ir = Self::ir_code_gen_module(module.module.clone().unwrap(), HashMap::new())?;
+            let ir = Self::ir_code_gen_module(module.module.clone().unwrap(), self.types.clone())?;
 
             modules.push(ir);
         }
@@ -731,7 +735,7 @@ mod tests {
     }
 
     #[test]
-    fn test_compile_program() {
+    fn test_compile_program() -> Result<()> {
         let cases = vec![
             (
                 "fun main() { let x = 1 + 2 * 4; let y = x + 2; return y; }",
@@ -1014,10 +1018,23 @@ mod tests {
         ];
 
         for (input, expected) in cases {
+            let mut compiler = Compiler::new();
+            compiler.set_cwd(std::env::current_dir().unwrap().display().to_string());
+
             println!("====== {}", input);
-            let actual = Compiler::run_input(input.to_string(), false).unwrap();
+            let path = "main".to_string();
+            compiler.parse_with_code(path.clone(), input.to_string())?;
+            compiler.typecheck(path.clone())?;
+            let ir = compiler.ir_code_gen(path.clone())?;
+            let code = Compiler::vm_code_gen(ir)?;
+            let linked = Compiler::link(code)?;
+            let binary = Compiler::byte_code_gen(linked)?;
+
+            let actual = Compiler::run_vm(binary, false, false).unwrap();
             assert_eq!(actual, expected, "input: {}", input);
         }
+
+        Ok(())
     }
 
     #[test]
