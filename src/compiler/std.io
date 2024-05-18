@@ -1,22 +1,12 @@
-// Requires posix-iol
+// Requires posix-lib
 declare fun extcall_write(fd: int, buf: rawptr, length: int): int;
-// Requires libui-iol
+// Requires fltk-lib
 // 10000
-declare fun extcall_ui_init(): nil;
+declare fun extcall_window_new(x: int, y: int, width: int, height: int, title_ptr: rawptr, title_len: int): int;
 // 10001
-declare fun extcall_ui_new_window(title: rawptr, width: int, height: int, has_menubar: int): rawptr;
+declare fun extcall_app_default(): rawptr;
 // 10002
-declare fun extcall_ui_control_show(window: rawptr): nil;
-// 10003
-declare fun extcall_ui_main(): nil;
-// 10004
-declare fun extcall_ui_draw_fill(context: rawptr, path: rawptr, brush: rawptr): nil;
-// 10005
-declare fun extcall_ui_struct_ui_draw_brush(type: int, r: int, g: int, b: int, a: int, x0: float, y0: float, x1: float, y1: float, outer_radius: float, stops: rawptr, num_stops: int): nil;
-// 10006
-declare fun extcall_ui_new_area(): nil;
-// 10007
-declare fun extcall_ui_new_area_handler(draw_ptr: rawptr, draw_env: rawptr): nil;
+declare fun extcall_app_run(app: rawptr);
 
 let heap_ptr = 0 as ptr[byte];
 

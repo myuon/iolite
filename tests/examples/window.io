@@ -1,17 +1,10 @@
 fun main() {
-  extcall_ui_init();
-  let window = extcall_ui_new_window("Hello World".ptr as rawptr, 400, 320, 0);
-  extcall_ui_control_show(window);
-  extcall_ui_new_area();
+  let app = extcall_app_default();
 
-  let draw = fun () {
-    print_str("draw\n");
+  let title = "Hello, World!";
+  extcall_window_new(100, 200, 300, 400, title.ptr as rawptr, title.length);
 
-    return nil;
-  };
-  extcall_ui_new_area_handler(draw.ptr, draw.env);
-
-  extcall_ui_main();
+  extcall_app_run(app);
 
   return nil;
 }
