@@ -60,9 +60,12 @@ impl VmCodeGenerator {
             "extcall_window_show",
             "extcall_app_default",
             "extcall_app_run",
-            "extcall_button_new",
-            "extcall_flex_default",
+            "extcall_button_default",
+            "extcall_flex_default_fill",
             "extcall_flex_column",
+            "extcall_flex_set_margins",
+            "extcall_flex_set_pad",
+            "extcall_flex_end",
         ];
         let mut index = 10000;
         for method in methods {

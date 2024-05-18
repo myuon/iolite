@@ -495,19 +495,16 @@ impl Runtime {
                             });
 
                             self.push(Value::Nil.as_u64() as i64);
-                        } else if index as usize == table["extcall_button_new"] {
-                            let x = self.pop_i64() as i32;
-                            let y = self.pop_i64() as i32;
-                            let width = self.pop_i64() as i32;
-                            let height = self.pop_i64() as i32;
+                        } else if index as usize == table["extcall_button_default"] {
                             let title_ptr = self.pop_i64() as u64;
                             let title_len = self.pop_i64() as usize;
                             let title = String::from_utf8(
                                 self.memory[title_ptr as usize..(title_ptr as usize + title_len)]
                                     .to_vec(),
-                            );
+                            )
+                            .unwrap();
 
-                            let button = Button::new(x, y, width, height, title.unwrap().as_str());
+                            let button = Button::default().with_label(title.as_str());
 
                             let mut id = 0;
 
@@ -519,8 +516,8 @@ impl Runtime {
                             });
 
                             self.push(Value::Int(id as i32).as_u64() as i64);
-                        } else if index as usize == table["extcall_flex_default"] {
-                            let flex = Flex::default();
+                        } else if index as usize == table["extcall_flex_default_fill"] {
+                            let flex = Flex::default_fill();
 
                             let mut id = 0;
 
@@ -544,11 +541,51 @@ impl Runtime {
                             });
 
                             self.push(Value::Nil.as_u64() as i64);
+                        } else if index as usize == table["extcall_flex_set_margins"] {
+                            let flex_id = self.pop_i64() as i32;
+                            let left = self.pop_i64() as i32;
+                            let top = self.pop_i64() as i32;
+                            let right = self.pop_i64() as i32;
+                            let bottom = self.pop_i64() as i32;
+
+                            WIDGETS.with(|widgets_ref| {
+                                let mut widgets = widgets_ref.borrow_mut();
+                                let flex =
+                                    widgets[flex_id as usize].downcast_mut::<Flex>().unwrap();
+
+                                flex.set_margins(left, top, right, bottom);
+                            });
+
+                            self.push(Value::Nil.as_u64() as i64);
+                        } else if index as usize == table["extcall_flex_set_pad"] {
+                            let flex_id = self.pop_i64() as i32;
+                            let pad = self.pop_i64() as i32;
+
+                            WIDGETS.with(|widgets_ref| {
+                                let mut widgets = widgets_ref.borrow_mut();
+                                let flex =
+                                    widgets[flex_id as usize].downcast_mut::<Flex>().unwrap();
+
+                                flex.set_pad(pad);
+                            });
+
+                            self.push(Value::Nil.as_u64() as i64);
+                        } else if index as usize == table["extcall_flex_end"] {
+                            let flex_id = self.pop_i64() as i32;
+
+                            WIDGETS.with(|widgets_ref| {
+                                let mut widgets = widgets_ref.borrow_mut();
+                                let flex =
+                                    widgets[flex_id as usize].downcast_mut::<Flex>().unwrap();
+
+                                flex.end();
+                            });
+
+                            self.push(Value::Nil.as_u64() as i64);
                         } else {
                             todo!()
                         }
                     }
-                    _ => todo!(),
                 }
             }
             // return
