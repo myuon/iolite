@@ -82,6 +82,7 @@ pub enum IrDecl {
         name: String,
         args: Vec<String>,
         body: Box<IrTerm>,
+        escaped: Vec<String>,
     },
     Let {
         name: String,

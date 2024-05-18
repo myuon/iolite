@@ -543,7 +543,12 @@ impl VmCodeGenerator {
 
     fn decl(&mut self, decl: IrDecl) -> Result<(), VmCodeGeneratorError> {
         match decl {
-            IrDecl::Fun { name, args, body } => {
+            IrDecl::Fun {
+                name,
+                args,
+                body,
+                escaped: _,
+            } => {
                 self.emit(Instruction::Label(name.clone()));
 
                 // prologue

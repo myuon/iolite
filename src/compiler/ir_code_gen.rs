@@ -5,6 +5,7 @@ use thiserror::Error;
 
 use super::{
     ast::{BinOp, Block, Conversion, Declaration, Expr, Literal, Module, Source, Statement, Type},
+    escape_resolver::EscapeResolver,
     ir::{IrDecl, IrModule, IrOp, IrTerm, TypeTag, Value},
 };
 
@@ -20,6 +21,7 @@ pub struct IrCodeGenerator {
     data: HashMap<String, Vec<u8>>,
     closures: Vec<IrDecl>,
     captured_env: HashMap<String, (String, usize)>, // captured_name -> (env_name, index)
+    escaped: Vec<String>,
 }
 
 impl IrCodeGenerator {
@@ -32,6 +34,7 @@ impl IrCodeGenerator {
             data: HashMap::new(),
             closures: vec![],
             captured_env: HashMap::new(),
+            escaped: vec![],
         }
     }
 
@@ -120,19 +123,24 @@ impl IrCodeGenerator {
             name: init_function_name.clone(),
             args: vec![],
             body: Box::new(IrTerm::Items(self.init_function.clone())),
+            escaped: vec![],
         });
 
         for closure in self.closures.clone() {
             decls.push(closure);
         }
 
-        Ok(IrModule {
+        let mut ir_module = IrModule {
             name: module.name,
             init_function: Some(init_function_name),
             decls,
             data_section,
             global_section: self.globals.clone(),
-        })
+        };
+
+        EscapeResolver::new().module(&mut ir_module).unwrap();
+
+        Ok(ir_module)
     }
 
     fn decl(&mut self, decl: Source<Declaration>) -> Result<Option<IrDecl>, IrCodeGeneratorError> {
@@ -143,6 +151,7 @@ impl IrCodeGenerator {
                 result: _,
                 body,
             } => {
+                self.escaped = vec![];
                 let body = {
                     let term = self.block(body)?;
 
@@ -168,6 +177,7 @@ impl IrCodeGenerator {
                     name: name.data,
                     args: params.into_iter().map(|p| p.0.data).collect(),
                     body: Box::new(body),
+                    escaped: self.escaped.clone(),
                 }))
             }
             Declaration::Let { name, ty: _, value } => {
@@ -433,18 +443,23 @@ impl IrCodeGenerator {
                     name: name.clone(),
                     args: closure_params,
                     body: Box::new(term),
+                    escaped: vec![],
                 });
 
                 let mut env_terms = vec![];
-                for name in captured {
+                for name in &captured {
                     env_terms.push(IrTerm::Load {
                         size: Value::size() as usize,
-                        address: Box::new(IrTerm::Ident(name)),
+                        address: Box::new(IrTerm::Ident(name.clone())),
                     });
                 }
                 let env = self.slice(env_terms);
 
                 let closure_pair = self.slice(vec![env, IrTerm::Function(name)]);
+
+                for name in captured {
+                    self.escaped.push(name);
+                }
 
                 Ok(closure_pair)
             }

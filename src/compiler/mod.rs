@@ -24,6 +24,7 @@ use self::{
 
 pub mod ast;
 pub mod byte_code_emitter;
+pub mod escape_resolver;
 pub mod ir;
 pub mod ir_code_gen;
 pub mod lexer;
