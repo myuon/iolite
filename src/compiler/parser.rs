@@ -635,6 +635,7 @@ impl Parser {
                         params: params.clone(),
                         result: result_ty,
                         body: Box::new(block),
+                        captured: vec![],
                     },
                     self.module_name.clone(),
                     start_token.span.start,

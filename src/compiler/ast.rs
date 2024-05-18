@@ -170,6 +170,7 @@ pub enum Expr {
         params: Vec<(Source<String>, Source<Type>)>,
         result: Source<Type>,
         body: Box<Source<Block>>,
+        captured: Vec<String>,
     },
 }
 
@@ -494,6 +495,7 @@ impl AstWalker {
                 params,
                 result,
                 body,
+                captured,
             } => {
                 for (_, ty) in params {
                     self.tokens

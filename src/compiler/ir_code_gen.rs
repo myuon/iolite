@@ -411,6 +411,7 @@ impl IrCodeGenerator {
                 params,
                 result: _,
                 body,
+                captured,
             } => {
                 let term = self.block(*body)?;
                 let name = format!("closure_{}", nanoid!());

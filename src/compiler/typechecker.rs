@@ -85,6 +85,8 @@ pub struct Typechecker {
     search_def: Option<SearchDefinition>,
     infer_type_at: Option<InferTypeAt>,
     inlay_hints: Option<Vec<(Span, Type)>>,
+    ident_referred: Vec<String>,
+    globals: Vec<String>,
 }
 
 impl Typechecker {
@@ -95,6 +97,8 @@ impl Typechecker {
             search_def: None,
             infer_type_at: None,
             inlay_hints: None,
+            ident_referred: vec![],
+            globals: vec![],
         }
     }
 
@@ -176,6 +180,8 @@ impl Typechecker {
 
                 let ty = self.get_type(&i.data, &i.span)?.data;
                 self.check_infer_type_at(&expr.span, ty.clone());
+
+                self.ident_referred.push(i.data.clone());
 
                 Ok(ty)
             }
@@ -456,6 +462,7 @@ impl Typechecker {
                 params,
                 result,
                 body,
+                captured,
             } => {
                 let types_cloned = self.types.clone();
                 let mut param_types = vec![];
@@ -469,8 +476,23 @@ impl Typechecker {
                 }
 
                 self.return_ty = result.data.clone();
+                self.ident_referred = vec![];
 
                 self.block(body)?;
+
+                for ident in &self.ident_referred {
+                    if !types_cloned.contains_key(ident) {
+                        // local variable in a closure
+                        continue;
+                    }
+                    if self.globals.contains(ident) {
+                        // global variable
+                        continue;
+                    }
+
+                    captured.push(ident.clone());
+                }
+
                 let ty = Type::Fun(param_types.clone(), Box::new(self.return_ty.clone()));
 
                 self.types = types_cloned;
@@ -567,6 +589,7 @@ impl Typechecker {
                         name.span.clone(),
                     ),
                 );
+                self.globals.push(name.data.clone());
 
                 self.block(body)?;
 
@@ -589,6 +612,7 @@ impl Typechecker {
 
                 self.types
                     .insert(name.data.clone(), Source::span(ty, name.span.clone()));
+                self.globals.push(name.data.clone());
             }
             Declaration::Struct { name, fields } => {
                 let mut field_types = vec![];
