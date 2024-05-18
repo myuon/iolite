@@ -54,14 +54,22 @@ impl VmCodeGenerator {
         // table.insert("exit".to_string(), 2);
 
         // fltk
-        table.insert("extcall_window_new".to_string(), 10000);
-        table.insert("extcall_app_default".to_string(), 10001);
-        table.insert("extcall_app_run".to_string(), 10002);
-        table.insert("extcall_button_new".to_string(), 10003);
-        table.insert("extcall_flex_default".to_string(), 10004);
-        table.insert("extcall_flex_column".to_string(), 10005);
-        table.insert("extcall_window_end".to_string(), 10006);
-        table.insert("extcall_window_show".to_string(), 10007);
+        let methods = vec![
+            "extcall_window_new",
+            "extcall_window_end",
+            "extcall_window_show",
+            "extcall_app_default",
+            "extcall_app_run",
+            "extcall_button_new",
+            "extcall_flex_default",
+            "extcall_flex_column",
+        ];
+        let mut index = 10000;
+        for method in methods {
+            table.insert(method.to_string(), index);
+            index += 1;
+        }
+
         table
     }
 
