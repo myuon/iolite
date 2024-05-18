@@ -19,6 +19,7 @@ pub struct IrCodeGenerator {
     types: HashMap<String, Source<Type>>,
     data: HashMap<String, Vec<u8>>,
     closures: Vec<IrDecl>,
+    captured_env: HashMap<String, (String, usize)>, // captured_name -> (env_name, index)
 }
 
 impl IrCodeGenerator {
@@ -30,6 +31,7 @@ impl IrCodeGenerator {
             types: HashMap::new(),
             data: HashMap::new(),
             closures: vec![],
+            captured_env: HashMap::new(),
         }
     }
 
@@ -413,16 +415,35 @@ impl IrCodeGenerator {
                 body,
                 captured,
             } => {
-                let term = self.block(*body)?;
                 let name = format!("closure_{}", nanoid!());
+                let env_name = format!("closure_env_{}", nanoid!());
 
+                let mut closure_params = vec![];
+                for (name, _) in params {
+                    closure_params.push(name.data);
+                }
+                closure_params.push(env_name.clone());
+
+                for (index, name) in captured.iter().enumerate() {
+                    self.captured_env
+                        .insert(name.clone(), (env_name.clone(), index));
+                }
+                let term = self.block(*body)?;
                 self.closures.push(IrDecl::Fun {
                     name: name.clone(),
-                    args: params.into_iter().map(|p| p.0.data).collect(),
+                    args: closure_params,
                     body: Box::new(term),
                 });
 
-                Ok(IrTerm::Function(name))
+                let mut env_terms = vec![];
+                for name in captured {
+                    env_terms.push(IrTerm::Ident(name));
+                }
+                let env = self.slice(env_terms);
+
+                let closure_pair = self.slice(vec![env, IrTerm::Function(name)]);
+
+                Ok(closure_pair)
             }
             _ => {
                 let term = self.expr_left_value(expr)?;
@@ -437,7 +458,16 @@ impl IrCodeGenerator {
 
     fn expr_left_value(&mut self, expr: Source<Expr>) -> Result<IrTerm, IrCodeGeneratorError> {
         match expr.data {
-            Expr::Ident(name) => Ok(IrTerm::Ident(name.data)),
+            Expr::Ident(name) => {
+                if let Some((env_name, index)) = self.captured_env.get(&name.data) {
+                    return Ok(IrTerm::Index {
+                        ptr: Box::new(IrTerm::Ident(env_name.clone())),
+                        index: Box::new(IrTerm::Int(*index as i32)),
+                    });
+                }
+
+                Ok(IrTerm::Ident(name.data))
+            }
             Expr::Index { ty, ptr, index } => {
                 let ptr = self.expr(*ptr)?;
                 let index = self.expr(*index)?;

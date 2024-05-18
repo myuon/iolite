@@ -486,9 +486,27 @@ impl VmCodeGenerator {
                                 self.pop();
                             }
                         } else {
+                            // closure call
+                            // These process should be done in the IR phase?
                             self.term(IrTerm::Load {
                                 size: Value::size() as usize,
-                                address: Box::new(IrTerm::Ident(name)),
+                                address: Box::new(IrTerm::Index {
+                                    ptr: Box::new(IrTerm::Load {
+                                        size: Value::size() as usize,
+                                        address: Box::new(IrTerm::Ident(name.clone())),
+                                    }),
+                                    index: Box::new(IrTerm::Int(0)),
+                                }),
+                            })?;
+                            self.term(IrTerm::Load {
+                                size: Value::size() as usize,
+                                address: Box::new(IrTerm::Index {
+                                    ptr: Box::new(IrTerm::Load {
+                                        size: Value::size() as usize,
+                                        address: Box::new(IrTerm::Ident(name.clone())),
+                                    }),
+                                    index: Box::new(IrTerm::Int(Value::size() as i32)),
+                                }),
                             })?;
                             self.emit(Instruction::Call);
 
