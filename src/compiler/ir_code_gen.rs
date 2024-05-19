@@ -238,6 +238,8 @@ impl IrCodeGenerator {
                     (BinOp::Div, Type::Int) => IrOp::DivInt,
                     (BinOp::Div, Type::Float) => IrOp::DivFloat,
                     (BinOp::Div, _) => todo!(),
+                    (BinOp::Mod, Type::Int) => IrOp::ModInt,
+                    (BinOp::Mod, _) => todo!(),
                     (BinOp::And, Type::Bool) => IrOp::And,
                     (BinOp::And, _) => todo!(),
                     (BinOp::Or, Type::Bool) => IrOp::Or,

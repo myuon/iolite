@@ -931,6 +931,24 @@ impl Parser {
                         end,
                     );
                 }
+                Lexeme::Percent => {
+                    self.consume()?;
+                    let right = self.expr_0(with_struct)?;
+                    let start = current.span.start;
+                    let end = right.span.end;
+
+                    current = Source::new_span(
+                        Expr::BinOp {
+                            ty: Type::Unknown,
+                            op: Source::span(BinOp::Mod, token.span),
+                            left: Box::new(current),
+                            right: Box::new(right),
+                        },
+                        self.module_name.clone(),
+                        start,
+                        end,
+                    );
+                }
                 _ => {
                     break;
                 }

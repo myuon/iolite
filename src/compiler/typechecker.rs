@@ -207,7 +207,7 @@ impl Typechecker {
                 let right_ty = self.expr(right)?;
 
                 match op.data {
-                    BinOp::Add | BinOp::Sub | BinOp::Mul | BinOp::Div => {
+                    BinOp::Add | BinOp::Sub | BinOp::Mul | BinOp::Div | BinOp::Mod => {
                         let ty = Self::unify(Type::Unknown, left_ty, op.span.clone())?;
                         let result = Self::unify(ty, right_ty, op.span.clone())?;
                         match result {

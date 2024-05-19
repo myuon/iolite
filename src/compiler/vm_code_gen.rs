@@ -61,6 +61,7 @@ impl VmCodeGenerator {
             "extcall_app_default",
             "extcall_app_run",
             "extcall_app_wait",
+            "extcall_frame_default",
             "extcall_button_default",
             "extcall_button_set_callback",
             "extcall_flex_default_fill",
@@ -168,7 +169,8 @@ impl VmCodeGenerator {
         use Instruction::*;
 
         match inst {
-            AddInt | SubInt | MulInt | DivInt | AddFloat | SubFloat | MulFloat | DivFloat => {
+            AddInt | SubInt | MulInt | DivInt | AddFloat | SubFloat | MulFloat | DivFloat
+            | ModInt => {
                 self.stack_pointer -= 1;
             }
             IntToFloat | FloatToInt => {}
@@ -332,6 +334,7 @@ impl VmCodeGenerator {
                             IrOp::SubInt => Instruction::SubInt,
                             IrOp::MulInt => Instruction::MulInt,
                             IrOp::DivInt => Instruction::DivInt,
+                            IrOp::ModInt => Instruction::ModInt,
                             IrOp::And => Instruction::And,
                             IrOp::Or => Instruction::Or,
                             IrOp::Eq => Instruction::Eq,
@@ -354,7 +357,8 @@ impl VmCodeGenerator {
                             Instruction::AddInt
                             | Instruction::SubInt
                             | Instruction::MulInt
-                            | Instruction::DivInt => TypeTag::Int,
+                            | Instruction::DivInt
+                            | Instruction::ModInt => TypeTag::Int,
                             Instruction::And
                             | Instruction::Or
                             | Instruction::Lt

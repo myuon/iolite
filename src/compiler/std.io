@@ -7,6 +7,7 @@ declare fun extcall_app_run(app: rawptr);
 declare fun extcall_app_wait(app: rawptr): bool;
 declare fun extcall_button_default(title_ptr: rawptr, title_len: int): rawptr;
 declare fun extcall_button_set_callback(button: rawptr, callback_ptr: rawptr, callback_env: rawptr);
+declare fun extcall_frame_default(title_ptr: rawptr, title_len: int): rawptr;
 declare fun extcall_flex_default_fill(): rawptr;
 declare fun extcall_flex_column(flex: rawptr): rawptr;
 declare fun extcall_flex_set_margins(flex: rawptr, left: int, top: int, right: int, bottom: int);
@@ -78,4 +79,22 @@ fun to_cstr(text: array[byte]): ptr[byte] {
   cstr.(text.length) = 0 as byte;
 
   return cstr;
+}
+
+fun int_to_string(n: int): array[byte] {
+  let digit = 1;
+  while (int_abs(n) > 0) {
+    n = n / 10;
+    digit = digit + 1;
+  }
+
+  let text = new[array[byte]](digit);
+  let i = digit - 1;
+  while (i >= 0) {
+    text.(i) = (int_abs(n) % 10 + 48) as byte;
+    n = n / 10;
+    i = i - 1;
+  }
+
+  return text;
 }

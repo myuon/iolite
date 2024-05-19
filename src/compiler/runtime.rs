@@ -5,6 +5,7 @@ use std::{
     sync::{Arc, Mutex},
 };
 
+use fltk::frame::Frame;
 #[cfg(feature = "gui")]
 use fltk::{app, button::Button, group::Flex, prelude::*, window::Window};
 
@@ -548,6 +549,27 @@ impl Runtime {
                             });
 
                             self.push(Value::Int(id as i32).as_u64() as i64);
+                        } else if index as usize == table["extcall_frame_default"] {
+                            let title_ptr = self.pop_i64() as u64;
+                            let title_len = self.pop_i64() as usize;
+                            let title = String::from_utf8(
+                                self.memory[title_ptr as usize..(title_ptr as usize + title_len)]
+                                    .to_vec(),
+                            )
+                            .unwrap();
+
+                            let frame = Frame::default().with_label(title.as_str());
+
+                            let mut id = 0;
+
+                            WIDGETS.with(|widgets_ref| {
+                                let mut widgets = widgets_ref.borrow_mut();
+
+                                id = widgets.len();
+                                widgets.push(Box::new(frame));
+                            });
+
+                            self.push(Value::Int(id as i32).as_u64() as i64);
                         } else if index as usize == table["extcall_button_set_callback"] {
                             let button_id = self.pop_i64() as i32;
 
@@ -722,6 +744,12 @@ impl Runtime {
                 let a = self.pop_f32();
                 let b = self.pop_f32();
                 self.push_f32(b / a);
+            }
+            // modInt
+            0x18 => {
+                let a = self.pop_i64();
+                let b = self.pop_i64();
+                self.push(b % a);
             }
 
             // xor

@@ -13,6 +13,7 @@ pub enum Instruction {
     SubInt,
     MulInt,
     DivInt,
+    ModInt,
     AddFloat,
     SubFloat,
     MulFloat,
@@ -87,6 +88,7 @@ impl Instruction {
             SubFloat => vec![0x15],
             MulFloat => vec![0x16],
             DivFloat => vec![0x17],
+            ModInt => vec![0x18],
 
             // Bitwise
             Xor => vec![0x20],
@@ -157,6 +159,7 @@ impl Instruction {
             0x15 => Instruction::SubFloat,
             0x16 => Instruction::MulFloat,
             0x17 => Instruction::DivFloat,
+            0x18 => Instruction::ModInt,
 
             0x20 => Instruction::Xor,
             0x21 => Instruction::And,

@@ -1,5 +1,6 @@
 fun main() {
   let app = extcall_app_default();
+  let count = 0;
 
   let title = "Hello, World!";
   let window = extcall_window_new(100, 200, 300, 400, title.ptr as rawptr, title.length);
@@ -12,10 +13,14 @@ fun main() {
   let button_inc = extcall_button_default(button_title.ptr as rawptr, button_title.length);
   let callback = fun () {
     print_str("Button clicked!\n");
+    count = count + 1;
 
     return nil;
   };
   extcall_button_set_callback(button_inc, callback.ptr, callback.env);
+
+  let frame_title = int_to_string(count);
+  let frame = extcall_frame_default(frame_title.ptr as rawptr, frame_title.length);
 
   let button_title = "-";
   let button_dec = extcall_button_default(button_title.ptr as rawptr, button_title.length);

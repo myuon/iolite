@@ -6,6 +6,7 @@ pub enum IrOp {
     SubInt,
     MulInt,
     DivInt,
+    ModInt,
     AddFloat,
     SubFloat,
     MulFloat,
