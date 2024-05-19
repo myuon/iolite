@@ -925,7 +925,7 @@ impl Runtime {
             }
             // store32
             0x47 => {
-                let value = self.pop_i64();
+                let value = self.pop_i64() & 0xffffffff;
                 let address = self.pop_address();
                 if print_stacks || print_memory_store {
                     println!("store32 0x{:x} {:x}", address as u32, value);
