@@ -486,7 +486,7 @@ impl IrCodeGenerator {
                             size: Value::size() as usize,
                             address: Box::new(IrTerm::Ident(env_name.clone())),
                         }),
-                        index: Box::new(IrTerm::Int(*index as i32)),
+                        index: Box::new(IrTerm::Int(*index as i32 * Value::size())),
                     });
                 }
 
