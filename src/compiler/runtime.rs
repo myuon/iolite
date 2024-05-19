@@ -5,7 +5,9 @@ use std::{
     sync::{Arc, Mutex},
 };
 
+#[cfg(feature = "gui")]
 use fltk::{app, button::Button, group::Flex, prelude::*, window::Window};
+
 use nanoid::nanoid;
 use thiserror::Error;
 
