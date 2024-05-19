@@ -461,7 +461,9 @@ impl IrCodeGenerator {
                 let closure_pair = self.slice(vec![env, IrTerm::Function(name)]);
 
                 for name in captured {
-                    self.escaped.push(name);
+                    if !self.escaped.contains(&name) {
+                        self.escaped.push(name);
+                    }
                 }
 
                 Ok(closure_pair)
