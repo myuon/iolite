@@ -62,6 +62,7 @@ impl VmCodeGenerator {
             "extcall_app_run",
             "extcall_app_wait",
             "extcall_frame_default",
+            "extcall_frame_set_label",
             "extcall_button_default",
             "extcall_button_set_callback",
             "extcall_flex_default_fill",
@@ -227,6 +228,7 @@ impl VmCodeGenerator {
             PushDataPointer(_) => {
                 self.stack_pointer += 1;
             }
+            Abort => {}
         }
 
         self.code.push(inst);
@@ -482,8 +484,13 @@ impl VmCodeGenerator {
             IrTerm::Call { callee, args } => {
                 let name = match *callee {
                     IrTerm::Ident(name) => name,
-                    _ => todo!(),
+                    term => todo!("{:?}", term),
                 };
+                if name == "abort" {
+                    self.emit(Instruction::Abort);
+                    return Ok(());
+                }
+
                 let extcall_label = Self::extcall_table().get(&name).cloned();
 
                 if extcall_label.is_none() {

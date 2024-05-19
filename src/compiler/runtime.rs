@@ -550,15 +550,7 @@ impl Runtime {
 
                             self.push(Value::Int(id as i32).as_u64() as i64);
                         } else if index as usize == table["extcall_frame_default"] {
-                            let title_ptr = self.pop_i64() as u64;
-                            let title_len = self.pop_i64() as usize;
-                            let title = String::from_utf8(
-                                self.memory[title_ptr as usize..(title_ptr as usize + title_len)]
-                                    .to_vec(),
-                            )
-                            .unwrap();
-
-                            let frame = Frame::default().with_label(title.as_str());
+                            let frame = Frame::default();
 
                             let mut id = 0;
 
@@ -570,6 +562,26 @@ impl Runtime {
                             });
 
                             self.push(Value::Int(id as i32).as_u64() as i64);
+                        } else if index as usize == table["extcall_frame_set_label"] {
+                            let frame_id = self.pop_i64() as i32;
+
+                            let title_ptr = self.pop_i64() as u64;
+                            let title_len = self.pop_i64() as usize;
+                            let title = String::from_utf8(
+                                self.memory[title_ptr as usize..(title_ptr as usize + title_len)]
+                                    .to_vec(),
+                            )
+                            .unwrap();
+
+                            WIDGETS.with(|widgets_ref| {
+                                let mut widgets = widgets_ref.borrow_mut();
+
+                                let frame =
+                                    widgets[frame_id as usize].downcast_mut::<Frame>().unwrap();
+                                frame.set_label(title.as_str());
+                            });
+
+                            self.push(Value::Nil.as_u64() as i64);
                         } else if index as usize == table["extcall_button_set_callback"] {
                             let button_id = self.pop_i64() as i32;
 
@@ -694,6 +706,11 @@ impl Runtime {
                     let b = self.consume();
                     self.memory[offset as usize + i as usize] = b;
                 }
+            }
+            // abort
+            0x09 => {
+                self.print_stack();
+                panic!("Aborted");
             }
 
             // add

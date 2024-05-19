@@ -62,6 +62,7 @@ pub enum Instruction {
     PushHeapPtrOffset,
     PushGlobal(String),
     PushDataPointer(String),
+    Abort,
 }
 
 impl Instruction {
@@ -78,6 +79,7 @@ impl Instruction {
             JumpIf => vec![0x06],
             Nop => vec![0x07],
             Data { .. } => vec![0x08],
+            Abort => vec![0x09],
 
             // Arithmetic
             AddInt => vec![0x10],
@@ -150,6 +152,7 @@ impl Instruction {
                 length: 0,
                 data: vec![],
             },
+            0x09 => Instruction::Abort,
 
             0x10 => Instruction::AddInt,
             0x11 => Instruction::SubInt,

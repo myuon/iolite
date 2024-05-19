@@ -92,13 +92,13 @@ pub struct Typechecker {
 impl Typechecker {
     pub fn new() -> Self {
         Self {
-            types: HashMap::new(),
+            types: Type::builtin_types(),
             return_ty: Type::Unknown,
             search_def: None,
             infer_type_at: None,
             inlay_hints: None,
             ident_referred: vec![],
-            globals: vec![],
+            globals: Type::builtin_types().keys().cloned().collect(),
         }
     }
 

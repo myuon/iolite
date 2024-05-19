@@ -1,4 +1,4 @@
-use std::vec;
+use std::{collections::HashMap, vec};
 
 use super::ir::TypeTag;
 
@@ -322,6 +322,16 @@ impl Type {
             Type::RawPtr => "rawptr".to_string(),
             Type::Unknown => "<unknown>".to_string(),
         }
+    }
+
+    pub fn builtin_types() -> HashMap<String, Source<Type>> {
+        let mut types = HashMap::new();
+        types.insert(
+            "abort".to_string(),
+            Source::unknown(Type::Fun(vec![], Box::new(Type::Nil))),
+        );
+
+        types
     }
 }
 
