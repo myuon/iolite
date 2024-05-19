@@ -1,4 +1,4 @@
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 
 use thiserror::Error;
 
@@ -485,7 +485,7 @@ impl Typechecker {
 
                 self.block(body)?;
 
-                for ident in &self.ident_referred {
+                for ident in self.ident_referred.iter().collect::<HashSet<_>>() {
                     if !types_cloned.contains_key(ident) {
                         // local variable in a closure
                         continue;
