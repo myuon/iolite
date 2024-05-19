@@ -447,6 +447,7 @@ impl IrCodeGenerator {
                     body: Box::new(term),
                     escaped: vec![],
                 });
+                self.captured_env.clear();
 
                 let mut env_terms = vec![];
                 for name in &captured {
