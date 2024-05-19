@@ -656,6 +656,7 @@ impl Typechecker {
                         name.span.clone(),
                     ),
                 );
+                self.globals.push(name.data.clone());
             }
         }
 
