@@ -638,6 +638,8 @@ impl Runtime {
                             todo!()
                         }
                     }
+                    #[cfg(not(feature = "gui"))]
+                    _ => todo!(),
                 }
             }
             // return
