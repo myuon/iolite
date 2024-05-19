@@ -580,7 +580,7 @@ impl IrCodeGenerator {
                 Statement::Expr(expr) => {
                     let ir = self.expr(expr)?;
 
-                    terms.push(ir);
+                    terms.push(IrTerm::Discard(Box::new(ir)));
                 }
                 Statement::Assign(lhs, rhs) => {
                     let lhs = self.expr_left_value(lhs)?;

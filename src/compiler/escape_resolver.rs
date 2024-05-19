@@ -111,6 +111,9 @@ impl EscapeResolver {
             IrTerm::SourceMap { span: _ } => {}
             IrTerm::Function(_) => {}
             IrTerm::HeapPtrOffset => {}
+            IrTerm::Discard(term) => {
+                self.term(term)?;
+            }
         }
 
         Ok(())

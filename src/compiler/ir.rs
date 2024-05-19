@@ -75,6 +75,7 @@ pub enum IrTerm {
     },
     Function(String),
     HeapPtrOffset,
+    Discard(Box<IrTerm>),
 }
 
 #[derive(Debug, PartialEq, Clone)]

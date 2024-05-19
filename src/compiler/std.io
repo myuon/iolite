@@ -5,6 +5,7 @@ declare fun extcall_window_new(x: int, y: int, width: int, height: int, title_pt
 declare fun extcall_app_default(): rawptr;
 declare fun extcall_app_run(app: rawptr);
 declare fun extcall_app_wait(app: rawptr): bool;
+declare fun extcall_app_redraw(app: rawptr);
 declare fun extcall_button_default(title_ptr: rawptr, title_len: int): rawptr;
 declare fun extcall_button_set_callback(button: rawptr, callback_ptr: rawptr, callback_env: rawptr);
 declare fun extcall_frame_default(): rawptr;

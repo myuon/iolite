@@ -61,6 +61,7 @@ impl VmCodeGenerator {
             "extcall_app_default",
             "extcall_app_run",
             "extcall_app_wait",
+            "extcall_app_redraw",
             "extcall_frame_default",
             "extcall_frame_set_label",
             "extcall_button_default",
@@ -565,6 +566,10 @@ impl VmCodeGenerator {
             }
             IrTerm::HeapPtrOffset => {
                 self.emit(Instruction::PushHeapPtrOffset);
+            }
+            IrTerm::Discard(term) => {
+                self.term(*term)?;
+                self.pop();
             }
         }
 
