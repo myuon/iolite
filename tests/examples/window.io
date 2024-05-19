@@ -34,6 +34,18 @@ fun main() {
   };
   extcall_button_set_callback(button_inc, callback.ptr, callback.env);
 
+  let callback = fun () {
+    if (count > 0) {
+      count = count - 1;
+    }
+
+    let label = int_to_string(count);
+    extcall_frame_set_label(frame, label.ptr as rawptr, label.length);
+
+    return nil;
+  };
+  extcall_button_set_callback(button_dec, callback.ptr, callback.env);
+
   while (extcall_app_wait(app)) {
     extcall_app_redraw(app);
   }

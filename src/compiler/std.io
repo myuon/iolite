@@ -83,17 +83,28 @@ fun to_cstr(text: array[byte]): ptr[byte] {
   return cstr;
 }
 
+fun panic(text: array[byte]) {
+  print_str(text);
+  abort();
+}
+
 fun int_to_string(n: int): array[byte] {
+  if (n < 0) {
+    panic("int_to_string: negative number");
+  }
+
   let digit = 1;
-  while (int_abs(n) > 0) {
-    n = n / 10;
+  let m = int_abs(n);
+  while (m >= 10) {
+    m = m / 10;
     digit = digit + 1;
   }
 
   let text = new[array[byte]](digit);
   let i = digit - 1;
+  let n = int_abs(n);
   while (i >= 0) {
-    text.(i) = (int_abs(n) % 10 + 48) as byte;
+    text.(i) = (n % 10 + 48) as byte;
     n = n / 10;
     i = i - 1;
   }

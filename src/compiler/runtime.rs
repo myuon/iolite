@@ -54,6 +54,7 @@ pub struct Runtime {
         std::sync::mpsc::Sender<String>,
         std::sync::mpsc::Receiver<String>,
     ),
+    interrupted: Option<(String, usize)>,
 }
 
 impl Runtime {
@@ -76,6 +77,7 @@ impl Runtime {
             protected_section: 0,
             closure_tasks: HashMap::new(),
             channel: std::sync::mpsc::channel(),
+            interrupted: None,
         }
     }
 
@@ -398,12 +400,22 @@ impl Runtime {
 
         if let Ok(task_id) = self.channel.1.try_recv() {
             let (callback_ptr, callback_env) = self.closure_tasks.get(&task_id).unwrap().clone();
+            // allocate for the return value
+            self.push(0);
+            // push closure env (an argument)
             self.push(callback_env as i64);
+
+            assert!(self.interrupted.is_none());
+            self.interrupted = Some((task_id.clone(), self.sp));
 
             // call
             let pc = callback_ptr & 0xffffffff; // remove type tag
             self.push(self.pc as i64);
             self.pc = pc as usize;
+
+            if print_stacks {
+                println!("Task {} started", task_id);
+            }
 
             return Ok(ControlFlow::Continue);
         }
@@ -691,6 +703,21 @@ impl Runtime {
             // return
             0x04 => {
                 self.pc = self.pop_i64() as usize;
+
+                if let Some((task_id, sp)) = &self.interrupted {
+                    if *sp == self.sp {
+                        if print_stacks {
+                            println!("Task {} finished, {}, current_sp: {}", task_id, sp, self.sp);
+                        }
+
+                        // pops closure env
+                        self.pop_i64();
+                        // pops return value
+                        self.pop_i64();
+
+                        self.interrupted = None;
+                    }
+                }
             }
             // jump
             0x05 => {
