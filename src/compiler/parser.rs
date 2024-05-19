@@ -540,7 +540,7 @@ impl Parser {
                             let start = expr.span.start;
                             let end = right.span.end;
                             return Ok(Source::new_span(
-                                Statement::Assign(expr, right),
+                                Statement::Assign(Type::Unknown, expr, right),
                                 self.module_name.clone(),
                                 start,
                                 end,

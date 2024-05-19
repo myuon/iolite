@@ -720,6 +720,10 @@ impl Runtime {
             // abort
             0x09 => {
                 self.print_stack();
+                for (index, bp) in self.get_stack_frames().into_iter().enumerate() {
+                    println!("#{} [{}]", index, bp);
+                    println!("  {:?}", self.get_stack_values(index));
+                }
                 panic!("Aborted");
             }
 
@@ -880,7 +884,7 @@ impl Runtime {
             }
             // store8
             0x45 => {
-                let value = self.pop_i64();
+                let value = self.pop_i64() & 0xff;
                 let address = self.pop_address();
                 if print_stacks || print_memory_store {
                     println!("store8 0x{:x} {:x}", address as u32, value);

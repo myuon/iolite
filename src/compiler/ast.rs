@@ -180,7 +180,7 @@ pub enum Statement {
     Let(Source<String>, Source<Expr>),
     Return(Source<Expr>),
     Expr(Source<Expr>),
-    Assign(Source<Expr>, Source<Expr>),
+    Assign(Type, Source<Expr>, Source<Expr>),
     While {
         cond: Source<Expr>,
         body: Source<Block>,
@@ -422,7 +422,7 @@ impl AstWalker {
             Statement::Let(_name, value) => self.expr(value),
             Statement::Return(expr) => self.expr(expr),
             Statement::Expr(expr) => self.expr(expr),
-            Statement::Assign(lhs, rhs) => {
+            Statement::Assign(_, lhs, rhs) => {
                 self.expr(lhs);
                 self.expr(rhs);
             }

@@ -521,9 +521,10 @@ impl Typechecker {
             Statement::Expr(expr) => {
                 self.expr(expr)?;
             }
-            Statement::Assign(left, right) => {
+            Statement::Assign(assign_ty, left, right) => {
                 let left_ty = self.expr(left)?;
-                self.expr_infer(right, left_ty.clone())?;
+                let ty = self.expr_infer(right, left_ty.clone())?;
+                *assign_ty = ty.clone();
             }
             Statement::While { cond, body } => {
                 self.expr_infer(cond, Type::Bool)?;

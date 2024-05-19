@@ -582,12 +582,12 @@ impl IrCodeGenerator {
 
                     terms.push(IrTerm::Discard(Box::new(ir)));
                 }
-                Statement::Assign(lhs, rhs) => {
+                Statement::Assign(ty, lhs, rhs) => {
                     let lhs = self.expr_left_value(lhs)?;
                     let rhs = self.expr(rhs)?;
 
                     terms.push(IrTerm::Store {
-                        size: Value::size() as usize,
+                        size: ty.sizeof(),
                         address: Box::new(lhs),
                         value: Box::new(rhs),
                     });
