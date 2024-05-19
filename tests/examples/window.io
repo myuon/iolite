@@ -1,3 +1,11 @@
+fun frame_set_label(frame: rawptr, label: array[byte]) {
+  return extcall_frame_set_label(frame, label.ptr as rawptr, label.length);
+}
+
+fun button_set_callback(button: rawptr, callback: () => nil) {
+  return extcall_button_set_callback(button, callback.ptr, callback.env);
+}
+
 fun main() {
   let app = extcall_app_default();
   let count = 0;
@@ -24,27 +32,21 @@ fun main() {
   extcall_window_end(window);
   extcall_window_show(window);
 
-  let callback = fun () {
+  button_set_callback(button_inc, fun () {
     count = count + 1;
-
-    let label = int_to_string(count);
-    extcall_frame_set_label(frame, label.ptr as rawptr, label.length);
+    frame_set_label(frame, int_to_string(count));
 
     return nil;
-  };
-  extcall_button_set_callback(button_inc, callback.ptr, callback.env);
+  });
 
-  let callback = fun () {
+  button_set_callback(button_dec, fun () {
     if (count > 0) {
       count = count - 1;
+      frame_set_label(frame, int_to_string(count));
     }
 
-    let label = int_to_string(count);
-    extcall_frame_set_label(frame, label.ptr as rawptr, label.length);
-
     return nil;
-  };
-  extcall_button_set_callback(button_dec, callback.ptr, callback.env);
+  });
 
   while (extcall_app_wait(app)) {
     extcall_app_redraw(app);

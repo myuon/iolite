@@ -451,10 +451,7 @@ impl IrCodeGenerator {
 
                 let mut env_terms = vec![];
                 for name in &captured {
-                    env_terms.push(IrTerm::Load {
-                        size: Value::size() as usize,
-                        address: Box::new(IrTerm::Ident(name.clone())),
-                    });
+                    env_terms.push(IrTerm::Ident(name.clone()));
                 }
                 let env = self.slice(env_terms);
 
@@ -483,12 +480,15 @@ impl IrCodeGenerator {
         match expr.data {
             Expr::Ident(name) => {
                 if let Some((env_name, index)) = self.captured_env.get(&name.data) {
-                    return Ok(IrTerm::Index {
-                        ptr: Box::new(IrTerm::Load {
-                            size: Value::size() as usize,
-                            address: Box::new(IrTerm::Ident(env_name.clone())),
+                    return Ok(IrTerm::Load {
+                        size: Value::size() as usize,
+                        address: Box::new(IrTerm::Index {
+                            ptr: Box::new(IrTerm::Load {
+                                size: Value::size() as usize,
+                                address: Box::new(IrTerm::Ident(env_name.clone())),
+                            }),
+                            index: Box::new(IrTerm::Int(*index as i32 * Value::size())),
                         }),
-                        index: Box::new(IrTerm::Int(*index as i32 * Value::size())),
                     });
                 }
 
