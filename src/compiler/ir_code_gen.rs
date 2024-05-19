@@ -749,7 +749,7 @@ mod tests {
                         span: Span::unknown(),
                     },
                     IrTerm::Store {
-                        size: Value::size() as usize,
+                        size: 4,
                         address: Box::new(IrTerm::Ident("a".to_string())),
                         value: Box::new(IrTerm::Int(2)),
                     },
@@ -781,7 +781,7 @@ mod tests {
                             span: Span::unknown(),
                         },
                         IrTerm::Store {
-                            size: Value::size() as usize,
+                            size: 4,
                             address: Box::new(IrTerm::Ident("a".to_string())),
                             value: Box::new(IrTerm::Int(4)),
                         },
