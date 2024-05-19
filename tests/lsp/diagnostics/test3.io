@@ -1,3 +1,3 @@
 fun main() {
-  let a %%%%%
+  let a あいうえお
 }
