@@ -282,17 +282,20 @@ impl Type {
         match ty {
             Type::Int => vec![(
                 "abs".to_string(),
-                Type::Fun(vec![], Box::new(Type::Int)),
+                Type::Fun(vec![Type::Self_], Box::new(Type::Int)),
                 "int_abs".to_string(),
             )],
             Type::Float => vec![(
                 "abs".to_string(),
-                Type::Fun(vec![], Box::new(Type::Int)),
+                Type::Fun(vec![Type::Self_], Box::new(Type::Int)),
                 "float_abs".to_string(),
             )],
             Type::Ptr(item) => vec![(
                 "offset".to_string(),
-                Type::Fun(vec![Type::Int], Box::new(Type::Ptr(item.clone()))),
+                Type::Fun(
+                    vec![Type::Self_, Type::Int],
+                    Box::new(Type::Ptr(item.clone())),
+                ),
                 "ptr_offset".to_string(),
             )],
             _ => vec![],

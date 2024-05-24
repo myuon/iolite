@@ -168,7 +168,10 @@ impl Parser {
     fn arity_decl(&mut self) -> Result<Vec<(Source<String>, Source<Type>)>, ParseError> {
         let mut args = vec![];
 
-        if self.is_next_token(Lexeme::Self_) {
+        if self
+            .peek()
+            .map_or(false, |t| t.lexeme == Lexeme::Ident("self".to_string()))
+        {
             self.consume()?;
 
             args.push((

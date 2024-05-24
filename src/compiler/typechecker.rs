@@ -1,5 +1,6 @@
 use std::collections::{HashMap, HashSet};
 
+use serde_json::to_vec;
 use thiserror::Error;
 
 use super::{
@@ -87,6 +88,7 @@ pub struct Typechecker {
     inlay_hints: Option<Vec<(Span, Type)>>,
     ident_referred: Vec<String>,
     globals: Vec<String>,
+    current_module: String,
 }
 
 impl Typechecker {
@@ -99,6 +101,7 @@ impl Typechecker {
             inlay_hints: None,
             ident_referred: vec![],
             globals: Type::builtin_types().keys().cloned().collect(),
+            current_module: "".to_string(),
         }
     }
 
@@ -107,6 +110,16 @@ impl Typechecker {
             (Type::Unknown, ty) => Ok(ty.clone()),
             (ty, Type::Unknown) => Ok(ty.clone()),
             (a, b) if a == b => Ok(a.clone()),
+            (
+                Type::Ident(a),
+                Type::Struct {
+                    name: b_name,
+                    fields: b_fields,
+                },
+            ) if a == b_name => Ok(Type::Struct {
+                name: b_name.clone(),
+                fields: b_fields.clone(),
+            }),
             _ => Err(TypecheckerError::TypeMismatch {
                 expected,
                 actual,
@@ -332,7 +345,14 @@ impl Typechecker {
                 expr,
                 field,
             } => {
-                let ty = self.expr(expr)?;
+                let mut ty = self.expr(expr)?;
+                match ty {
+                    Type::Ident(ident) => {
+                        ty = self.get_type(&ident, &expr.span)?.data;
+                    }
+                    _ => (),
+                }
+
                 let field_types = match ty.clone() {
                     Type::Struct {
                         fields: field_types,
@@ -430,7 +450,46 @@ impl Typechecker {
 
                 *expr_ty = ty.clone();
 
-                let methods = Type::methods_builtin(&ty);
+                let methods = match ty.clone() {
+                    Type::Ident(ident) => {
+                        let mut methods = vec![];
+
+                        for (key, ty) in &self.types {
+                            if key.starts_with(format!("{}::", ident).as_str()) {
+                                if let Type::Fun(_, _) = ty.data {
+                                    methods.push((
+                                        key.split("::").last().unwrap().to_string(),
+                                        ty.data.clone(),
+                                        key.clone(),
+                                    ));
+                                }
+                            }
+                        }
+
+                        methods
+                    }
+                    Type::Struct {
+                        name: ident,
+                        fields: _,
+                    } => {
+                        let mut methods = vec![];
+
+                        for (key, ty) in &self.types {
+                            if key.starts_with(format!("{}::", ident).as_str()) {
+                                if let Type::Fun(_, _) = ty.data {
+                                    methods.push((
+                                        key.split("::").last().unwrap().to_string(),
+                                        ty.data.clone(),
+                                        key.clone(),
+                                    ));
+                                }
+                            }
+                        }
+
+                        methods
+                    }
+                    ty => Type::methods_builtin(&ty),
+                };
                 let method = methods
                     .iter()
                     .find(|(method_name, _, _)| method_name == &name.data)
@@ -444,7 +503,8 @@ impl Typechecker {
                 }
 
                 match method {
-                    Type::Fun(arg_types_expected, ret_ty) => {
+                    Type::Fun(arg_types_expected_, ret_ty) => {
+                        let arg_types_expected = (&arg_types_expected_[1..]).to_vec();
                         if arg_types_actual.len() != arg_types_expected.len() {
                             return Err(TypecheckerError::ArgumentCountMismatch(
                                 arg_types_expected.len(),
@@ -505,7 +565,14 @@ impl Typechecker {
                 Ok(ty)
             }
             Expr::Self_ => todo!(),
-            Expr::Qualified { module, name } => todo!(),
+            Expr::Qualified { module, name } => {
+                let ty = self.get_type(
+                    format!("{}::{}", module.data, name.data).as_str(),
+                    &name.span,
+                )?;
+
+                Ok(ty.data.clone())
+            }
         }
     }
 
@@ -582,22 +649,34 @@ impl Typechecker {
                 let mut param_types = vec![];
 
                 for param in params {
-                    param_types.push(param.1.data.clone());
+                    let ty = if param.0.data == "self" {
+                        Type::Ident(self.current_module.clone())
+                    } else {
+                        param.1.data.clone()
+                    };
+
+                    param_types.push(ty.clone());
                     self.types.insert(
                         param.0.data.clone(),
-                        Source::span(param.1.data.clone(), param.0.span.clone()),
+                        Source::span(ty.clone(), param.0.span.clone()),
                     );
                 }
 
+                let path = if self.current_module != "" {
+                    format!("{}::{}", self.current_module, name.data)
+                } else {
+                    name.data.clone()
+                };
+
                 self.return_ty = result.data.clone();
                 self.types.insert(
-                    name.data.clone(),
+                    path.clone(),
                     Source::span(
                         Type::Fun(param_types.clone(), Box::new(self.return_ty.clone())),
                         name.span.clone(),
                     ),
                 );
-                self.globals.push(name.data.clone());
+                self.globals.push(path.clone());
 
                 self.block(body)?;
 
@@ -607,7 +686,7 @@ impl Typechecker {
 
                 self.types = types_cloned;
                 self.types
-                    .insert(name.data.clone(), Source::span(ty, name.span.clone()));
+                    .insert(path.clone(), Source::span(ty, name.span.clone()));
             }
             Declaration::Let {
                 name,
@@ -661,7 +740,12 @@ impl Typechecker {
                 );
                 self.globals.push(name.data.clone());
             }
-            Declaration::Module(_) => todo!(),
+            Declaration::Module(module) => {
+                let current_module = self.current_module.clone();
+                self.current_module = module.name.clone();
+                self.module(module)?;
+                self.current_module = current_module;
+            }
         }
 
         Ok(())

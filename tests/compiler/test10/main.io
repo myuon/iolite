@@ -9,12 +9,12 @@ module Point {
     }
 
     fun sum(self): int {
-        return p.x + p.y;
+        return self.x + self.y;
     }
 }
 
-fun main() {
+fun main(): int {
     let p = Point::build(1, 2);
 
-    println(p.sum());
+    return p.sum();
 }
