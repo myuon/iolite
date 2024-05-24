@@ -1061,6 +1061,7 @@ impl Parser {
                                     expr,
                                     name: field,
                                     args,
+                                    call_symbol: None,
                                 },
                                 self.module_name.clone(),
                                 start,

@@ -14,7 +14,7 @@ module Point {
 }
 
 fun main(): int {
-    let p = Point::build(1, 2);
+    let p = Point::build(10, 20);
 
     return p.sum();
 }

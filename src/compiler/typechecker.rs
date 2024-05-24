@@ -445,6 +445,7 @@ impl Typechecker {
                 expr,
                 name,
                 args,
+                call_symbol,
             } => {
                 let ty = self.expr(expr)?;
 
@@ -490,12 +491,12 @@ impl Typechecker {
                     }
                     ty => Type::methods_builtin(&ty),
                 };
-                let method = methods
+                let (_, method, symbol) = methods
                     .iter()
                     .find(|(method_name, _, _)| method_name == &name.data)
                     .ok_or(TypecheckerError::IdentNotFound(name.clone()))?
-                    .1
                     .clone();
+                *call_symbol = Some(symbol);
 
                 let mut arg_types_actual = vec![];
                 for arg in args {

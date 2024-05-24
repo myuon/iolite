@@ -22,6 +22,7 @@ pub struct IrCodeGenerator {
     closures: Vec<IrDecl>,
     captured_env: HashMap<String, (String, usize)>, // captured_name -> (env_name, index)
     escaped: Vec<String>,
+    current_module: String,
 }
 
 impl IrCodeGenerator {
@@ -35,6 +36,7 @@ impl IrCodeGenerator {
             closures: vec![],
             captured_env: HashMap::new(),
             escaped: vec![],
+            current_module: "".to_string(),
         }
     }
 
@@ -88,9 +90,7 @@ impl IrCodeGenerator {
         let mut decls = vec![];
 
         for decl in module.declarations {
-            if let Some(term) = self.decl(decl)? {
-                decls.push(term);
-            }
+            decls.extend(self.decl(decl)?);
         }
 
         let mut offset = 0;
@@ -143,7 +143,7 @@ impl IrCodeGenerator {
         Ok(ir_module)
     }
 
-    fn decl(&mut self, decl: Source<Declaration>) -> Result<Option<IrDecl>, IrCodeGeneratorError> {
+    fn decl(&mut self, decl: Source<Declaration>) -> Result<Vec<IrDecl>, IrCodeGeneratorError> {
         match decl.data {
             Declaration::Function {
                 name,
@@ -173,12 +173,16 @@ impl IrCodeGenerator {
                     }
                 };
 
-                Ok(Some(IrDecl::Fun {
-                    name: name.data,
+                Ok(vec![IrDecl::Fun {
+                    name: if self.current_module != "" {
+                        format!("{}_{}", self.current_module, name.data)
+                    } else {
+                        name.data
+                    },
                     args: params.into_iter().map(|p| p.0.data).collect(),
                     body: Box::new(body),
                     escaped: self.escaped.clone(),
-                }))
+                }])
             }
             Declaration::Let { name, ty: _, value } => {
                 let value = self.expr(value)?;
@@ -191,12 +195,19 @@ impl IrCodeGenerator {
 
                 self.globals.push(name.data.clone());
 
-                Ok(Some(IrDecl::Let { name: name.data }))
+                Ok(vec![IrDecl::Let { name: name.data }])
             }
-            Declaration::Struct { .. } => Ok(None),
-            Declaration::Import(_) => Ok(None),
-            Declaration::DeclareFunction { .. } => Ok(None),
-            Declaration::Module(_) => todo!(),
+            Declaration::Struct { .. } => Ok(vec![]),
+            Declaration::Import(_) => Ok(vec![]),
+            Declaration::DeclareFunction { .. } => Ok(vec![]),
+            Declaration::Module(module) => {
+                let current_module = self.current_module.clone();
+                self.current_module = module.name.clone();
+                let ir = self.module(module)?;
+                self.current_module = current_module;
+
+                Ok(ir.decls)
+            }
         }
     }
 
@@ -372,27 +383,19 @@ impl IrCodeGenerator {
                 }
             }
             Expr::MethodCall {
-                expr_ty,
+                expr_ty: _,
                 expr,
-                name,
+                name: _,
                 args,
+                call_symbol,
             } => {
                 let mut ir_args = vec![self.expr(*expr)?];
                 for arg in args {
                     ir_args.push(self.expr(arg)?);
                 }
 
-                let methods = Type::methods_builtin(&expr_ty);
-
-                let name = methods
-                    .iter()
-                    .find(|(n, _, _)| n == &name.data)
-                    .unwrap()
-                    .2
-                    .clone();
-
                 Ok(IrTerm::Call {
-                    callee: Box::new(IrTerm::Ident(name)),
+                    callee: Box::new(IrTerm::Ident(call_symbol.unwrap().replace("::", "_"))),
                     args: ir_args,
                 })
             }
@@ -495,6 +498,10 @@ impl IrCodeGenerator {
 
                 Ok(IrTerm::Ident(name.data))
             }
+            Expr::Qualified { module, name } => self.expr_left_value(Source::span(
+                Expr::Ident(Source::unknown(format!("{}_{}", module.data, name.data))),
+                expr.span,
+            )),
             Expr::Index { ty, ptr, index } => {
                 let ptr = self.expr(*ptr)?;
                 let index = self.expr(*index)?;
