@@ -174,7 +174,7 @@ impl Compiler {
             "".to_string(),
             lexer.run().map_err(CompilerError::LexerError)?,
         );
-        let expr = match parser.decls() {
+        let expr = match parser.decls(None) {
             Ok(expr) => expr,
             Err(err) => {
                 match err.clone() {
@@ -240,7 +240,7 @@ impl Compiler {
         tokens.extend(lexer.run().map_err(CompilerError::LexerError)?);
 
         let mut parser = parser::Parser::new(path.clone(), tokens);
-        let decls = parser.decls().map_err(CompilerError::ParseError)?;
+        let decls = parser.decls(None).map_err(CompilerError::ParseError)?;
         let module = Module {
             name: path.clone(),
             declarations: decls,

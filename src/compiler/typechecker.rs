@@ -504,6 +504,8 @@ impl Typechecker {
 
                 Ok(ty)
             }
+            Expr::Self_ => todo!(),
+            Expr::Qualified { module, name } => todo!(),
         }
     }
 
@@ -659,6 +661,7 @@ impl Typechecker {
                 );
                 self.globals.push(name.data.clone());
             }
+            Declaration::Module(_) => todo!(),
         }
 
         Ok(())

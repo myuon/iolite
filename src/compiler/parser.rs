@@ -1,7 +1,7 @@
 use thiserror::Error;
 
 use super::{
-    ast::{BinOp, Block, Declaration, Expr, Literal, Source, Span, Statement, Type},
+    ast::{BinOp, Block, Declaration, Expr, Literal, Module, Source, Span, Statement, Type},
     lexer::{Lexeme, Token},
 };
 
@@ -89,10 +89,13 @@ impl Parser {
         }
     }
 
-    pub fn decls(&mut self) -> Result<Vec<Source<Declaration>>, ParseError> {
+    pub fn decls(
+        &mut self,
+        end_token: Option<Lexeme>,
+    ) -> Result<Vec<Source<Declaration>>, ParseError> {
         let mut decls = vec![];
 
-        while self.peek().is_ok() {
+        while self.peek().is_ok() && end_token.clone().map_or(true, |t| !self.is_next_token(t)) {
             let decl = self.decl()?;
 
             decls.push(decl);
@@ -131,6 +134,7 @@ impl Parser {
             Lexeme::Ident(i) if i == "unknown".to_string() => {
                 Ok(Source::span(Type::Unknown, token.span))
             }
+            Lexeme::Ident(i) => Ok(Source::span(Type::Ident(i), token.span)),
             Lexeme::LParen => {
                 let mut params = vec![];
                 while !self.is_next_token(Lexeme::RParen) {
@@ -163,6 +167,21 @@ impl Parser {
 
     fn arity_decl(&mut self) -> Result<Vec<(Source<String>, Source<Type>)>, ParseError> {
         let mut args = vec![];
+
+        if self.is_next_token(Lexeme::Self_) {
+            self.consume()?;
+
+            args.push((
+                Source::span("self".to_string(), self.peek()?.span.clone()),
+                Source::span(Type::Self_, self.peek()?.span.clone()),
+            ));
+
+            if self.is_next_token(Lexeme::Comma) {
+                self.consume()?;
+            } else {
+                return Ok(args);
+            }
+        }
 
         while let Ok(token) = self.peek() {
             if matches!(token.lexeme, Lexeme::RParen) {
@@ -323,6 +342,26 @@ impl Parser {
                         params: params.clone(),
                         result: result_ty,
                     },
+                    self.module_name.clone(),
+                    start_token.span.start,
+                    end_token.span.end,
+                ))
+            }
+            Lexeme::Module => {
+                let start_token = self.consume()?;
+
+                let name = self.ident()?;
+                self.expect(Lexeme::LBrace)?;
+
+                let decls = self.decls(Some(Lexeme::RBrace))?;
+
+                let end_token = self.expect(Lexeme::RBrace)?;
+
+                Ok(Source::new_span(
+                    Declaration::Module(Module {
+                        name: name.data.clone(),
+                        declarations: decls,
+                    }),
                     self.module_name.clone(),
                     start_token.span.start,
                     end_token.span.end,
@@ -1039,6 +1078,20 @@ impl Parser {
                                 end,
                             );
                         }
+                        Expr::Qualified { module, name } => {
+                            current = Source::new_span(
+                                Expr::Call {
+                                    callee: Box::new(Source::span(
+                                        Expr::Qualified { module, name },
+                                        current.span.clone(),
+                                    )),
+                                    args,
+                                },
+                                self.module_name.clone(),
+                                start,
+                                end,
+                            );
+                        }
                         _ => todo!(),
                     }
                 }
@@ -1157,6 +1210,25 @@ impl Parser {
                 self.consume()?;
 
                 let ident = Source::span(i.clone(), token.span.clone());
+                // FIXME: support Hoge::fuga { ... }
+                if self.is_next_token(Lexeme::DoubleColon) {
+                    self.expect(Lexeme::DoubleColon)?;
+
+                    let field = self.ident()?;
+                    let start = ident.span.start;
+                    let end = field.span.end;
+
+                    return Ok(Source::new_span(
+                        Expr::Qualified {
+                            module: ident,
+                            name: field,
+                        },
+                        self.module_name.clone(),
+                        start,
+                        end,
+                    ));
+                }
+
                 let current = Source::span(Expr::Ident(ident.clone()), token.span);
                 if with_struct && self.is_next_token(Lexeme::LBrace) {
                     self.expect(Lexeme::LBrace)?;
@@ -1312,7 +1384,7 @@ mod tests {
             let mut lexer = crate::compiler::lexer::Lexer::new("".to_string(), input.to_string());
             let tokens = lexer.run().unwrap();
             let mut parser = Parser::new("".to_string(), tokens);
-            parser.decls().unwrap();
+            parser.decls(None).unwrap();
         }
     }
 }

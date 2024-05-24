@@ -196,6 +196,7 @@ impl IrCodeGenerator {
             Declaration::Struct { .. } => Ok(None),
             Declaration::Import(_) => Ok(None),
             Declaration::DeclareFunction { .. } => Ok(None),
+            Declaration::Module(_) => todo!(),
         }
     }
 

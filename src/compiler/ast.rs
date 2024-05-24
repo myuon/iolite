@@ -173,6 +173,11 @@ pub enum Expr {
         body: Box<Source<Block>>,
         captured: Vec<String>,
     },
+    Self_,
+    Qualified {
+        module: Source<String>,
+        name: Source<String>,
+    },
 }
 
 #[derive(Debug, PartialEq, Clone)]
@@ -222,6 +227,7 @@ pub enum Declaration {
         params: Vec<(Source<String>, Source<Type>)>,
         result: Source<Type>,
     },
+    Module(Module),
 }
 
 #[derive(Debug, PartialEq, Clone)]
@@ -247,6 +253,7 @@ pub enum Type {
     Ident(String),
     Byte,
     RawPtr,
+    Self_,
 }
 
 impl Type {
@@ -321,6 +328,7 @@ impl Type {
             Type::Byte => "byte".to_string(),
             Type::RawPtr => "rawptr".to_string(),
             Type::Unknown => "<unknown>".to_string(),
+            Type::Self_ => "self".to_string(),
         }
     }
 
@@ -404,6 +412,9 @@ impl AstWalker {
                             .push((AST_WALKER_TYPE.to_string(), ty.span.clone()));
                     }
                 }
+            }
+            Declaration::Module(module) => {
+                self.module(module);
             }
         }
     }
@@ -513,7 +524,7 @@ impl AstWalker {
                 params,
                 result,
                 body,
-                captured,
+                captured: _,
             } => {
                 for (_, ty) in params {
                     self.tokens
@@ -527,6 +538,8 @@ impl AstWalker {
 
                 self.block(body)
             }
+            Expr::Self_ => {}
+            Expr::Qualified { .. } => {}
         }
     }
 }
