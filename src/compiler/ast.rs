@@ -32,10 +32,6 @@ impl Span {
             _ => false,
         }
     }
-
-    pub fn is_unknown(&self) -> bool {
-        self.start.is_none() && self.end.is_none()
-    }
 }
 
 impl PartialEq for Span {
