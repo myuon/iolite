@@ -1,6 +1,5 @@
 use std::collections::{HashMap, HashSet};
 
-use serde_json::to_vec;
 use thiserror::Error;
 
 use super::{
@@ -258,7 +257,11 @@ impl Typechecker {
                     }
                 }
             }
-            Expr::Call { callee, args } => {
+            Expr::Call {
+                callee,
+                args,
+                newtype,
+            } => {
                 self.check_search_ident(callee);
 
                 let mut arg_types_actual = vec![];
@@ -284,6 +287,20 @@ impl Typechecker {
                         }
 
                         Ok(*ret_ty)
+                    }
+                    Type::Newtype { name, ty } => {
+                        if arg_types_actual.len() != 1 {
+                            return Err(TypecheckerError::ArgumentCountMismatch(
+                                1,
+                                arg_types_actual.len(),
+                            ));
+                        }
+
+                        Self::unify(*ty, arg_types_actual[0].clone(), Span::unknown())?;
+
+                        *newtype = Some(name.clone());
+
+                        Ok(Type::Ident(name))
                     }
                     _ => {
                         return Err(TypecheckerError::FunctionTypeExpected(fun_ty));
@@ -573,7 +590,21 @@ impl Typechecker {
 
                 Ok(ty.data.clone())
             }
-            Expr::Unwrap(_) => todo!(),
+            Expr::Unwrap(expr) => {
+                let ty = self.expr(expr)?;
+
+                match ty {
+                    Type::Ident(ident) => {
+                        let ty = self.types[&ident].data.clone();
+
+                        match ty {
+                            Type::Newtype { ty, .. } => Ok(*ty),
+                            _ => todo!(),
+                        }
+                    }
+                    _ => todo!(),
+                }
+            }
         }
     }
 
@@ -750,7 +781,13 @@ impl Typechecker {
             Declaration::Newtype { name, ty } => {
                 self.types.insert(
                     name.data.clone(),
-                    Source::span(ty.data.clone(), name.span.clone()),
+                    Source::span(
+                        Type::Newtype {
+                            name: name.data.clone(),
+                            ty: Box::new(ty.data.clone()),
+                        },
+                        name.span.clone(),
+                    ),
                 );
             }
         }

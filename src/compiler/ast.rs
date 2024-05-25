@@ -132,6 +132,7 @@ pub enum Expr {
     Call {
         callee: Box<Source<Expr>>,
         args: Vec<Source<Expr>>,
+        newtype: Option<String>,
     },
     MethodCall {
         expr_ty: Type,
@@ -259,6 +260,10 @@ pub enum Type {
     Byte,
     RawPtr,
     Self_,
+    Newtype {
+        name: String,
+        ty: Box<Type>,
+    },
 }
 
 impl Type {
@@ -337,6 +342,7 @@ impl Type {
             Type::RawPtr => "rawptr".to_string(),
             Type::Unknown => "<unknown>".to_string(),
             Type::Self_ => "self".to_string(),
+            Type::Newtype { name, ty: _ } => name.clone(),
         }
     }
 
@@ -475,7 +481,9 @@ impl AstWalker {
                 self.expr(left);
                 self.expr(right);
             }
-            Expr::Call { args, callee: name } => {
+            Expr::Call {
+                args, callee: name, ..
+            } => {
                 self.tokens
                     .push((AST_WALKER_FUNCTION.to_string(), name.span.clone()));
                 for arg in args {

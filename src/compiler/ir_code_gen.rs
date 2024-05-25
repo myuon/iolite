@@ -208,7 +208,7 @@ impl IrCodeGenerator {
 
                 Ok(ir.decls)
             }
-            Declaration::Newtype { name, ty } => todo!(),
+            Declaration::Newtype { .. } => Ok(vec![]),
         }
     }
 
@@ -282,19 +282,26 @@ impl IrCodeGenerator {
                     args: vec![left, right],
                 })
             }
-            Expr::Call { callee, args } => {
-                let mut ir_args = vec![];
-                for arg in args {
-                    ir_args.push(self.expr(arg)?);
+            Expr::Call {
+                callee,
+                args,
+                newtype,
+            } => match newtype {
+                Some(_) => Ok(self.expr(args[0].clone())?),
+                None => {
+                    let mut ir_args = vec![];
+                    for arg in args {
+                        ir_args.push(self.expr(arg)?);
+                    }
+
+                    let callee = self.expr_left_value(*callee)?;
+
+                    Ok(IrTerm::Call {
+                        callee: Box::new(callee),
+                        args: ir_args,
+                    })
                 }
-
-                let callee = self.expr_left_value(*callee)?;
-
-                Ok(IrTerm::Call {
-                    callee: Box::new(callee),
-                    args: ir_args,
-                })
-            }
+            },
             Expr::Match { cond, cases } => {
                 // currently, cases are `true => cases[0], false => cases[1]`
                 let cond = self.expr(*cond)?;
@@ -470,6 +477,7 @@ impl IrCodeGenerator {
 
                 Ok(closure_pair)
             }
+            Expr::Unwrap(expr) => Ok(self.expr(*expr)?),
             _ => {
                 let term = self.expr_left_value(expr)?;
 
