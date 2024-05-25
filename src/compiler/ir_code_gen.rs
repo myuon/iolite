@@ -203,10 +203,16 @@ impl IrCodeGenerator {
             Declaration::Module(module) => {
                 let current_module = self.current_module.clone();
                 self.current_module = module.name.clone();
-                let ir = self.module(module)?;
+
+                let mut decls = vec![];
+
+                for decl in module.declarations {
+                    decls.extend(self.decl(decl)?);
+                }
+
                 self.current_module = current_module;
 
-                Ok(ir.decls)
+                Ok(decls)
             }
             Declaration::Newtype { .. } => Ok(vec![]),
         }
