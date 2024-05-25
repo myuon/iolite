@@ -270,34 +270,52 @@ impl Parser {
                 let start_token = self.consume()?;
 
                 let name = self.ident()?;
-                self.expect(Lexeme::LBrace)?;
 
-                let mut fields = vec![];
-                while let Ok(token) = self.peek() {
-                    if matches!(token.lexeme, Lexeme::RBrace) {
-                        break;
+                if self.is_next_token(Lexeme::LBrace) {
+                    self.expect(Lexeme::LBrace)?;
+
+                    let mut fields = vec![];
+                    while let Ok(token) = self.peek() {
+                        if matches!(token.lexeme, Lexeme::RBrace) {
+                            break;
+                        }
+
+                        let field = self.ident()?;
+                        self.expect(Lexeme::Colon)?;
+                        let ty = self.ty()?;
+                        fields.push((field, ty));
+
+                        if matches!(self.peek().map(|t| &t.lexeme), Ok(&Lexeme::Comma)) {
+                            self.consume()?;
+                        } else {
+                            break;
+                        }
                     }
 
-                    let field = self.ident()?;
-                    self.expect(Lexeme::Colon)?;
+                    let end_token = self.expect(Lexeme::RBrace)?;
+
+                    Ok(Source::new_span(
+                        Declaration::Struct { name, fields },
+                        self.module_name.clone(),
+                        start_token.span.start,
+                        end_token.span.end,
+                    ))
+                } else if self.is_next_token(Lexeme::LParen) {
+                    self.expect(Lexeme::LParen)?;
                     let ty = self.ty()?;
-                    fields.push((field, ty));
+                    self.expect(Lexeme::RParen)?;
 
-                    if matches!(self.peek().map(|t| &t.lexeme), Ok(&Lexeme::Comma)) {
-                        self.consume()?;
-                    } else {
-                        break;
-                    }
+                    let end_token = self.expect(Lexeme::Semicolon)?;
+
+                    Ok(Source::new_span(
+                        Declaration::Newtype { name, ty },
+                        self.module_name.clone(),
+                        start_token.span.start,
+                        end_token.span.end,
+                    ))
+                } else {
+                    todo!()
                 }
-
-                let end_token = self.expect(Lexeme::RBrace)?;
-
-                Ok(Source::new_span(
-                    Declaration::Struct { name, fields },
-                    self.module_name.clone(),
-                    start_token.span.start,
-                    end_token.span.end,
-                ))
             }
             Lexeme::Import => {
                 let start_token = self.consume()?;
@@ -1132,6 +1150,17 @@ impl Parser {
                             self.module_name.clone(),
                             start,
                             end,
+                        );
+                    } else if self.is_next_token(Lexeme::Exclamation) {
+                        let end_token = self.expect(Lexeme::Exclamation)?;
+
+                        let start = current.span.start;
+
+                        current = Source::new_span(
+                            Expr::Unwrap(Box::new(current)),
+                            self.module_name.clone(),
+                            start,
+                            end_token.span.end,
                         );
                     }
                 }

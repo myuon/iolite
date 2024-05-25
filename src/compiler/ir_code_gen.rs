@@ -208,6 +208,7 @@ impl IrCodeGenerator {
 
                 Ok(ir.decls)
             }
+            Declaration::Newtype { name, ty } => todo!(),
         }
     }
 

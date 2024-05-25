@@ -174,11 +174,11 @@ pub enum Expr {
         body: Box<Source<Block>>,
         captured: Vec<String>,
     },
-    Self_,
     Qualified {
         module: Source<String>,
         name: Source<String>,
     },
+    Unwrap(Box<Source<Expr>>),
 }
 
 #[derive(Debug, PartialEq, Clone)]
@@ -221,6 +221,10 @@ pub enum Declaration {
     Struct {
         name: Source<String>,
         fields: Vec<(Source<String>, Source<Type>)>,
+    },
+    Newtype {
+        name: Source<String>,
+        ty: Source<Type>,
     },
     Import(Source<String>),
     DeclareFunction {
@@ -420,6 +424,12 @@ impl AstWalker {
             Declaration::Module(module) => {
                 self.module(module);
             }
+            Declaration::Newtype { name: _, ty } => {
+                if matches!(self.mode, AstWalkerMode::SemanticTokens) {
+                    self.tokens
+                        .push((AST_WALKER_TYPE.to_string(), ty.span.clone()));
+                }
+            }
         }
     }
 
@@ -542,8 +552,10 @@ impl AstWalker {
 
                 self.block(body)
             }
-            Expr::Self_ => {}
             Expr::Qualified { .. } => {}
+            Expr::Unwrap(expr) => {
+                self.expr(expr);
+            }
         }
     }
 }

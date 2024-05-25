@@ -565,7 +565,6 @@ impl Typechecker {
 
                 Ok(ty)
             }
-            Expr::Self_ => todo!(),
             Expr::Qualified { module, name } => {
                 let ty = self.get_type(
                     format!("{}::{}", module.data, name.data).as_str(),
@@ -574,6 +573,7 @@ impl Typechecker {
 
                 Ok(ty.data.clone())
             }
+            Expr::Unwrap(_) => todo!(),
         }
     }
 
@@ -746,6 +746,12 @@ impl Typechecker {
                 self.current_module = module.name.clone();
                 self.module(module)?;
                 self.current_module = current_module;
+            }
+            Declaration::Newtype { name, ty } => {
+                self.types.insert(
+                    name.data.clone(),
+                    Source::span(ty.data.clone(), name.span.clone()),
+                );
             }
         }
 

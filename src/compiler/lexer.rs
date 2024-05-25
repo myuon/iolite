@@ -49,6 +49,7 @@ pub enum Lexeme {
     Star,
     Slash,
     Percent,
+    Exclamation,
     Ident(String),
     String(String),
     Integer(i32),
@@ -210,6 +211,7 @@ impl Lexer {
             ("*", Lexeme::Star),
             ("/", Lexeme::Slash),
             ("%", Lexeme::Percent),
+            ("!", Lexeme::Exclamation),
         ];
 
         for (keyword, lexeme) in keywords.iter() {
