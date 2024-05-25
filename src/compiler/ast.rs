@@ -373,6 +373,8 @@ pub const AST_WALKER_FUNCTION: &'static str = "FUNCTION";
 pub const AST_WALKER_FIELD: &'static str = "FIELD";
 pub const AST_WALKER_METHOD: &'static str = "METHOD";
 pub const AST_WALKER_TYPE: &'static str = "TYPE";
+pub const AST_WALKER_NAMESPACE: &'static str = "NAMESPACE";
+pub const AST_WALKER_KEYWORD: &'static str = "KEYWORD";
 
 impl AstWalker {
     pub fn new(mode: AstWalkerMode) -> Self {
@@ -400,16 +402,21 @@ impl AstWalker {
                 if matches!(self.mode, AstWalkerMode::SemanticTokens) {
                     self.tokens
                         .push((AST_WALKER_FUNCTION.to_string(), name.span.clone()));
-                    for (_, ty) in params {
-                        self.tokens
-                            .push((AST_WALKER_TYPE.to_string(), ty.span.clone()));
+                    for (name, ty) in params {
+                        if name.data == "self" {
+                            self.tokens
+                                .push((AST_WALKER_KEYWORD.to_string(), name.span.clone()));
+                        } else {
+                            self.tokens
+                                .push((AST_WALKER_TYPE.to_string(), ty.span.clone()));
+                        }
                     }
                 }
 
                 self.block(body);
             }
             Declaration::Let { value, .. } => {
-                self.expr(value);
+                self.expr(value, false);
             }
             Declaration::Struct { .. } => {}
             Declaration::Import(_) => {}
@@ -444,25 +451,25 @@ impl AstWalker {
             self.stmt(stmt);
         }
         if let Some(expr) = &block.data.expr {
-            self.expr(expr);
+            self.expr(expr, false);
         }
     }
 
     fn stmt(&mut self, stmt: &Source<Statement>) {
         match &stmt.data {
-            Statement::Let(_name, value) => self.expr(value),
-            Statement::Return(expr) => self.expr(expr),
-            Statement::Expr(expr) => self.expr(expr),
+            Statement::Let(_name, value) => self.expr(value, false),
+            Statement::Return(expr) => self.expr(expr, false),
+            Statement::Expr(expr) => self.expr(expr, false),
             Statement::Assign(_, lhs, rhs) => {
-                self.expr(lhs);
-                self.expr(rhs);
+                self.expr(lhs, false);
+                self.expr(rhs, false);
             }
             Statement::While { cond, body } => {
-                self.expr(cond);
+                self.expr(cond, false);
                 self.block(body);
             }
             Statement::If { cond, then, else_ } => {
-                self.expr(cond);
+                self.expr(cond, false);
                 self.block(then);
                 if let Some(else_) = else_ {
                     self.block(else_);
@@ -472,22 +479,27 @@ impl AstWalker {
         }
     }
 
-    fn expr(&mut self, expr: &Source<Expr>) {
+    fn expr(&mut self, expr: &Source<Expr>, call: bool) {
         match &expr.data {
-            Expr::Ident(_) => {}
-            Expr::Lit(_) => {}
-            Expr::Negate { expr, .. } => self.expr(expr),
-            Expr::BinOp { left, right, .. } => {
-                self.expr(left);
-                self.expr(right);
+            Expr::Ident(ident) => {
+                if matches!(self.mode, AstWalkerMode::SemanticTokens) {
+                    if call {
+                        self.tokens
+                            .push((AST_WALKER_FUNCTION.to_string(), ident.span.clone()));
+                    }
+                }
             }
-            Expr::Call {
-                args, callee: name, ..
-            } => {
-                self.tokens
-                    .push((AST_WALKER_FUNCTION.to_string(), name.span.clone()));
+            Expr::Lit(_) => {}
+            Expr::Negate { expr, .. } => self.expr(expr, false),
+            Expr::BinOp { left, right, .. } => {
+                self.expr(left, false);
+                self.expr(right, false);
+            }
+            Expr::Call { args, callee, .. } => {
+                self.expr(callee, true);
+
                 for arg in args {
-                    self.expr(arg);
+                    self.expr(arg, false);
                 }
             }
             Expr::MethodCall {
@@ -497,15 +509,15 @@ impl AstWalker {
                     self.tokens
                         .push((AST_WALKER_METHOD.to_string(), name.span.clone()));
                 }
-                self.expr(expr);
+                self.expr(expr, false);
                 for arg in args {
-                    self.expr(arg);
+                    self.expr(arg, false);
                 }
             }
             Expr::Match { cond, cases } => {
-                self.expr(cond);
+                self.expr(cond, false);
                 for case in cases {
-                    self.expr(case);
+                    self.expr(case, false);
                 }
             }
             Expr::New { ty, argument, .. } => {
@@ -514,16 +526,16 @@ impl AstWalker {
                         .push((AST_WALKER_TYPE.to_string(), ty.span.clone()));
                 }
 
-                self.expr(argument)
+                self.expr(argument, false)
             }
             Expr::Index { ptr, index, .. } => {
-                self.expr(ptr);
-                self.expr(index);
+                self.expr(ptr, false);
+                self.expr(index, false);
             }
             Expr::Block(block) => self.block(block),
             Expr::Struct { fields, .. } => {
                 for (_, expr) in fields {
-                    self.expr(expr);
+                    self.expr(expr, false);
                 }
             }
             Expr::Project { expr, field, .. } => {
@@ -532,7 +544,7 @@ impl AstWalker {
                         .push((AST_WALKER_FIELD.to_string(), field.span.clone()));
                 }
 
-                self.expr(expr)
+                self.expr(expr, false)
             }
             Expr::As { expr, ty, .. } => {
                 if matches!(self.mode, AstWalkerMode::SemanticTokens) {
@@ -540,7 +552,7 @@ impl AstWalker {
                         .push((AST_WALKER_TYPE.to_string(), ty.span.clone()));
                 }
 
-                self.expr(expr)
+                self.expr(expr, false)
             }
             Expr::Closure {
                 params,
@@ -560,9 +572,19 @@ impl AstWalker {
 
                 self.block(body)
             }
-            Expr::Qualified { .. } => {}
+            Expr::Qualified { module, name } => {
+                if matches!(self.mode, AstWalkerMode::SemanticTokens) {
+                    self.tokens
+                        .push((AST_WALKER_NAMESPACE.to_string(), module.span.clone()));
+
+                    if call {
+                        self.tokens
+                            .push((AST_WALKER_FUNCTION.to_string(), name.span.clone()));
+                    }
+                }
+            }
             Expr::Unwrap(expr) => {
-                self.expr(expr);
+                self.expr(expr, false);
             }
         }
     }

@@ -22,7 +22,7 @@ use crate::{
         self,
         ast::{
             AstWalker, AstWalkerMode, Span, AST_WALKER_FIELD, AST_WALKER_FUNCTION,
-            AST_WALKER_METHOD, AST_WALKER_TYPE,
+            AST_WALKER_KEYWORD, AST_WALKER_METHOD, AST_WALKER_NAMESPACE, AST_WALKER_TYPE,
         },
         lexer::LexerError,
         parser::ParseError,
@@ -53,10 +53,12 @@ async fn lsp_handler(
     sender: SimpleSender<String, NotificationMessage>,
 ) -> Result<Option<RpcMessageResponse>> {
     let token_types = vec![
+        SemanticTokenType::NAMESPACE,
         SemanticTokenType::FUNCTION,
         SemanticTokenType::PROPERTY,
         SemanticTokenType::METHOD,
         SemanticTokenType::TYPE,
+        SemanticTokenType::KEYWORD,
     ];
 
     match req.method.as_str() {
@@ -173,6 +175,8 @@ async fn lsp_handler(
                                         AST_WALKER_FIELD => SemanticTokenType::PROPERTY,
                                         AST_WALKER_METHOD => SemanticTokenType::METHOD,
                                         AST_WALKER_TYPE => SemanticTokenType::TYPE,
+                                        AST_WALKER_NAMESPACE => SemanticTokenType::NAMESPACE,
+                                        AST_WALKER_KEYWORD => SemanticTokenType::KEYWORD,
                                         _ => todo!(),
                                     }
                                 })
