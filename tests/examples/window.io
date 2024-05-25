@@ -87,7 +87,7 @@ fun main() {
   let button_inc = Button::default("+");
 
   let frame = Frame::default();
-  frame.set_label(int_to_string(count));
+  frame.set_label(count.to_string());
 
   let button_dec = Button::default("-");
 
@@ -98,7 +98,7 @@ fun main() {
 
   button_inc.set_callback(fun () {
     count = count + 1;
-    frame.set_label(int_to_string(count));
+    frame.set_label(count.to_string());
 
     return nil;
   });
@@ -106,7 +106,7 @@ fun main() {
   button_dec.set_callback(fun () {
     if (count > 0) {
       count = count - 1;
-      frame.set_label(int_to_string(count));
+      frame.set_label(count.to_string());
     }
 
     return nil;
