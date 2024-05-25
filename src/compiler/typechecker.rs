@@ -712,7 +712,10 @@ impl Typechecker {
 
                 self.block(body)?;
 
-                self.check_inlay_hints(&result.span, self.return_ty.clone());
+                let result_ty_explicitly_written = result.span.start != result.span.end;
+                if !result_ty_explicitly_written {
+                    self.check_inlay_hints(&result.span, self.return_ty.clone());
+                }
 
                 let ty = Type::Fun(param_types, Box::new(self.return_ty.clone()));
 
