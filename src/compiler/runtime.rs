@@ -754,7 +754,7 @@ impl Runtime {
             0x04 => {
                 self.pc = self.pop_i64() as usize;
 
-                if let Some((task_id, sp)) = self.interrupted.get(0) {
+                if let Some((task_id, sp)) = self.interrupted.iter().last() {
                     if *sp == self.sp {
                         if print_stacks {
                             println!("Task {} finished, {}, current_sp: {}", task_id, sp, self.sp);
@@ -769,7 +769,7 @@ impl Runtime {
                             self.pop_i64();
                         }
 
-                        self.interrupted.remove(0);
+                        self.interrupted.pop();
                     }
                 }
             }
