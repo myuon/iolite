@@ -395,6 +395,17 @@ impl Compiler {
                             " ".repeat(col - 1)
                         );
                     }
+                    TypecheckerError::ArgumentCountMismatch(span, _, _) => {
+                        let (line, col) =
+                            Self::find_position_with_input(input, span.start.unwrap());
+                        eprintln!(
+                            "Error at module {}, line {}, column {} ({})",
+                            span.module_name.unwrap_or("<main>".to_string()),
+                            line,
+                            col,
+                            span.start.unwrap()
+                        );
+                    }
                     _ => {}
                 }
 

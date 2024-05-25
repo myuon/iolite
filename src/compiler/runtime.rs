@@ -50,10 +50,11 @@ pub struct Runtime {
     protected_section: usize,
     closure_tasks: HashMap<String, (u64, u64)>,
     channel: (
-        std::sync::mpsc::Sender<String>,
-        std::sync::mpsc::Receiver<String>,
+        std::sync::mpsc::Sender<(String, Vec<Value>)>,
+        std::sync::mpsc::Receiver<(String, Vec<Value>)>,
     ),
-    interrupted: Option<(String, usize)>,
+    interrupted: Vec<(String, usize)>,
+    args: usize,
 }
 
 impl Runtime {
@@ -76,7 +77,8 @@ impl Runtime {
             protected_section: 0,
             closure_tasks: HashMap::new(),
             channel: std::sync::mpsc::channel(),
-            interrupted: None,
+            interrupted: vec![],
+            args: 0,
         }
     }
 
@@ -397,15 +399,20 @@ impl Runtime {
             }
         }
 
-        if let Ok(task_id) = self.channel.1.try_recv() {
+        if let Ok((task_id, args)) = self.channel.1.try_recv() {
+            // push args
+            self.args = args.len();
+            for arg in args {
+                self.push(arg.as_u64() as i64);
+            }
+
             let (callback_ptr, callback_env) = self.closure_tasks.get(&task_id).unwrap().clone();
             // allocate for the return value
             self.push(0);
             // push closure env (an argument)
             self.push(callback_env as i64);
 
-            assert!(self.interrupted.is_none());
-            self.interrupted = Some((task_id.clone(), self.sp));
+            self.interrupted.push((task_id.clone(), self.sp));
 
             // call
             let pc = callback_ptr & 0xffffffff; // remove type tag
@@ -549,6 +556,32 @@ impl Runtime {
                             });
 
                             self.push(Value::Nil.as_u64() as i64);
+                        } else if index as usize == table["extcall_window_set_handler"] {
+                            let window_id = self.pop_i64() as i32;
+                            let callback_ptr = self.pop_i64() as u64;
+                            let callback_env = self.pop_i64() as u64;
+
+                            let task_id = nanoid!();
+                            self.closure_tasks
+                                .insert(task_id.clone(), (callback_ptr, callback_env));
+
+                            WIDGETS.with(|widgets_ref| {
+                                let mut widgets = widgets_ref.borrow_mut();
+                                let window = widgets[window_id as usize]
+                                    .downcast_mut::<Window>()
+                                    .unwrap();
+
+                                let sender = self.channel.0.clone();
+                                window.handle(move |_, event| {
+                                    sender
+                                        .send((task_id.clone(), vec![Value::Int(event.bits())]))
+                                        .unwrap();
+
+                                    true
+                                });
+                            });
+
+                            self.push(Value::Nil.as_u64() as i64);
                         } else if index as usize == table["extcall_button_default"] {
                             let title_ptr = self.pop_i64() as u64;
                             let title_len = self.pop_i64() as usize;
@@ -583,6 +616,24 @@ impl Runtime {
                             });
 
                             self.push(Value::Int(id as i32).as_u64() as i64);
+                        } else if index as usize == table["extcall_frame_set_rectangle"] {
+                            let frame_id = self.pop_i64() as i32;
+
+                            let x = self.pop_i64() as i32;
+                            let y = self.pop_i64() as i32;
+                            let width = self.pop_i64() as i32;
+                            let height = self.pop_i64() as i32;
+
+                            WIDGETS.with(|widgets_ref| {
+                                let mut widgets = widgets_ref.borrow_mut();
+                                let frame =
+                                    widgets[frame_id as usize].downcast_mut::<Frame>().unwrap();
+
+                                frame.set_pos(x, y);
+                                frame.set_size(width, height);
+                            });
+
+                            self.push(Value::Nil.as_u64() as i64);
                         } else if index as usize == table["extcall_frame_set_label"] {
                             let frame_id = self.pop_i64() as i32;
 
@@ -620,7 +671,7 @@ impl Runtime {
 
                                 let sender = self.channel.0.clone();
                                 button.set_callback(move |_| {
-                                    sender.send(task_id.clone()).unwrap();
+                                    sender.send((task_id.clone(), vec![])).unwrap();
                                 });
                             });
 
@@ -703,7 +754,7 @@ impl Runtime {
             0x04 => {
                 self.pc = self.pop_i64() as usize;
 
-                if let Some((task_id, sp)) = &self.interrupted {
+                if let Some((task_id, sp)) = self.interrupted.get(0) {
                     if *sp == self.sp {
                         if print_stacks {
                             println!("Task {} finished, {}, current_sp: {}", task_id, sp, self.sp);
@@ -713,8 +764,12 @@ impl Runtime {
                         self.pop_i64();
                         // pops return value
                         self.pop_i64();
+                        // pops arguments
+                        for _ in 0..self.args {
+                            self.pop_i64();
+                        }
 
-                        self.interrupted = None;
+                        self.interrupted.remove(0);
                     }
                 }
             }

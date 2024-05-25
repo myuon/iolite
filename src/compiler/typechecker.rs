@@ -21,8 +21,8 @@ pub enum TypecheckerError {
     },
     #[error("Numeric type expected, but got {0:?}")]
     NumericTypeExpected(Type),
-    #[error("Argument count mismatch: expected {0}, but got {1}")]
-    ArgumentCountMismatch(usize, usize),
+    #[error("Argument count mismatch: expected {1}, but got {2}")]
+    ArgumentCountMismatch(Span, usize, usize),
     #[error("Function type expected, but got {0:?}")]
     FunctionTypeExpected(Type),
     #[error("Index not supported for type {0:?}")]
@@ -52,8 +52,8 @@ impl PartialEq for TypecheckerError {
                 TypecheckerError::NumericTypeExpected(b),
             ) => a == b,
             (
-                TypecheckerError::ArgumentCountMismatch(a_expected, a_actual),
-                TypecheckerError::ArgumentCountMismatch(b_expected, b_actual),
+                TypecheckerError::ArgumentCountMismatch(_, a_expected, a_actual),
+                TypecheckerError::ArgumentCountMismatch(_, b_expected, b_actual),
             ) => a_expected == b_expected && a_actual == b_actual,
             (
                 TypecheckerError::FunctionTypeExpected(a),
@@ -262,6 +262,7 @@ impl Typechecker {
                 args,
                 newtype,
             } => {
+                let callee_span = callee.span.clone();
                 self.check_search_ident(callee);
 
                 let mut arg_types_actual = vec![];
@@ -277,6 +278,7 @@ impl Typechecker {
                     Type::Fun(arg_types_expected, ret_ty) => {
                         if arg_types_actual.len() != arg_types_expected.len() {
                             return Err(TypecheckerError::ArgumentCountMismatch(
+                                callee_span,
                                 arg_types_expected.len(),
                                 arg_types_actual.len(),
                             ));
@@ -291,6 +293,7 @@ impl Typechecker {
                     Type::Newtype { name, ty } => {
                         if arg_types_actual.len() != 1 {
                             return Err(TypecheckerError::ArgumentCountMismatch(
+                                callee_span,
                                 1,
                                 arg_types_actual.len(),
                             ));
@@ -464,6 +467,7 @@ impl Typechecker {
                 args,
                 call_symbol,
             } => {
+                let expr_span = expr.span.clone();
                 let ty = self.expr(expr)?;
 
                 *expr_ty = ty.clone();
@@ -525,6 +529,7 @@ impl Typechecker {
                         let arg_types_expected = (&arg_types_expected_[1..]).to_vec();
                         if arg_types_actual.len() != arg_types_expected.len() {
                             return Err(TypecheckerError::ArgumentCountMismatch(
+                                expr_span,
                                 arg_types_expected.len(),
                                 arg_types_actual.len(),
                             ));

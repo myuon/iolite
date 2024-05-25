@@ -246,7 +246,7 @@ async fn lsp_handler(
                             TypecheckerError::IdentNotFound(ident) => ident.span,
                             TypecheckerError::TypeMismatch { span, .. } => span,
                             TypecheckerError::NumericTypeExpected(_) => Span::unknown(),
-                            TypecheckerError::ArgumentCountMismatch(_, _) => Span::unknown(),
+                            TypecheckerError::ArgumentCountMismatch(span, _, _) => span,
                             TypecheckerError::FunctionTypeExpected(_) => Span::unknown(),
                             TypecheckerError::IndexNotSupported(_) => Span::unknown(),
                             TypecheckerError::ConversionNotSupported(_, ty) => ty.span,

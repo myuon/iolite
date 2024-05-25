@@ -9,6 +9,7 @@ declare fun extcall_app_redraw(app: rawptr);
 declare fun extcall_button_default(title_ptr: rawptr, title_len: int): rawptr;
 declare fun extcall_button_set_callback(button: rawptr, callback_ptr: rawptr, callback_env: rawptr);
 declare fun extcall_frame_default(): rawptr;
+declare fun extcall_frame_set_rectangle(frame: rawptr, x: int, y: int, width: int, height: int);
 declare fun extcall_frame_set_label(frame: rawptr, title_ptr: rawptr, title_len: int);
 declare fun extcall_flex_default_fill(): rawptr;
 declare fun extcall_flex_column(flex: rawptr): rawptr;
@@ -17,6 +18,7 @@ declare fun extcall_flex_set_pad(flex: rawptr, pad: int);
 declare fun extcall_flex_end(flex: rawptr);
 declare fun extcall_window_end(window: rawptr);
 declare fun extcall_window_show(window: rawptr);
+declare fun extcall_window_set_handler(window: rawptr, handler_ptr: rawptr, handler_env: rawptr);
 
 let heap_ptr = 0 as ptr[byte];
 
@@ -124,6 +126,10 @@ module Frame {
   fun set_label(self, label: array[byte]) {
     return extcall_frame_set_label(self.!, label.ptr as rawptr, label.length);
   }
+
+  fun set_rectangle(self, x: int, y: int, w: int, h: int) {
+    return extcall_frame_set_rectangle(self.!, x, y, w, h);
+  }
 }
 
 struct Button(rawptr);
@@ -172,6 +178,10 @@ module Window {
   fun show(self) {
     return extcall_window_show(self.!);
   }
+
+  fun set_callback(self, handler: () => nil) {
+    return extcall_window_set_handler(self.!, handler.ptr, handler.env);
+  }
 }
 
 struct App(rawptr);
@@ -187,5 +197,11 @@ module App {
 
   fun redraw(self) {
     return extcall_app_redraw(self.!);
+  }
+
+  fun run(self) {
+    while (self.wait()) {
+      self.redraw();
+    }
   }
 }
