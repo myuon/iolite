@@ -495,7 +495,6 @@ impl VmCodeGenerator {
                 }
 
                 let extcall_label = Self::extcall_table().get(&name).cloned();
-
                 if extcall_label.is_none() {
                     self.emit(Instruction::Push(0));
                     self.emit(Instruction::Debug(
@@ -504,6 +503,20 @@ impl VmCodeGenerator {
                 }
 
                 let args_len = args.len();
+                let is_closure_call = extcall_label.is_none() && !self.functions.contains(&name);
+
+                if is_closure_call {
+                    self.term(IrTerm::Load {
+                        size: Value::size() as usize,
+                        address: Box::new(IrTerm::Index {
+                            ptr: Box::new(IrTerm::Load {
+                                size: Value::size() as usize,
+                                address: Box::new(IrTerm::Ident(name.clone())),
+                            }),
+                            index: Box::new(IrTerm::Int(0)),
+                        }),
+                    })?;
+                }
 
                 // NOTE: push args in the reverse order
                 for arg in args.into_iter().rev() {
@@ -524,16 +537,6 @@ impl VmCodeGenerator {
                 } else {
                     // closure call
                     // These process should be done in the IR phase?
-                    self.term(IrTerm::Load {
-                        size: Value::size() as usize,
-                        address: Box::new(IrTerm::Index {
-                            ptr: Box::new(IrTerm::Load {
-                                size: Value::size() as usize,
-                                address: Box::new(IrTerm::Ident(name.clone())),
-                            }),
-                            index: Box::new(IrTerm::Int(0)),
-                        }),
-                    })?;
                     self.term(IrTerm::Load {
                         size: Value::size() as usize,
                         address: Box::new(IrTerm::Index {
