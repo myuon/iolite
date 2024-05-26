@@ -179,7 +179,7 @@ module Window {
     return extcall_window_show(self.!);
   }
 
-  fun set_callback(self, handler: () => nil) {
+  fun set_callback(self, handler: (int) => nil) {
     return extcall_window_set_handler(self.!, handler.ptr, handler.env);
   }
 }
