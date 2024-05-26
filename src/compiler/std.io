@@ -116,6 +116,130 @@ fun int_to_string(n: int): array[byte] {
 
 // fltk
 
+struct Event(int);
+
+module Event {
+  fun from_bits(bits: int): Event {
+    return Event(bits);
+  }
+
+  fun NO_EVENT(): Event {
+    return Event(0);
+  }
+
+  fun PUSH(): Event {
+    return Event(1);
+  }
+
+  fun RELEASED(): Event {
+    return Event(2);
+  }
+
+  fun ENTER(): Event {
+    return Event(3);
+  }
+
+  fun LEAVE(): Event {
+    return Event(4);
+  }
+
+  fun DRAG(): Event {
+    return Event(5);
+  }
+
+  fun FOCUS(): Event {
+    return Event(6);
+  }
+
+  fun UNFOCUS(): Event {
+    return Event(7);
+  }
+
+  fun KEYDOWN(): Event {
+    return Event(8);
+  }
+
+  fun KEYUP(): Event {
+    return Event(9);
+  }
+
+  fun CLOSE(): Event {
+    return Event(10);
+  }
+
+  fun MOVE(): Event {
+    return Event(11);
+  }
+
+  fun SHORTCUT(): Event {
+    return Event(12);
+  }
+
+  fun DEACTIVATE(): Event {
+    return Event(13);
+  }
+
+  fun ACTIVATE(): Event {
+    return Event(14);
+  }
+
+  fun HIDE(): Event {
+    return Event(15);
+  }
+
+  fun SHOW(): Event {
+    return Event(16);
+  }
+
+  fun PASTE(): Event {
+    return Event(17);
+  }
+
+  fun SELECTION_CLEAR(): Event {
+    return Event(18);
+  }
+
+  fun MOUSE_WHEEL(): Event {
+    return Event(19);
+  }
+
+  fun DND_ENTER(): Event {
+    return Event(20);
+  }
+
+  fun DND_DROP(): Event {
+    return Event(21);
+  }
+
+  fun DND_LEAVE(): Event {
+    return Event(22);
+  }
+
+  fun DND_RELEASE(): Event {
+    return Event(23);
+  }
+
+  fun SCREEN_CONFIG_CHANGED(): Event {
+    return Event(24);
+  }
+
+  fun FULLSCREEN(): Event {
+    return Event(25);
+  }
+
+  fun ZOOM_GESTURE(): Event {
+    return Event(26);
+  }
+
+  fun ZOOM(): Event {
+    return Event(27);
+  }
+
+  fun RESIZE(): Event {
+    return Event(28);
+  }
+}
+
 struct Frame(rawptr);
 
 module Frame {
@@ -179,8 +303,13 @@ module Window {
     return extcall_window_show(self.!);
   }
 
-  fun set_callback(self, handler: (int) => nil) {
-    return extcall_window_set_handler(self.!, handler.ptr, handler.env);
+  fun set_callback(self, handler_: (Event) => nil) {
+    // let handler = fun (e: int) {
+    //   handler_(Event::from_bits(e));
+    // };
+
+    // return extcall_window_set_handler(self.!, handler.ptr, handler.env);
+    abort();
   }
 }
 

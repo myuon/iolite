@@ -487,7 +487,47 @@ impl VmCodeGenerator {
             IrTerm::Call { callee, args } => {
                 let name = match *callee {
                     IrTerm::Ident(name) => name,
-                    term => todo!("{:?}", term),
+                    term => {
+                        // closure call
+                        let args_len = args.len();
+
+                        // word for the return value
+                        self.push_value(Value::Int(0));
+
+                        self.term(IrTerm::Load {
+                            size: Value::size() as usize,
+                            address: Box::new(IrTerm::Index {
+                                ptr: Box::new(IrTerm::Load {
+                                    size: Value::size() as usize,
+                                    address: Box::new(term.clone()),
+                                }),
+                                index: Box::new(IrTerm::Int(0)),
+                            }),
+                        })?;
+                        // NOTE: push args in the reverse order
+                        for arg in args.into_iter().rev() {
+                            self.term(arg)?;
+                        }
+
+                        self.term(IrTerm::Load {
+                            size: Value::size() as usize,
+                            address: Box::new(IrTerm::Index {
+                                ptr: Box::new(IrTerm::Load {
+                                    size: Value::size() as usize,
+                                    address: Box::new(term.clone()),
+                                }),
+                                index: Box::new(IrTerm::Int(Value::size() as i32)),
+                            }),
+                        })?;
+                        self.emit(Instruction::Call);
+
+                        // NOTE: pop arity + closure env
+                        for _ in 0..args_len + 1 {
+                            self.pop();
+                        }
+
+                        return Ok(());
+                    }
                 };
                 if name == "abort" {
                     self.emit(Instruction::Abort);

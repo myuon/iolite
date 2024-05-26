@@ -39,10 +39,10 @@ fun main() {
 
   window.end();
   window.show();
-  window.set_callback(fun (event: int) {
-    print_str("event: ");
-    print_str(int_to_string(event));
-    print_str("\n");
+  window.set_callback(fun (event: Event) {
+    if event.! == Event::KEYDOWN().! {
+      print_str("Key down\n");
+    }
 
     return nil;
   });
