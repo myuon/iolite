@@ -641,7 +641,7 @@ impl Compiler {
         print_stacks: bool,
         print_memory_store: bool,
     ) -> Result<Runtime, CompilerError> {
-        let mut runtime = Runtime::new(1024, program);
+        let mut runtime = Runtime::new(1024 * 1024, program);
         runtime.exec(print_stacks, print_memory_store).unwrap();
 
         Ok(runtime)
