@@ -521,7 +521,7 @@ impl Typechecker {
 
                 let mut arg_types_actual = vec![];
                 for arg in args {
-                    arg_types_actual.push(self.expr(arg)?);
+                    arg_types_actual.push((arg.span.clone(), self.expr(arg)?));
                 }
 
                 match method {
@@ -535,8 +535,10 @@ impl Typechecker {
                             ));
                         }
 
-                        for (expected, actual) in arg_types_expected.iter().zip(arg_types_actual) {
-                            Self::unify(expected.clone(), actual, Span::unknown())?;
+                        for (expected, (actual_span, actual)) in
+                            arg_types_expected.iter().zip(arg_types_actual)
+                        {
+                            Self::unify(expected.clone(), actual, actual_span)?;
                         }
 
                         Ok(*ret_ty)
