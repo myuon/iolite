@@ -499,7 +499,7 @@ impl Compiler {
         ir_code_gen.set_types(types);
 
         let ir = ir_code_gen
-            .module(block)
+            .program(block)
             .map_err(CompilerError::IrCodeGeneratorError)?;
 
         Ok(ir)

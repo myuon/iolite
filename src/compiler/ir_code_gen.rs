@@ -86,7 +86,7 @@ impl IrCodeGenerator {
         IrTerm::Items(block)
     }
 
-    pub fn module(&mut self, module: Module) -> Result<IrModule, IrCodeGeneratorError> {
+    pub fn program(&mut self, module: Module) -> Result<IrModule, IrCodeGeneratorError> {
         let mut decls = vec![];
 
         for decl in module.declarations {
@@ -301,6 +301,7 @@ impl IrCodeGenerator {
                     }
 
                     let callee = self.expr_left_value(*callee)?;
+                    eprintln!("{:?}", callee);
 
                     Ok(IrTerm::Call {
                         callee: Box::new(callee),
