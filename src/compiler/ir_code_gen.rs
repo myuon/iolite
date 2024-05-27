@@ -503,7 +503,7 @@ impl IrCodeGenerator {
                 }
                 let env = self.slice(env_terms);
 
-                let closure_pair = self.slice(vec![env, IrTerm::Function(name)]);
+                let closure_pair = self.slice(vec![IrTerm::Function(name), env]);
 
                 for name in captured {
                     if !self.escaped.contains(&name) {

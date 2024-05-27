@@ -522,7 +522,7 @@ impl VmCodeGenerator {
                 self.stack_pointer = self.stack_pointer - args_len + 1;
             }
             IrTerm::DynamicCall { callee, args } => {
-                // closure call
+                // Currently, only closure calls are supported
                 let args_len = args.len();
 
                 self.push_value(Value::Int(0));
@@ -530,6 +530,8 @@ impl VmCodeGenerator {
                     "allocated for the return value".to_string(),
                 ));
 
+                // NOTE: push args in the reverse order
+                // closure env as the last argument
                 self.term(IrTerm::Load {
                     size: Value::size() as usize,
                     address: Box::new(IrTerm::Index {
@@ -537,10 +539,9 @@ impl VmCodeGenerator {
                             size: Value::size() as usize,
                             address: callee.clone(),
                         }),
-                        index: Box::new(IrTerm::Int(0)),
+                        index: Box::new(IrTerm::Int(Value::size() as i32)),
                     }),
                 })?;
-                // NOTE: push args in the reverse order
                 for arg in args.into_iter().rev() {
                     self.term(arg)?;
                 }
@@ -552,7 +553,7 @@ impl VmCodeGenerator {
                             size: Value::size() as usize,
                             address: callee.clone(),
                         }),
-                        index: Box::new(IrTerm::Int(Value::size() as i32)),
+                        index: Box::new(IrTerm::Int(0)),
                     }),
                 })?;
                 self.emit(Instruction::Call);
