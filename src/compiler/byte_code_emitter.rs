@@ -84,6 +84,7 @@ impl ByteCodeEmitter {
                     self.write(&data)?;
                 }
                 Label(label) => {
+                    eprintln!("[{}:0x{:x}] .{}", self.position, self.position, label);
                     labels.insert(label, self.position);
                 }
                 PushLabel(label) => {
@@ -111,7 +112,7 @@ impl ByteCodeEmitter {
             }
         }
 
-        for (position, label) in placeholders {
+        for (position, label) in placeholders.clone() {
             let target = labels
                 .get(&label)
                 .ok_or(ByteCodeEmitterError::LabelNotFound(label))?;
