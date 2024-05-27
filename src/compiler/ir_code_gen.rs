@@ -24,7 +24,6 @@ pub struct IrCodeGenerator {
     escaped: Vec<String>,
     current_module: String,
     declared: Vec<String>,
-    global_functions: Vec<String>,
 }
 
 impl IrCodeGenerator {
@@ -40,7 +39,6 @@ impl IrCodeGenerator {
             escaped: vec![],
             current_module: "".to_string(),
             declared: vec![],
-            global_functions: Type::builtin_types().into_iter().map(|t| t.0).collect(),
         }
     }
 
@@ -192,8 +190,6 @@ impl IrCodeGenerator {
                     name.data
                 };
 
-                self.global_functions.push(symbol.clone());
-
                 Ok(vec![IrDecl::Fun {
                     name: symbol,
                     args: params.into_iter().map(|p| p.0.data).collect(),
@@ -325,7 +321,7 @@ impl IrCodeGenerator {
                                 args: ir_args,
                             })
                         }
-                        IrTerm::Ident(ident) if self.global_functions.contains(&ident) => {
+                        IrTerm::Ident(ident) if self.types.contains_key(&ident) => {
                             Ok(IrTerm::StaticCall {
                                 callee: ident,
                                 args: ir_args,
