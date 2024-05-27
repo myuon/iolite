@@ -321,7 +321,11 @@ impl IrCodeGenerator {
                                 args: ir_args,
                             })
                         }
-                        IrTerm::Ident(ident) if self.types.contains_key(&ident) => {
+                        IrTerm::Ident(ident)
+                        // FIXME: types should contains qualified path
+                            if self.types.contains_key(&ident)
+                                || self.types.contains_key(&ident.replace("_", "::")) =>
+                        {
                             Ok(IrTerm::StaticCall {
                                 callee: ident,
                                 args: ir_args,
