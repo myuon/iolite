@@ -37,8 +37,8 @@ impl EscapeResolver {
                     let mut block = vec![];
                     block.push(IrTerm::Let {
                         name: ident_name.clone(),
-                        value: Box::new(IrTerm::Call {
-                            callee: Box::new(IrTerm::Ident("alloc".to_string())),
+                        value: Box::new(IrTerm::StaticCall {
+                            callee: "alloc".to_string(),
                             args: vec![IrTerm::Int(Value::size())],
                         }),
                     });
@@ -98,8 +98,18 @@ impl EscapeResolver {
                 self.term(then)?;
                 self.term(else_)?;
             }
-            IrTerm::Call { callee, args } => {
+            IrTerm::DynamicCall { callee, args } => {
                 self.term(callee)?;
+                for arg in args {
+                    self.term(arg)?;
+                }
+            }
+            IrTerm::StaticCall { callee: _, args } => {
+                for arg in args {
+                    self.term(arg)?;
+                }
+            }
+            IrTerm::ExtCall { callee: _, args } => {
                 for arg in args {
                     self.term(arg)?;
                 }

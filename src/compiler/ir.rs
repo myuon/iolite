@@ -62,8 +62,16 @@ pub enum IrTerm {
         then: Box<IrTerm>,
         else_: Box<IrTerm>,
     },
-    Call {
+    DynamicCall {
         callee: Box<IrTerm>,
+        args: Vec<IrTerm>,
+    },
+    StaticCall {
+        callee: String,
+        args: Vec<IrTerm>,
+    },
+    ExtCall {
+        callee: String,
         args: Vec<IrTerm>,
     },
     Index {

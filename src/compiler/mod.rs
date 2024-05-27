@@ -12,7 +12,7 @@ use self::{
     ast::{Declaration, Module, Source, Span, Type},
     byte_code_emitter::{ByteCodeEmitter, ByteCodeEmitterError},
     ir::IrProgram,
-    ir_code_gen::IrCodeGeneratorError,
+    ir_code_gen::{IrCodeGenerator, IrCodeGeneratorError},
     lexer::{LexerError, Token},
     linker::{Linker, LinkerError},
     parser::ParseError,
@@ -350,9 +350,12 @@ impl Compiler {
     pub fn ir_code_gen(&mut self, path: String) -> Result<IrProgram> {
         let paths = self.pathes_in_imported_order();
         let mut modules = vec![];
+        let mut ir_code_gen = ir_code_gen::IrCodeGenerator::new();
+        ir_code_gen.set_types(self.types.clone());
+
         for path in paths {
             let module = self.modules.get_mut(&path).unwrap();
-            let ir = Self::ir_code_gen_module(module.module.clone().unwrap(), self.types.clone())?;
+            let ir = Self::ir_code_gen_module(&mut ir_code_gen, module.module.clone().unwrap())?;
 
             modules.push(ir);
         }
@@ -492,12 +495,9 @@ impl Compiler {
     }
 
     pub fn ir_code_gen_module(
+        ir_code_gen: &mut IrCodeGenerator,
         block: Module,
-        types: HashMap<String, Source<Type>>,
     ) -> Result<ir::IrModule, CompilerError> {
-        let mut ir_code_gen = ir_code_gen::IrCodeGenerator::new();
-        ir_code_gen.set_types(types);
-
         let ir = ir_code_gen
             .program(block)
             .map_err(CompilerError::IrCodeGeneratorError)?;
@@ -577,7 +577,10 @@ impl Compiler {
         self.parse(path.clone())?;
         self.typecheck(path.clone())?;
 
-        let ir = Self::ir_code_gen_module(module.module.clone().unwrap(), HashMap::new())?;
+        let mut ir_code_gen = ir_code_gen::IrCodeGenerator::new();
+        ir_code_gen.set_types(self.types.clone());
+
+        let ir = Self::ir_code_gen_module(&mut ir_code_gen, module.module.clone().unwrap())?;
         let program = Self::vm_code_gen(IrProgram { modules: vec![ir] })?;
         let linked = Self::link(program)?;
         let binary = Self::byte_code_gen(linked)?;
@@ -590,7 +593,10 @@ impl Compiler {
         let mut module = Self::create_module(decls);
         let types = Self::typecheck_module(&mut module, &input)?;
 
-        let ir = Self::ir_code_gen_module(module, types)?;
+        let mut ir_code_gen = ir_code_gen::IrCodeGenerator::new();
+        ir_code_gen.set_types(types.clone());
+
+        let ir = Self::ir_code_gen_module(&mut ir_code_gen, module)?;
         let program = Self::vm_code_gen(IrProgram { modules: vec![ir] })?;
         let linked = Self::link(program)?;
         let binary = Self::byte_code_gen(linked)?;
