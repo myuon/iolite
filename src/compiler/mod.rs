@@ -350,10 +350,11 @@ impl Compiler {
     pub fn ir_code_gen(&mut self, path: String) -> Result<IrProgram> {
         let paths = self.pathes_in_imported_order();
         let mut modules = vec![];
-        let mut ir_code_gen = ir_code_gen::IrCodeGenerator::new();
-        ir_code_gen.set_types(self.types.clone());
 
         for path in paths {
+            let mut ir_code_gen = ir_code_gen::IrCodeGenerator::new();
+            ir_code_gen.set_types(self.types.clone());
+
             let module = self.modules.get_mut(&path).unwrap();
             let ir = Self::ir_code_gen_module(&mut ir_code_gen, module.module.clone().unwrap())?;
 
