@@ -149,7 +149,10 @@ impl EscapeResolver {
                     if self.escaped.contains(arg) {
                         let arg_new = format!("{}_{}", arg, nanoid!());
 
-                        let mut ident_arity = IrTerm::Ident(arg_new.clone());
+                        let mut ident_arity = IrTerm::Load {
+                            size: Value::size() as usize,
+                            address: Box::new(IrTerm::Ident(arg_new.clone())),
+                        };
                         self.escape(&arg, &mut ident_arity)?;
 
                         let mut new_body = vec![IrTerm::Let {
