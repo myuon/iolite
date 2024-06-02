@@ -765,7 +765,11 @@ impl Runtime {
                         }
 
                         let value = self.pop_value();
-                        assert!(matches!(value, Value::Int(_)));
+                        assert!(
+                            matches!(value, Value::Int(_)),
+                            "Return value must be an integer, but got {:?}",
+                            value
+                        );
                         self.pc = value.as_u64() as usize;
 
                         // pops arguments
@@ -781,7 +785,11 @@ impl Runtime {
 
                 if !returned {
                     let value = self.pop_value();
-                    assert!(matches!(value, Value::Int(_)));
+                    assert!(
+                        matches!(value, Value::Int(_)),
+                        "Return value must be an integer, but got {:?}",
+                        value
+                    );
                     self.pc = value.as_u64() as usize;
                 }
             }
