@@ -5,6 +5,7 @@ use std::{
 };
 
 use anyhow::{anyhow, Result};
+use ast::TypeMap;
 
 use crate::compiler::lexer::Lexeme;
 
@@ -64,7 +65,7 @@ pub struct LoadedModule {
 pub struct Compiler {
     pub cwd: String,
     pub modules: HashMap<String, LoadedModule>,
-    pub types: HashMap<String, Source<Type>>,
+    pub types: TypeMap,
 }
 
 impl Compiler {
@@ -72,7 +73,7 @@ impl Compiler {
         Self {
             cwd: "".to_string(),
             modules: HashMap::new(),
-            types: HashMap::new(),
+            types: TypeMap::new(),
         }
     }
 
@@ -424,10 +425,7 @@ impl Compiler {
         Ok(())
     }
 
-    pub fn typecheck_module(
-        module: &mut Module,
-        input: &str,
-    ) -> Result<HashMap<String, Source<Type>>, CompilerError> {
+    pub fn typecheck_module(module: &mut Module, input: &str) -> Result<TypeMap, CompilerError> {
         let mut typechecker = typechecker::Typechecker::new();
         match typechecker.module(module) {
             Ok(_) => {}

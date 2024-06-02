@@ -4,7 +4,8 @@ use thiserror::Error;
 
 use super::{
     ast::{
-        BinOp, Block, Conversion, Declaration, Expr, Literal, Module, Source, Span, Statement, Type,
+        BinOp, Block, Conversion, Declaration, Expr, Literal, Module, Source, Span, Statement,
+        Type, TypeMap, TypeMapKey,
     },
     ir::TypeTag,
 };
@@ -80,7 +81,7 @@ struct InferTypeAt {
 }
 
 pub struct Typechecker {
-    pub types: HashMap<String, Source<Type>>,
+    pub types: TypeMap,
     return_ty: Type,
     search_def: Option<SearchDefinition>,
     infer_type_at: Option<InferTypeAt>,
@@ -93,7 +94,7 @@ pub struct Typechecker {
 impl Typechecker {
     pub fn new() -> Self {
         Self {
-            types: Type::builtin_types(),
+            types: TypeMap::builtin_types(),
             return_ty: Type::Unknown,
             search_def: None,
             infer_type_at: None,
@@ -129,7 +130,7 @@ impl Typechecker {
 
     fn get_type(&self, name: &str, span: &Span) -> Result<Source<Type>, TypecheckerError> {
         self.types
-            .get(name)
+            .get_ident(name)
             .cloned()
             .ok_or(TypecheckerError::IdentNotFound(Source::span(
                 name.to_string(),
@@ -476,13 +477,13 @@ impl Typechecker {
                     Type::Ident(ident) => {
                         let mut methods = vec![];
 
-                        for (key, ty) in &self.types {
-                            if key.starts_with(format!("{}::", ident).as_str()) {
+                        for (key, ty) in &self.types.0 {
+                            if key.as_string().starts_with(format!("{}::", ident).as_str()) {
                                 if let Type::Fun(_, _) = ty.data {
                                     methods.push((
-                                        key.split("::").last().unwrap().to_string(),
+                                        key.as_string().split("::").last().unwrap().to_string(),
                                         ty.data.clone(),
-                                        key.clone(),
+                                        key.as_string().to_string(),
                                     ));
                                 }
                             }
@@ -496,13 +497,13 @@ impl Typechecker {
                     } => {
                         let mut methods = vec![];
 
-                        for (key, ty) in &self.types {
-                            if key.starts_with(format!("{}::", ident).as_str()) {
+                        for (key, ty) in &self.types.0 {
+                            if key.as_string().starts_with(format!("{}::", ident).as_str()) {
                                 if let Type::Fun(_, _) = ty.data {
                                     methods.push((
-                                        key.split("::").last().unwrap().to_string(),
+                                        key.as_string().split("::").last().unwrap().to_string(),
                                         ty.data.clone(),
-                                        key.clone(),
+                                        key.as_string().to_string(),
                                     ));
                                 }
                             }
@@ -559,7 +560,7 @@ impl Typechecker {
 
                 for param in params {
                     param_types.push(param.1.data.clone());
-                    self.types.insert(
+                    self.types.insert_ident(
                         param.0.data.clone(),
                         Source::span(param.1.data.clone(), param.0.span.clone()),
                     );
@@ -571,7 +572,7 @@ impl Typechecker {
                 self.block(body)?;
 
                 for ident in self.ident_referred.iter().collect::<HashSet<_>>() {
-                    if !types_cloned.contains_key(ident) {
+                    if !types_cloned.contains_ident_key(ident) {
                         // local variable in a closure
                         continue;
                     }
@@ -590,10 +591,17 @@ impl Typechecker {
                 Ok(ty)
             }
             Expr::Qualified { module, name } => {
-                let ty = self.get_type(
-                    format!("{}::{}", module.data, name.data).as_str(),
-                    &name.span,
-                )?;
+                let ty = self
+                    .types
+                    .get(&TypeMapKey::Qualified(
+                        module.data.clone(),
+                        name.data.clone(),
+                    ))
+                    .ok_or(TypecheckerError::IdentNotFound(Source::span(
+                        format!("{}::{}", module.data, name.data),
+                        name.span.clone(),
+                    )))?
+                    .clone();
 
                 Ok(ty.data.clone())
             }
@@ -602,7 +610,7 @@ impl Typechecker {
 
                 match ty {
                     Type::Ident(ident) => {
-                        let ty = self.types[&ident].data.clone();
+                        let ty = self.types.get_ident(&ident).unwrap().data.clone();
 
                         match ty {
                             Type::Newtype { ty, .. } => Ok(*ty),
@@ -621,7 +629,7 @@ impl Typechecker {
                 let ty = self.expr(value)?;
                 self.check_inlay_hints(&name.span, ty.clone());
                 self.types
-                    .insert(name.data.clone(), Source::span(ty, name.span.clone()));
+                    .insert_ident(name.data.clone(), Source::span(ty, name.span.clone()));
             }
             Statement::Return(expr) => {
                 self.return_ty = self.expr_infer(expr, self.return_ty.clone())?;
@@ -687,6 +695,12 @@ impl Typechecker {
                 let types_cloned = self.types.clone();
                 let mut param_types = vec![];
 
+                let path = if self.current_module != "" {
+                    TypeMapKey::Qualified(self.current_module.clone(), name.data.clone())
+                } else {
+                    TypeMapKey::Ident(name.data.clone())
+                };
+
                 for param in params {
                     let ty = if param.0.data == "self" {
                         Type::Ident(self.current_module.clone())
@@ -695,17 +709,11 @@ impl Typechecker {
                     };
 
                     param_types.push(ty.clone());
-                    self.types.insert(
+                    self.types.insert_ident(
                         param.0.data.clone(),
                         Source::span(ty.clone(), param.0.span.clone()),
                     );
                 }
-
-                let path = if self.current_module != "" {
-                    format!("{}::{}", self.current_module, name.data)
-                } else {
-                    name.data.clone()
-                };
 
                 self.return_ty = result.data.clone();
                 self.types.insert(
@@ -715,7 +723,7 @@ impl Typechecker {
                         name.span.clone(),
                     ),
                 );
-                self.globals.push(path.clone());
+                self.globals.push(path.as_string());
 
                 self.block(body)?;
 
@@ -740,7 +748,7 @@ impl Typechecker {
                 *let_ty = ty.clone();
 
                 self.types
-                    .insert(name.data.clone(), Source::span(ty, name.span.clone()));
+                    .insert_ident(name.data.clone(), Source::span(ty, name.span.clone()));
                 self.globals.push(name.data.clone());
             }
             Declaration::Struct { name, fields } => {
@@ -750,7 +758,7 @@ impl Typechecker {
                     field_types.push((field.0.data.clone(), field.1.data.clone()));
                 }
 
-                self.types.insert(
+                self.types.insert_ident(
                     name.data.clone(),
                     Source::span(
                         Type::Struct {
@@ -773,7 +781,7 @@ impl Typechecker {
                     param_types.push(param.1.data.clone());
                 }
 
-                self.types.insert(
+                self.types.insert_ident(
                     name.data.clone(),
                     Source::span(
                         Type::Fun(param_types.clone(), Box::new(result.data.clone())),
@@ -789,7 +797,7 @@ impl Typechecker {
                 self.current_module = current_module;
             }
             Declaration::Newtype { name, ty } => {
-                self.types.insert(
+                self.types.insert_ident(
                     name.data.clone(),
                     Source::span(
                         Type::Newtype {

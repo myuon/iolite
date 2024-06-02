@@ -63,6 +63,7 @@ impl EscapeResolver {
                     };
                 }
             }
+            IrTerm::Qualified(_, _) => {}
             IrTerm::DataPointer(_) => {}
             IrTerm::Let { name, value } => {
                 if self.escaped.contains(name) {

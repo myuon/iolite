@@ -304,12 +304,11 @@ module Window {
   }
 
   fun set_callback(self, handler_: (Event) => nil) {
-    // let handler = fun (e: int) {
-    //   handler_(Event::from_bits(e));
-    // };
+    let handler = fun (e: int) {
+      handler_(Event::from_bits(e));
+    };
 
-    // return extcall_window_set_handler(self.!, handler.ptr, handler.env);
-    abort();
+    return extcall_window_set_handler(self.!, handler.ptr, handler.env);
   }
 }
 

@@ -299,6 +299,9 @@ impl VmCodeGenerator {
             IrTerm::Ident(i) => {
                 self.ident(i)?;
             }
+            IrTerm::Qualified(module, name) => {
+                self.ident(format!("{}_{}", module, name))?;
+            }
             IrTerm::Let { name, value } => {
                 self.term(*value)?;
                 self.locals

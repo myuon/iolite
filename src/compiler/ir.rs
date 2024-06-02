@@ -33,6 +33,7 @@ pub enum IrTerm {
     Int(i32),
     Float(f32),
     Ident(String),
+    Qualified(String, String),
     DataPointer(String),
     Let {
         name: String,

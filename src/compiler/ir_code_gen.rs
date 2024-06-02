@@ -4,7 +4,10 @@ use nanoid::nanoid;
 use thiserror::Error;
 
 use super::{
-    ast::{BinOp, Block, Conversion, Declaration, Expr, Literal, Module, Source, Statement, Type},
+    ast::{
+        BinOp, Block, Conversion, Declaration, Expr, Literal, Module, Source, Statement, Type,
+        TypeMap, TypeMapKey,
+    },
     escape_resolver::EscapeResolver,
     ir::{IrDecl, IrModule, IrOp, IrTerm, TypeTag, Value},
 };
@@ -17,7 +20,7 @@ pub struct IrCodeGenerator {
     init_function: Vec<IrTerm>,
     init_functions: Vec<String>,
     globals: Vec<String>,
-    types: HashMap<String, Source<Type>>,
+    types: TypeMap,
     data: HashMap<String, Vec<u8>>,
     closures: Vec<IrDecl>,
     captured_env: HashMap<String, (String, usize)>, // captured_name -> (env_name, index)
@@ -32,7 +35,7 @@ impl IrCodeGenerator {
             init_function: vec![],
             init_functions: vec![],
             globals: vec![],
-            types: HashMap::new(),
+            types: TypeMap::new(),
             data: HashMap::new(),
             closures: vec![],
             captured_env: HashMap::new(),
@@ -42,7 +45,7 @@ impl IrCodeGenerator {
         }
     }
 
-    pub fn set_types(&mut self, types: HashMap<String, Source<Type>>) {
+    pub fn set_types(&mut self, types: TypeMap) {
         self.types = types;
     }
 
@@ -325,13 +328,20 @@ impl IrCodeGenerator {
                                 args: ir_args,
                             })
                         }
-                        IrTerm::Ident(ident)
-                        // FIXME: types should contains qualified path
-                            if self.types.contains_key(&ident)
-                                || self.types.contains_key(&ident.replace("_", "::")) =>
-                        {
+                        IrTerm::Ident(ident) if self.types.contains_ident_key(&ident) => {
                             Ok(IrTerm::StaticCall {
                                 callee: ident,
+                                args: ir_args,
+                            })
+                        }
+                        IrTerm::Qualified(module, name)
+                            if self.types.contains_key(&TypeMapKey::Qualified(
+                                module.clone(),
+                                name.clone(),
+                            )) =>
+                        {
+                            Ok(IrTerm::StaticCall {
+                                callee: format!("{}_{}", module, name),
                                 args: ir_args,
                             })
                         }
@@ -380,7 +390,7 @@ impl IrCodeGenerator {
             Expr::Struct { name, mut fields } => {
                 let struct_ty = self
                     .types
-                    .get(&name.data)
+                    .get_ident(&name.data)
                     .unwrap()
                     .data
                     .as_struct_fields()
@@ -547,10 +557,7 @@ impl IrCodeGenerator {
 
                 Ok(IrTerm::Ident(name.data))
             }
-            Expr::Qualified { module, name } => self.expr_left_value(Source::span(
-                Expr::Ident(Source::unknown(format!("{}_{}", module.data, name.data))),
-                expr.span,
-            )),
+            Expr::Qualified { module, name } => Ok(IrTerm::Qualified(module.data, name.data)),
             Expr::Index { ty, ptr, index } => {
                 let ptr = self.expr(*ptr)?;
                 let index = self.expr(*index)?;
@@ -591,7 +598,7 @@ impl IrCodeGenerator {
                 let struct_ty = match expr_ty {
                     Type::Ident(name) => self
                         .types
-                        .get(&name)
+                        .get_ident(&name)
                         .unwrap()
                         .data
                         .as_struct_fields()
