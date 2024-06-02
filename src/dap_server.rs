@@ -830,7 +830,7 @@ mod tests {
             assert!(cond_resp.0(resp));
         }
 
-        tokio::time::sleep(Duration::from_millis(100)).await;
+        tokio::time::sleep(Duration::from_millis(10)).await;
 
         let mut received = vec![];
         receiver.recv_many(&mut received, 100).await;
