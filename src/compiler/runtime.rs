@@ -756,7 +756,7 @@ impl Runtime {
             }
             // return
             0x04 => {
-                self.pc = self.pop_i64() as usize;
+                let mut returned = false;
 
                 if let Some((task_id, sp)) = self.interrupted.iter().last() {
                     if *sp == self.sp {
@@ -764,15 +764,25 @@ impl Runtime {
                             println!("Task {} finished, {}, current_sp: {}", task_id, sp, self.sp);
                         }
 
-                        // pops return value
-                        self.pop_i64();
+                        let value = self.pop_value();
+                        assert!(matches!(value, Value::Int(_)));
+                        self.pc = value.as_u64() as usize;
+
                         // pops arguments
                         for _ in 0..self.args {
                             self.pop_i64();
                         }
 
                         self.interrupted.pop();
+
+                        returned = true;
                     }
+                }
+
+                if !returned {
+                    let value = self.pop_value();
+                    assert!(matches!(value, Value::Int(_)));
+                    self.pc = value.as_u64() as usize;
                 }
             }
             // jump
