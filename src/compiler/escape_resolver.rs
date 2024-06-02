@@ -15,6 +15,40 @@ impl EscapeResolver {
         Self { escaped: vec![] }
     }
 
+    fn escape(&mut self, name: &str, term: &mut IrTerm) -> Result<()> {
+        let ident_name = format!("escaped_{}", nanoid!());
+
+        let mut block = vec![];
+        block.push(IrTerm::Let {
+            name: ident_name.clone(),
+            value: Box::new(IrTerm::StaticCall {
+                callee: "alloc".to_string(),
+                args: vec![IrTerm::Int(Value::size())],
+            }),
+        });
+        block.push(IrTerm::Store {
+            size: Value::size() as usize,
+            address: Box::new(IrTerm::Index {
+                ptr: Box::new(IrTerm::Load {
+                    size: Value::size() as usize,
+                    address: Box::new(IrTerm::Ident(ident_name.clone())),
+                }),
+                index: Box::new(IrTerm::Int(0)),
+            }),
+            value: Box::new(term.clone()),
+        });
+        block.push(IrTerm::Load {
+            size: Value::size() as usize,
+            address: Box::new(IrTerm::Ident(ident_name)),
+        });
+
+        *term = IrTerm::Items(block);
+
+        eprintln!("Escaped: {}", name);
+
+        Ok(())
+    }
+
     fn term(&mut self, term: &mut IrTerm) -> Result<()> {
         match term {
             IrTerm::Nil => {}
@@ -32,35 +66,7 @@ impl EscapeResolver {
             IrTerm::DataPointer(_) => {}
             IrTerm::Let { name, value } => {
                 if self.escaped.contains(name) {
-                    let ident_name = format!("escaped_{}", nanoid!());
-
-                    let mut block = vec![];
-                    block.push(IrTerm::Let {
-                        name: ident_name.clone(),
-                        value: Box::new(IrTerm::Call {
-                            callee: Box::new(IrTerm::Ident("alloc".to_string())),
-                            args: vec![IrTerm::Int(Value::size())],
-                        }),
-                    });
-                    block.push(IrTerm::Store {
-                        size: Value::size() as usize,
-                        address: Box::new(IrTerm::Index {
-                            ptr: Box::new(IrTerm::Load {
-                                size: Value::size() as usize,
-                                address: Box::new(IrTerm::Ident(ident_name.clone())),
-                            }),
-                            index: Box::new(IrTerm::Int(0)),
-                        }),
-                        value: value.clone(),
-                    });
-                    block.push(IrTerm::Load {
-                        size: Value::size() as usize,
-                        address: Box::new(IrTerm::Ident(ident_name)),
-                    });
-
-                    *value = Box::new(IrTerm::Items(block));
-
-                    eprintln!("Escaped: {}", name);
+                    self.escape(name, &mut *value)?;
                 }
 
                 self.term(value)?;
@@ -98,8 +104,18 @@ impl EscapeResolver {
                 self.term(then)?;
                 self.term(else_)?;
             }
-            IrTerm::Call { callee, args } => {
+            IrTerm::DynamicCall { callee, args } => {
                 self.term(callee)?;
+                for arg in args {
+                    self.term(arg)?;
+                }
+            }
+            IrTerm::StaticCall { callee: _, args } => {
+                for arg in args {
+                    self.term(arg)?;
+                }
+            }
+            IrTerm::ExtCall { callee: _, args } => {
                 for arg in args {
                     self.term(arg)?;
                 }
@@ -123,12 +139,33 @@ impl EscapeResolver {
         match decl {
             IrDecl::Fun {
                 name: _,
-                args: _,
+                args,
                 body,
                 escaped,
             } => {
                 self.escaped = escaped.clone();
                 self.term(body)?;
+                for arg in args {
+                    if self.escaped.contains(arg) {
+                        let arg_new = format!("{}_{}", arg, nanoid!());
+
+                        let mut ident_arity = IrTerm::Load {
+                            size: Value::size() as usize,
+                            address: Box::new(IrTerm::Ident(arg_new.clone())),
+                        };
+                        self.escape(&arg, &mut ident_arity)?;
+
+                        let mut new_body = vec![IrTerm::Let {
+                            name: arg.clone(),
+                            value: Box::new(ident_arity),
+                        }];
+                        new_body.push(*body.clone());
+
+                        *arg = arg_new.clone();
+
+                        *body = Box::new(IrTerm::Items(new_body));
+                    }
+                }
                 self.escaped.clear();
             }
             IrDecl::Let { name: _ } => {}

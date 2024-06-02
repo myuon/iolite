@@ -12,7 +12,7 @@ use self::{
     ast::{Declaration, Module, Source, Span, Type},
     byte_code_emitter::{ByteCodeEmitter, ByteCodeEmitterError},
     ir::IrProgram,
-    ir_code_gen::IrCodeGeneratorError,
+    ir_code_gen::{IrCodeGenerator, IrCodeGeneratorError},
     lexer::{LexerError, Token},
     linker::{Linker, LinkerError},
     parser::ParseError,
@@ -350,9 +350,17 @@ impl Compiler {
     pub fn ir_code_gen(&mut self, path: String) -> Result<IrProgram> {
         let paths = self.pathes_in_imported_order();
         let mut modules = vec![];
+        let mut declared = vec![];
+
         for path in paths {
+            let mut ir_code_gen = ir_code_gen::IrCodeGenerator::new();
+            ir_code_gen.set_types(self.types.clone());
+            ir_code_gen.set_declared(declared.clone());
+
             let module = self.modules.get_mut(&path).unwrap();
-            let ir = Self::ir_code_gen_module(module.module.clone().unwrap(), self.types.clone())?;
+            let ir = Self::ir_code_gen_module(&mut ir_code_gen, module.module.clone().unwrap())?;
+
+            declared = ir_code_gen.declared.clone();
 
             modules.push(ir);
         }
@@ -492,14 +500,11 @@ impl Compiler {
     }
 
     pub fn ir_code_gen_module(
+        ir_code_gen: &mut IrCodeGenerator,
         block: Module,
-        types: HashMap<String, Source<Type>>,
     ) -> Result<ir::IrModule, CompilerError> {
-        let mut ir_code_gen = ir_code_gen::IrCodeGenerator::new();
-        ir_code_gen.set_types(types);
-
         let ir = ir_code_gen
-            .module(block)
+            .program(block)
             .map_err(CompilerError::IrCodeGeneratorError)?;
 
         Ok(ir)
@@ -577,7 +582,10 @@ impl Compiler {
         self.parse(path.clone())?;
         self.typecheck(path.clone())?;
 
-        let ir = Self::ir_code_gen_module(module.module.clone().unwrap(), HashMap::new())?;
+        let mut ir_code_gen = ir_code_gen::IrCodeGenerator::new();
+        ir_code_gen.set_types(self.types.clone());
+
+        let ir = Self::ir_code_gen_module(&mut ir_code_gen, module.module.clone().unwrap())?;
         let program = Self::vm_code_gen(IrProgram { modules: vec![ir] })?;
         let linked = Self::link(program)?;
         let binary = Self::byte_code_gen(linked)?;
@@ -590,7 +598,10 @@ impl Compiler {
         let mut module = Self::create_module(decls);
         let types = Self::typecheck_module(&mut module, &input)?;
 
-        let ir = Self::ir_code_gen_module(module, types)?;
+        let mut ir_code_gen = ir_code_gen::IrCodeGenerator::new();
+        ir_code_gen.set_types(types.clone());
+
+        let ir = Self::ir_code_gen_module(&mut ir_code_gen, module)?;
         let program = Self::vm_code_gen(IrProgram { modules: vec![ir] })?;
         let linked = Self::link(program)?;
         let binary = Self::byte_code_gen(linked)?;
@@ -654,8 +665,10 @@ mod tests {
 
     use super::*;
 
+    use rayon::prelude::*;
+
     #[test]
-    fn test_compile_expr_as_int() {
+    fn test_compile_expr_as_int() -> Result<()> {
         let cases = vec![
             ("1 + 3 * 4", 13),
             ("1 * 3 - 4", -1),
@@ -677,17 +690,22 @@ mod tests {
             ("(-200).abs()", 200),
         ];
 
-        for (input, expected) in cases {
-            println!("====== {}", input);
-            let actual =
-                Compiler::run_input(format!("fun main() {{ return {}; }}", input), false).unwrap();
-            let value = Value::from_u64(actual as u64);
-            assert_eq!(value, Value::Int(expected), "input: {}", input);
-        }
+        cases
+            .into_par_iter()
+            .try_for_each(|(input, expected)| -> Result<_> {
+                let actual =
+                    Compiler::run_input(format!("fun main() {{ return {}; }}", input), false)?;
+                let value = Value::from_u64(actual as u64);
+                assert_eq!(value, Value::Int(expected), "input: {}", input);
+
+                Ok(())
+            })?;
+
+        Ok(())
     }
 
     #[test]
-    fn test_compile_expr_as_float() {
+    fn test_compile_expr_as_float() -> Result<()> {
         let cases = vec![
             ("1.5", 1.5),
             ("1.5 + 1.5", 3.0),
@@ -697,23 +715,28 @@ mod tests {
             ("4 as float", 4.0),
         ];
 
-        for (input, expected) in cases {
-            println!("====== {}", input);
-            let program =
-                Compiler::compile_with_input(format!("fun main() {{ return {}; }}", input))
-                    .unwrap();
-            let mut runtime = Compiler::exec_vm(program, false, false).unwrap();
-            assert_eq!(
-                runtime.pop_value(),
-                Value::Float(expected),
-                "input: {}",
-                input
-            );
-        }
+        cases
+            .into_par_iter()
+            .try_for_each(|(input, expected)| -> Result<_> {
+                let program =
+                    Compiler::compile_with_input(format!("fun main() {{ return {}; }}", input))
+                        .unwrap();
+                let mut runtime = Compiler::exec_vm(program, false, false).unwrap();
+                assert_eq!(
+                    runtime.pop_value(),
+                    Value::Float(expected),
+                    "input: {}",
+                    input
+                );
+
+                Ok(())
+            })?;
+
+        Ok(())
     }
 
     #[test]
-    fn test_compile_expr_as_bool() {
+    fn test_compile_expr_as_bool() -> Result<()> {
         let cases = vec![
             ("false && false", false),
             ("true && false", false),
@@ -730,19 +753,24 @@ mod tests {
             ("1 != 10", true),
         ];
 
-        for (input, expected) in cases {
-            println!("====== {}", input);
-            let program =
-                Compiler::compile_with_input(format!("fun main() {{ return {}; }}", input))
-                    .unwrap();
-            let mut runtime = Compiler::exec_vm(program, false, false).unwrap();
-            assert_eq!(
-                runtime.pop_value(),
-                Value::Bool(expected),
-                "input: {}",
-                input
-            );
-        }
+        cases
+            .into_par_iter()
+            .try_for_each(|(input, expected)| -> Result<_> {
+                let program =
+                    Compiler::compile_with_input(format!("fun main() {{ return {}; }}", input))
+                        .unwrap();
+                let mut runtime = Compiler::exec_vm(program, false, false).unwrap();
+                assert_eq!(
+                    runtime.pop_value(),
+                    Value::Bool(expected),
+                    "input: {}",
+                    input
+                );
+
+                Ok(())
+            })?;
+
+        Ok(())
     }
 
     #[test]
@@ -1028,22 +1056,26 @@ mod tests {
             ),
         ];
 
-        for (input, expected) in cases {
-            let mut compiler = Compiler::new();
-            compiler.set_cwd(std::env::current_dir().unwrap().display().to_string());
+        cases
+            .into_par_iter()
+            .try_for_each(|(input, expected)| -> Result<_> {
+                let mut compiler = Compiler::new();
+                compiler.set_cwd(std::env::current_dir().unwrap().display().to_string());
 
-            println!("====== {}", input);
-            let path = "main".to_string();
-            compiler.parse_with_code(path.clone(), input.to_string())?;
-            compiler.typecheck(path.clone())?;
-            let ir = compiler.ir_code_gen(path.clone())?;
-            let code = Compiler::vm_code_gen(ir)?;
-            let linked = Compiler::link(code)?;
-            let binary = Compiler::byte_code_gen(linked)?;
+                println!("====== {}", input);
+                let path = "main".to_string();
+                compiler.parse_with_code(path.clone(), input.to_string())?;
+                compiler.typecheck(path.clone())?;
+                let ir = compiler.ir_code_gen(path.clone())?;
+                let code = Compiler::vm_code_gen(ir)?;
+                let linked = Compiler::link(code)?;
+                let binary = Compiler::byte_code_gen(linked)?;
 
-            let actual = Compiler::run_vm(binary, false, false).unwrap();
-            assert_eq!(actual, expected, "input: {}", input);
-        }
+                let actual = Compiler::run_vm(binary, false, false).unwrap();
+                assert_eq!(actual, expected, "input: {}", input);
+
+                Ok(())
+            })?;
 
         Ok(())
     }
@@ -1055,43 +1087,47 @@ mod tests {
             .map(|entry| entry.unwrap().path())
             .collect::<Vec<_>>();
 
-        for dir_path in paths {
-            println!("{}", dir_path.to_str().unwrap());
-            let mut compiler = Compiler::new();
-            compiler.set_cwd(dir_path.display().to_string());
+        paths
+            .into_par_iter()
+            .try_for_each(|dir_path| -> Result<_> {
+                println!("{}", dir_path.to_str().unwrap());
+                let mut compiler = Compiler::new();
+                compiler.set_cwd(dir_path.display().to_string());
 
-            let path = dir_path.join("main.io").display().to_string();
-            let main = "main".to_string();
+                let path = dir_path.join("main.io").display().to_string();
+                let main = "main".to_string();
 
-            let input = std::fs::read_to_string(path.clone()).unwrap();
+                let input = std::fs::read_to_string(path.clone()).unwrap();
 
-            compiler.parse(main.clone())?;
-            compiler.typecheck(main.clone())?;
+                compiler.parse(main.clone())?;
+                compiler.typecheck(main.clone())?;
 
-            let ir = compiler.ir_code_gen(main.clone())?;
-            let code = Compiler::vm_code_gen(ir)?;
-            let linked = Compiler::link(code)?;
-            let binary = Compiler::byte_code_gen(linked)?;
+                let ir = compiler.ir_code_gen(main.clone())?;
+                let code = Compiler::vm_code_gen(ir)?;
+                let linked = Compiler::link(code)?;
+                let binary = Compiler::byte_code_gen(linked)?;
 
-            let stdout = Arc::new(Mutex::new(BufWriter::new(vec![])));
-            let result = Compiler::run_vm_with_io_trap(binary, false, stdout.clone())?;
+                let stdout = Arc::new(Mutex::new(BufWriter::new(vec![])));
+                let result = Compiler::run_vm_with_io_trap(binary, false, stdout.clone())?;
 
-            let expected = dir_path.join("result.test").display().to_string();
-            if std::path::Path::new(&expected).exists() {
-                let expected = std::fs::read_to_string(expected).unwrap();
-                let expected = expected.trim().parse::<i64>().unwrap();
+                let expected = dir_path.join("result.test").display().to_string();
+                if std::path::Path::new(&expected).exists() {
+                    let expected = std::fs::read_to_string(expected).unwrap();
+                    let expected = expected.trim().parse::<i64>().unwrap();
 
-                assert_eq!(result, expected, "input: {}", input);
-            }
+                    assert_eq!(result, expected, "input: {}", input);
+                }
 
-            let expected_stdout = dir_path.join("stdout.test").display().to_string();
-            if std::path::Path::new(&expected_stdout).exists() {
-                let expected = std::fs::read_to_string(expected_stdout).unwrap();
+                let expected_stdout = dir_path.join("stdout.test").display().to_string();
+                if std::path::Path::new(&expected_stdout).exists() {
+                    let expected = std::fs::read_to_string(expected_stdout).unwrap();
 
-                let got = String::from_utf8(stdout.lock().unwrap().buffer().to_vec()).unwrap();
-                assert_eq!(got, expected, "input: {}", input);
-            }
-        }
+                    let got = String::from_utf8(stdout.lock().unwrap().buffer().to_vec()).unwrap();
+                    assert_eq!(got, expected, "input: {}", input);
+                }
+
+                Ok(())
+            })?;
 
         Ok(())
     }

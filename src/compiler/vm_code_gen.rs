@@ -484,116 +484,86 @@ impl VmCodeGenerator {
                 self.emit(Instruction::Label(label_if_end.clone()));
                 self.stack_pointer = stack_pointer + 1;
             }
-            IrTerm::Call { callee, args } => {
-                let name = match *callee {
-                    IrTerm::Ident(name) => name,
-                    term => {
-                        // closure call
-                        let args_len = args.len();
-
-                        // word for the return value
-                        self.push_value(Value::Int(0));
-
-                        self.term(IrTerm::Load {
-                            size: Value::size() as usize,
-                            address: Box::new(IrTerm::Index {
-                                ptr: Box::new(IrTerm::Load {
-                                    size: Value::size() as usize,
-                                    address: Box::new(term.clone()),
-                                }),
-                                index: Box::new(IrTerm::Int(0)),
-                            }),
-                        })?;
-                        // NOTE: push args in the reverse order
-                        for arg in args.into_iter().rev() {
-                            self.term(arg)?;
-                        }
-
-                        self.term(IrTerm::Load {
-                            size: Value::size() as usize,
-                            address: Box::new(IrTerm::Index {
-                                ptr: Box::new(IrTerm::Load {
-                                    size: Value::size() as usize,
-                                    address: Box::new(term.clone()),
-                                }),
-                                index: Box::new(IrTerm::Int(Value::size() as i32)),
-                            }),
-                        })?;
-                        self.emit(Instruction::Call);
-
-                        // NOTE: pop arity + closure env
-                        for _ in 0..args_len + 1 {
-                            self.pop();
-                        }
-
-                        return Ok(());
-                    }
-                };
-                if name == "abort" {
+            IrTerm::StaticCall { callee, args } => {
+                if callee == "abort" {
                     self.emit(Instruction::Abort);
-                    return Ok(());
-                }
-
-                let extcall_label = Self::extcall_table().get(&name).cloned();
-                if extcall_label.is_none() {
-                    self.emit(Instruction::Push(0));
+                } else {
+                    self.push_value(Value::Int(0));
                     self.emit(Instruction::Debug(
                         "allocated for the return value".to_string(),
                     ));
-                }
 
+                    let args_len = args.len();
+
+                    for arg in args.into_iter().rev() {
+                        self.term(arg)?;
+                    }
+
+                    self.emit(Instruction::CallLabel(callee));
+
+                    // NOTE: pop arity
+                    for _ in 0..args_len {
+                        self.pop();
+                    }
+                }
+            }
+            IrTerm::ExtCall { callee: name, args } => {
+                let symbol = Self::extcall_table().get(&name).cloned().ok_or(
+                    VmCodeGeneratorError::LocalNotFound(format!("extcall: {}", name)),
+                )?;
                 let args_len = args.len();
-                let is_closure_call = extcall_label.is_none() && !self.functions.contains(&name);
-
-                if is_closure_call {
-                    self.term(IrTerm::Load {
-                        size: Value::size() as usize,
-                        address: Box::new(IrTerm::Index {
-                            ptr: Box::new(IrTerm::Load {
-                                size: Value::size() as usize,
-                                address: Box::new(IrTerm::Ident(name.clone())),
-                            }),
-                            index: Box::new(IrTerm::Int(0)),
-                        }),
-                    })?;
-                }
 
                 // NOTE: push args in the reverse order
                 for arg in args.into_iter().rev() {
                     self.term(arg)?;
                 }
 
-                if let Some(label) = extcall_label {
-                    self.emit(Instruction::ExtCall(label));
+                self.emit(Instruction::ExtCall(symbol));
+                self.stack_pointer = self.stack_pointer - args_len + 1;
+            }
+            IrTerm::DynamicCall { callee, args } => {
+                // Currently, only closure calls are supported
+                let args_len = args.len();
 
-                    self.stack_pointer = self.stack_pointer - args_len + 1;
-                } else if self.functions.contains(&name) {
-                    self.emit(Instruction::CallLabel(name));
+                self.push_value(Value::Int(0));
+                self.emit(Instruction::Debug(
+                    "allocated for the return value".to_string(),
+                ));
 
-                    // NOTE: pop arity
-                    for _ in 0..args_len {
-                        self.pop();
-                    }
-                } else {
-                    // closure call
-                    // These process should be done in the IR phase?
-                    self.term(IrTerm::Load {
-                        size: Value::size() as usize,
-                        address: Box::new(IrTerm::Index {
-                            ptr: Box::new(IrTerm::Load {
-                                size: Value::size() as usize,
-                                address: Box::new(IrTerm::Ident(name.clone())),
-                            }),
-                            index: Box::new(IrTerm::Int(Value::size() as i32)),
+                // NOTE: push args in the reverse order
+                // closure env as the last argument
+                self.term(IrTerm::Load {
+                    size: Value::size() as usize,
+                    address: Box::new(IrTerm::Index {
+                        ptr: Box::new(IrTerm::Load {
+                            size: Value::size() as usize,
+                            address: callee.clone(),
                         }),
-                    })?;
-                    self.emit(Instruction::Call);
-
-                    // NOTE: pop arity + closure env
-                    for _ in 0..args_len + 1 {
-                        self.pop();
-                    }
+                        index: Box::new(IrTerm::Int(Value::size() as i32)),
+                    }),
+                })?;
+                for arg in args.into_iter().rev() {
+                    self.term(arg)?;
                 }
+
+                self.term(IrTerm::Load {
+                    size: Value::size() as usize,
+                    address: Box::new(IrTerm::Index {
+                        ptr: Box::new(IrTerm::Load {
+                            size: Value::size() as usize,
+                            address: callee.clone(),
+                        }),
+                        index: Box::new(IrTerm::Int(0)),
+                    }),
+                })?;
+                self.emit(Instruction::Call);
+
+                // NOTE: pop arity + closure env
+                for _ in 0..args_len + 1 {
+                    self.pop();
+                }
+
+                return Ok(());
             }
             IrTerm::Index { ptr, index } => {
                 self.term(*ptr)?;

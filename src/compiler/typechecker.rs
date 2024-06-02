@@ -851,10 +851,13 @@ impl Typechecker {
 mod tests {
     use crate::compiler::{Compiler, CompilerError};
 
+    use anyhow::Result;
+    use rayon::prelude::*;
+
     use super::*;
 
     #[test]
-    fn test_typecheck_errors() {
+    fn test_typecheck_errors() -> Result<()> {
         let cases = vec![
             (
                 r#"fun main() { x; }"#,
@@ -887,17 +890,23 @@ mod tests {
             ),
         ];
 
-        for (input, error) in cases {
-            let result = Compiler::compile_with_input(input.to_string());
+        cases
+            .into_par_iter()
+            .try_for_each(|(input, error)| -> Result<_> {
+                let result = Compiler::compile_with_input(input.to_string());
 
-            match result.err() {
-                Some(CompilerError::TypecheckError(err)) => {
-                    assert_eq!(err, error);
+                match result.err() {
+                    Some(CompilerError::TypecheckError(err)) => {
+                        assert_eq!(err, error);
+                    }
+                    result => {
+                        assert!(false, "want {:?}, but got {:?}", error, result);
+                    }
                 }
-                result => {
-                    assert!(false, "want {:?}, but got {:?}", error, result);
-                }
-            }
-        }
+
+                Ok(())
+            })?;
+
+        Ok(())
     }
 }

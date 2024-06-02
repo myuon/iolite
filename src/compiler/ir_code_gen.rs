@@ -23,6 +23,7 @@ pub struct IrCodeGenerator {
     captured_env: HashMap<String, (String, usize)>, // captured_name -> (env_name, index)
     escaped: Vec<String>,
     current_module: String,
+    pub(crate) declared: Vec<String>,
 }
 
 impl IrCodeGenerator {
@@ -37,6 +38,7 @@ impl IrCodeGenerator {
             captured_env: HashMap::new(),
             escaped: vec![],
             current_module: "".to_string(),
+            declared: vec![],
         }
     }
 
@@ -44,9 +46,13 @@ impl IrCodeGenerator {
         self.types = types;
     }
 
+    pub fn set_declared(&mut self, declared: Vec<String>) {
+        self.declared = declared;
+    }
+
     fn allocate(&self, term: IrTerm) -> IrTerm {
-        IrTerm::Call {
-            callee: Box::new(IrTerm::Ident("alloc".to_string())),
+        IrTerm::StaticCall {
+            callee: "alloc".to_string(),
             args: vec![term],
         }
     }
@@ -86,8 +92,17 @@ impl IrCodeGenerator {
         IrTerm::Items(block)
     }
 
-    pub fn module(&mut self, module: Module) -> Result<IrModule, IrCodeGeneratorError> {
+    pub fn program(&mut self, module: Module) -> Result<IrModule, IrCodeGeneratorError> {
         let mut decls = vec![];
+
+        for decl in &module.declarations {
+            match &decl.data {
+                Declaration::DeclareFunction { name, .. } => {
+                    self.declared.push(name.data.clone());
+                }
+                _ => (),
+            }
+        }
 
         for decl in module.declarations {
             decls.extend(self.decl(decl)?);
@@ -159,8 +174,8 @@ impl IrCodeGenerator {
                         let mut terms = vec![];
 
                         for name in &self.init_functions {
-                            terms.push(IrTerm::Call {
-                                callee: Box::new(IrTerm::Ident(name.to_string())),
+                            terms.push(IrTerm::StaticCall {
+                                callee: name.to_string(),
                                 args: vec![],
                             });
                         }
@@ -173,12 +188,14 @@ impl IrCodeGenerator {
                     }
                 };
 
+                let symbol = if self.current_module != "" {
+                    format!("{}_{}", self.current_module, name.data)
+                } else {
+                    name.data
+                };
+
                 Ok(vec![IrDecl::Fun {
-                    name: if self.current_module != "" {
-                        format!("{}_{}", self.current_module, name.data)
-                    } else {
-                        name.data
-                    },
+                    name: symbol,
                     args: params.into_iter().map(|p| p.0.data).collect(),
                     body: Box::new(body),
                     escaped: self.escaped.clone(),
@@ -301,11 +318,28 @@ impl IrCodeGenerator {
                     }
 
                     let callee = self.expr_left_value(*callee)?;
-
-                    Ok(IrTerm::Call {
-                        callee: Box::new(callee),
-                        args: ir_args,
-                    })
+                    match callee {
+                        IrTerm::Ident(ident) if self.declared.contains(&ident) => {
+                            Ok(IrTerm::ExtCall {
+                                callee: ident,
+                                args: ir_args,
+                            })
+                        }
+                        IrTerm::Ident(ident)
+                        // FIXME: types should contains qualified path
+                            if self.types.contains_key(&ident)
+                                || self.types.contains_key(&ident.replace("_", "::")) =>
+                        {
+                            Ok(IrTerm::StaticCall {
+                                callee: ident,
+                                args: ir_args,
+                            })
+                        }
+                        _ => Ok(IrTerm::DynamicCall {
+                            callee: Box::new(callee),
+                            args: ir_args,
+                        }),
+                    }
                 }
             },
             Expr::Match { cond, cases } => {
@@ -408,8 +442,8 @@ impl IrCodeGenerator {
                     ir_args.push(self.expr(arg)?);
                 }
 
-                Ok(IrTerm::Call {
-                    callee: Box::new(IrTerm::Ident(call_symbol.unwrap().replace("::", "_"))),
+                Ok(IrTerm::StaticCall {
+                    callee: call_symbol.unwrap().replace("::", "_"),
                     args: ir_args,
                 })
             }
@@ -473,7 +507,7 @@ impl IrCodeGenerator {
                 }
                 let env = self.slice(env_terms);
 
-                let closure_pair = self.slice(vec![env, IrTerm::Function(name)]);
+                let closure_pair = self.slice(vec![IrTerm::Function(name), env]);
 
                 for name in captured {
                     if !self.escaped.contains(&name) {
