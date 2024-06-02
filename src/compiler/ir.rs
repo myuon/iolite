@@ -209,7 +209,7 @@ impl std::fmt::Debug for Value {
             Value::Nil => write!(f, "<nil>"),
             Value::Int(val) => write!(f, "{}", val),
             Value::Float(val) => write!(f, "Float({})", val),
-            Value::Bool(val) => write!(f, "Bool({})", val),
+            Value::Bool(val) => write!(f, "{}", val),
             Value::Pointer(val) => {
                 if *val == 0 {
                     write!(f, "<nil>")

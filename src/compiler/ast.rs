@@ -283,8 +283,8 @@ impl Type {
 
     pub fn fields_closure() -> Vec<(String, Type)> {
         vec![
-            ("env".to_string(), Type::RawPtr),
             ("ptr".to_string(), Type::RawPtr),
+            ("env".to_string(), Type::RawPtr),
         ]
     }
 

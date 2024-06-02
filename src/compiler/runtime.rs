@@ -402,12 +402,12 @@ impl Runtime {
         if let Ok((task_id, args)) = self.channel.1.try_recv() {
             let (callback_ptr, callback_env) = self.closure_tasks.get(&task_id).unwrap().clone();
 
-            self.args = args.len();
             let mut callback_args = args.into_iter().map(|t| t.as_u64()).collect::<Vec<_>>();
-            // push closure env (an argument)
+            // push closure env (as the last argument)
             callback_args.push(callback_env);
-
             callback_args.reverse();
+
+            self.args = callback_args.len();
 
             // allocate for the return value
             self.push(0);
@@ -424,7 +424,7 @@ impl Runtime {
             self.pc = pc as usize;
 
             if print_stacks {
-                println!("Task {} started", task_id);
+                println!("Task {} started ({})", task_id, pc);
             }
 
             return Ok(ControlFlow::Continue);
@@ -764,8 +764,6 @@ impl Runtime {
                             println!("Task {} finished, {}, current_sp: {}", task_id, sp, self.sp);
                         }
 
-                        // pops closure env
-                        self.pop_i64();
                         // pops return value
                         self.pop_i64();
                         // pops arguments
