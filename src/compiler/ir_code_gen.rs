@@ -23,7 +23,7 @@ pub struct IrCodeGenerator {
     captured_env: HashMap<String, (String, usize)>, // captured_name -> (env_name, index)
     escaped: Vec<String>,
     current_module: String,
-    declared: Vec<String>,
+    pub(crate) declared: Vec<String>,
 }
 
 impl IrCodeGenerator {
@@ -44,6 +44,10 @@ impl IrCodeGenerator {
 
     pub fn set_types(&mut self, types: HashMap<String, Source<Type>>) {
         self.types = types;
+    }
+
+    pub fn set_declared(&mut self, declared: Vec<String>) {
+        self.declared = declared;
     }
 
     fn allocate(&self, term: IrTerm) -> IrTerm {
