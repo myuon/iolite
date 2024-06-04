@@ -26,8 +26,8 @@ impl Linker {
         let mut code = vec![];
 
         code.extend(vec![
-            Instruction::Push(0), // 1 word for the return value
-            Instruction::Push(Value::Pointer(0xffffffff).as_u64()), // return address
+            Instruction::Push(0),                       // 1 word for the return value
+            Instruction::Push(Value::Int(-1).as_u64()), // return address
         ]);
 
         let mut data_offset = 0;
@@ -62,7 +62,16 @@ impl Linker {
         let heap_ptr_offset = data_offset + global_offset;
 
         for module in &vm.modules {
-            code.push(Instruction::CallLabel(module.init_function_name.clone()));
+            code.extend(vec![
+                // allocate for the return value
+                Instruction::Push(Value::Int(0).as_u64()),
+                Instruction::CallLabel(module.init_function_name.clone()),
+                // pop the return value
+                Instruction::LoadSp,
+                Instruction::Push(Value::Int(Value::size()).as_u64()),
+                Instruction::AddInt,
+                Instruction::StoreSp,
+            ]);
         }
 
         code.push(Instruction::JumpTo("main".to_string()));
