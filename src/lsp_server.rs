@@ -250,6 +250,7 @@ async fn lsp_handler(
                             TypecheckerError::FunctionTypeExpected(_) => Span::unknown(),
                             TypecheckerError::IndexNotSupported(_) => Span::unknown(),
                             TypecheckerError::ConversionNotSupported(_, ty) => ty.span,
+                            TypecheckerError::ReturnExpected => Span::unknown(),
                         },
                         err => todo!("{:?}", err),
                     };

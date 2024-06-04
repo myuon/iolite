@@ -1,4 +1,4 @@
-use std::collections::{HashMap, HashSet};
+use std::collections::HashSet;
 
 use thiserror::Error;
 
@@ -30,6 +30,8 @@ pub enum TypecheckerError {
     IndexNotSupported(Type),
     #[error("Conversion not supported from {0:?} to {1:?}")]
     ConversionNotSupported(Type, Source<Type>),
+    #[error("Return expected")]
+    ReturnExpected,
 }
 
 impl PartialEq for TypecheckerError {
@@ -726,6 +728,32 @@ impl Typechecker {
                 self.globals.push(path.as_string());
 
                 self.block(body)?;
+                if !matches!(
+                    body.data.statements.last().cloned().map(|t| t.data),
+                    Some(Statement::Return(_))
+                ) {
+                    if matches!(result.data, Type::Nil) {
+                        body.data.statements.push(Source::span(
+                            Statement::Return(Source::span(
+                                Expr::Lit(Source::span(Literal::Nil, Span::unknown())),
+                                Span::unknown(),
+                            )),
+                            Span::unknown(),
+                        ));
+                    } else if matches!(result.data, Type::Unknown) {
+                        result.data = Type::Nil;
+
+                        body.data.statements.push(Source::span(
+                            Statement::Return(Source::span(
+                                Expr::Lit(Source::span(Literal::Nil, Span::unknown())),
+                                Span::unknown(),
+                            )),
+                            Span::unknown(),
+                        ));
+                    } else {
+                        return Err(TypecheckerError::ReturnExpected);
+                    }
+                }
 
                 let result_ty_explicitly_written = result.span.start != result.span.end;
                 if !result_ty_explicitly_written {
