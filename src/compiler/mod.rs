@@ -547,6 +547,15 @@ impl Compiler {
         Ok(emitter.buffer)
     }
 
+    pub fn emit_byte_code(code: Vec<Instruction>) -> Result<ByteCodeEmitter, CompilerError> {
+        let mut emitter = ByteCodeEmitter::new();
+        emitter
+            .exec(code)
+            .map_err(CompilerError::ByteCodeEmitterError)?;
+
+        Ok(emitter)
+    }
+
     pub fn link(vm: VmProgram) -> Result<Vec<Instruction>, CompilerError> {
         let mut linker = Linker::new();
 

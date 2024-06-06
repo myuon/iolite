@@ -16,7 +16,8 @@ pub enum ByteCodeEmitterError {
 
 pub struct ByteCodeEmitter {
     position: usize,
-    pub buffer: Vec<u8>,
+    pub(crate) buffer: Vec<u8>,
+    pub(crate) labels: HashMap<String, usize>,
 }
 
 impl ByteCodeEmitter {
@@ -24,6 +25,7 @@ impl ByteCodeEmitter {
         ByteCodeEmitter {
             position: 0,
             buffer: vec![],
+            labels: HashMap::new(),
         }
     }
 
@@ -84,7 +86,7 @@ impl ByteCodeEmitter {
                     self.write(&data)?;
                 }
                 Label(label) => {
-                    eprintln!("[{}:0x{:x}] .{}", self.position, self.position, label);
+                    self.labels.insert(label.clone(), self.position);
                     labels.insert(label, self.position);
                 }
                 PushLabel(label) => {

@@ -38,6 +38,8 @@ enum CliCommands {
         emit_vm: Option<String>,
         #[clap(long = "emit-linked-vm")]
         emit_linked_vm: Option<String>,
+        #[clap(long = "emit-asm-labels")]
+        emit_asm_labels: Option<String>,
         #[clap(long = "emit-asm")]
         emit_asm: Option<String>,
     },
@@ -59,6 +61,7 @@ async fn main() -> Result<()> {
             emit_ir,
             emit_vm,
             emit_linked_vm,
+            emit_asm_labels,
             emit_asm,
         } => {
             let cwd = match file.clone() {
@@ -160,7 +163,15 @@ async fn main() -> Result<()> {
                 eprintln!("Linked");
             }
 
-            let binary = compiler::Compiler::byte_code_gen(linked)?;
+            let emitter = compiler::Compiler::emit_byte_code(linked)?;
+            if let Some(file_path) = emit_asm_labels {
+                let mut file = std::fs::File::create(file_path.clone())?;
+                for (label, position) in &emitter.labels {
+                    writeln!(file, "[{}:0x{:x}] .{}", position, position, label)?;
+                }
+            }
+
+            let binary = emitter.buffer;
             if let Some(file_path) = emit_asm {
                 let mut file = std::fs::File::create(file_path.clone())?;
                 emit_disassemble(&mut file, binary.clone())?;
