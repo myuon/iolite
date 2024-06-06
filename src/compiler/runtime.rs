@@ -982,6 +982,17 @@ impl Runtime {
                     println!("store 0x{:x} {:?}", address, Value::from_u64(value as u64));
                 }
                 self.store_i64(address as u32 as u64, value);
+
+                assert!(
+                    address != self.bp as u64,
+                    "Cannot store into <prev_bp>\n{}",
+                    self.show_stacks()
+                );
+                assert!(
+                    address != self.bp as u64 + 8,
+                    "Cannot store into <prev_pc>\n{}",
+                    self.show_stacks()
+                );
             }
             // store into register
             0x43 => {
