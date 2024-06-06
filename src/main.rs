@@ -166,11 +166,10 @@ async fn main() -> Result<()> {
             let emitter = compiler::Compiler::emit_byte_code(linked)?;
             if let Some(file_path) = emit_asm_labels {
                 let mut file = std::fs::File::create(file_path.clone())?;
-                let mut labels = emitter.labels.keys().collect::<Vec<_>>();
-                labels.sort();
+                let mut labels = emitter.labels.into_iter().collect::<Vec<_>>();
+                labels.sort_by(|x, y| x.1.cmp(&y.1));
 
-                for label in labels {
-                    let position = emitter.labels.get(label).unwrap();
+                for (label, position) in labels {
                     writeln!(file, "[{}:0x{:x}] .{}", position, position, label)?;
                 }
             }
