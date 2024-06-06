@@ -987,6 +987,11 @@ impl Runtime {
             0x43 => {
                 let register = self.consume();
                 let value = self.pop_i64();
+                assert!(
+                    matches!(Value::from_u64(value as u64), Value::Int(_)),
+                    "Register value must be an integer, but got {:?}",
+                    Value::from_u64(value as u64)
+                );
                 match register {
                     0x01 => self.bp = value as usize,
                     0x02 => self.sp = value as usize,
