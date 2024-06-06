@@ -571,7 +571,7 @@ impl Typechecker {
                 self.return_ty = result.data.clone();
                 self.ident_referred = vec![];
 
-                self.block(body)?;
+                self.block_with_implicit_return(body, result)?;
 
                 for ident in self.ident_referred.iter().collect::<HashSet<_>>() {
                     if !types_cloned.contains_ident_key(ident) {
@@ -686,6 +686,42 @@ impl Typechecker {
         }
     }
 
+    pub fn block_with_implicit_return(
+        &mut self,
+        block: &mut Source<Block>,
+        result: &mut Source<Type>,
+    ) -> Result<(), TypecheckerError> {
+        self.block(block)?;
+        if !matches!(
+            block.data.statements.last().cloned().map(|t| t.data),
+            Some(Statement::Return(_))
+        ) {
+            if matches!(result.data, Type::Nil) {
+                block.data.statements.push(Source::span(
+                    Statement::Return(Source::span(
+                        Expr::Lit(Source::span(Literal::Nil, Span::unknown())),
+                        Span::unknown(),
+                    )),
+                    Span::unknown(),
+                ));
+            } else if matches!(result.data, Type::Unknown) {
+                result.data = Type::Nil;
+
+                block.data.statements.push(Source::span(
+                    Statement::Return(Source::span(
+                        Expr::Lit(Source::span(Literal::Nil, Span::unknown())),
+                        Span::unknown(),
+                    )),
+                    Span::unknown(),
+                ));
+            } else {
+                return Err(TypecheckerError::ReturnExpected);
+            }
+        }
+
+        Ok(())
+    }
+
     fn decl(&mut self, decl: &mut Source<Declaration>) -> Result<(), TypecheckerError> {
         match &mut decl.data {
             Declaration::Function {
@@ -727,33 +763,7 @@ impl Typechecker {
                 );
                 self.globals.push(path.as_string());
 
-                self.block(body)?;
-                if !matches!(
-                    body.data.statements.last().cloned().map(|t| t.data),
-                    Some(Statement::Return(_))
-                ) {
-                    if matches!(result.data, Type::Nil) {
-                        body.data.statements.push(Source::span(
-                            Statement::Return(Source::span(
-                                Expr::Lit(Source::span(Literal::Nil, Span::unknown())),
-                                Span::unknown(),
-                            )),
-                            Span::unknown(),
-                        ));
-                    } else if matches!(result.data, Type::Unknown) {
-                        result.data = Type::Nil;
-
-                        body.data.statements.push(Source::span(
-                            Statement::Return(Source::span(
-                                Expr::Lit(Source::span(Literal::Nil, Span::unknown())),
-                                Span::unknown(),
-                            )),
-                            Span::unknown(),
-                        ));
-                    } else {
-                        return Err(TypecheckerError::ReturnExpected);
-                    }
-                }
+                self.block_with_implicit_return(body, result)?;
 
                 let result_ty_explicitly_written = result.span.start != result.span.end;
                 if !result_ty_explicitly_written {
