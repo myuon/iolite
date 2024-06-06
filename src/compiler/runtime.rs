@@ -774,6 +774,8 @@ impl Runtime {
                         for _ in 0..self.args {
                             self.pop_i64();
                         }
+                        // pops the return value
+                        self.pop_i64();
 
                         self.interrupted.pop();
 
