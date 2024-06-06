@@ -63,6 +63,8 @@ impl VmCodeGenerator {
             "extcall_app_run",
             "extcall_app_wait",
             "extcall_app_redraw",
+            "extcall_app_event_key",
+            "extcall_app_quit",
             "extcall_frame_default",
             "extcall_frame_set_rectangle",
             "extcall_frame_set_label",

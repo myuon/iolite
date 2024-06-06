@@ -6,6 +6,8 @@ declare fun extcall_app_default(): rawptr;
 declare fun extcall_app_run(app: rawptr);
 declare fun extcall_app_wait(app: rawptr): bool;
 declare fun extcall_app_redraw(app: rawptr);
+declare fun extcall_app_event_key(app: rawptr): int;
+declare fun extcall_app_quit(app: rawptr);
 declare fun extcall_button_default(title_ptr: rawptr, title_len: int): rawptr;
 declare fun extcall_button_set_callback(button: rawptr, callback_ptr: rawptr, callback_env: rawptr);
 declare fun extcall_frame_default(): rawptr;
@@ -240,6 +242,18 @@ module Event {
   }
 }
 
+struct Key(int);
+
+module Key {
+  fun from_bits(bits: int): Key {
+    return Key(bits);
+  }
+
+  fun ESCAPE(): Key {
+    return Key(65307);
+  }
+}
+
 struct Frame(rawptr);
 
 module Frame {
@@ -331,5 +345,13 @@ module App {
     while (self.wait()) {
       self.redraw();
     }
+  }
+
+  fun event_key(self): Key {
+    return Key::from_bits(extcall_app_event_key(self.!));
+  }
+
+  fun quit(self) {
+    return extcall_app_quit(self.!);
   }
 }

@@ -508,6 +508,21 @@ impl Runtime {
                             });
 
                             self.push(Value::Nil.as_u64() as i64);
+                        } else if index as usize == table["extcall_app_event_key"] {
+                            let _ = self.pop_i64();
+                            let result = app::event_key().bits();
+
+                            self.push(Value::Int(result as i32).as_u64() as i64);
+                        } else if index as usize == table["extcall_app_quit"] {
+                            let _ = self.pop_i64();
+
+                            APP.with(|app_ref| {
+                                let app = app_ref.borrow().unwrap();
+
+                                app.quit();
+                            });
+
+                            self.push(Value::Nil.as_u64() as i64);
                         } else if index as usize == table["extcall_window_new"] {
                             let x = self.pop_i64() as i32;
                             let y = self.pop_i64() as i32;

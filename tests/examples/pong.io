@@ -40,8 +40,12 @@ fun main() {
   window.end();
   window.show();
   window.set_callback(fun (event: Event) {
-    if event.! == Event::KEYDOWN().! {
-      print_str("Key down\n");
+    if (Event::KEYDOWN().! == event.!) {
+      let key = app.event_key();
+
+      if (Key::ESCAPE().! == key.!) {
+        app.quit();
+      }
     }
 
     return nil;
