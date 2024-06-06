@@ -414,12 +414,12 @@ impl Runtime {
                 self.push(arg.as_u64() as i64);
             }
 
-            self.interrupted.push((task_id.clone(), self.sp));
-
             // call
             let pc = callback_ptr & 0xffffffff; // remove type tag
             self.push(self.pc as i64);
             self.pc = pc as usize;
+
+            self.interrupted.push((task_id.clone(), self.sp));
 
             if print_stacks {
                 println!("Task {} started ({})", task_id, pc);
