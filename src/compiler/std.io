@@ -7,7 +7,10 @@ declare fun extcall_app_run(app: rawptr);
 declare fun extcall_app_wait(app: rawptr): bool;
 declare fun extcall_app_redraw(app: rawptr);
 declare fun extcall_app_event_key(app: rawptr): int;
+declare fun extcall_app_event_coords(app: rawptr): int;
 declare fun extcall_app_quit(app: rawptr);
+declare fun extcall_app_sleep(sec: float);
+declare fun extcall_app_add_idle(app: rawptr, handler_ptr: rawptr, handler_env: rawptr);
 declare fun extcall_button_default(title_ptr: rawptr, title_len: int): rawptr;
 declare fun extcall_button_set_callback(button: rawptr, callback_ptr: rawptr, callback_env: rawptr);
 declare fun extcall_frame_default(): rawptr;
@@ -21,6 +24,10 @@ declare fun extcall_flex_end(flex: rawptr);
 declare fun extcall_window_end(window: rawptr);
 declare fun extcall_window_show(window: rawptr);
 declare fun extcall_window_set_handler(window: rawptr, handler_ptr: rawptr, handler_env: rawptr);
+declare fun extcall_window_draw(window: rawptr, handler_ptr: rawptr, handler_env: rawptr);
+declare fun extcall_window_redraw(window: rawptr);
+declare fun extcall_draw_set_draw_color(r: int, g: int, b: int);
+declare fun extcall_draw_draw_rect(x: int, y: int, width: int, height: int);
 
 let heap_ptr = 0 as ptr[byte];
 
@@ -324,6 +331,19 @@ module Window {
 
     return extcall_window_set_handler(self.!, handler.ptr, handler.env);
   }
+
+  fun draw(self, handler: () => nil) {
+    return extcall_window_draw(self.!, handler.ptr, handler.env);
+  }
+
+  fun redraw(self) {
+    return extcall_window_redraw(self.!);
+  }
+}
+
+struct Point {
+  x: int,
+  y: int,
 }
 
 struct App(rawptr);
@@ -351,7 +371,36 @@ module App {
     return Key::from_bits(extcall_app_event_key(self.!));
   }
 
+  fun event_coords(self): Point {
+    let value = extcall_app_event_coords(self.!);
+
+    return Point {
+      x: value % 65535, // value & 0xffff
+      y: value / 65536, // value >> 16
+    };
+  }
+
   fun quit(self) {
     return extcall_app_quit(self.!);
+  }
+
+  fun add_idle(self, handler: () => nil) {
+    return extcall_app_add_idle(self.!, handler.ptr, handler.env);
+  }
+
+  fun sleep(sec: float) {
+    return extcall_app_sleep(sec);
+  }
+}
+
+struct Draw(nil);
+
+module Draw {
+  fun set_draw_color(r: int, g: int, b: int) {
+    return extcall_draw_set_draw_color(r, g, b);
+  }
+
+  fun draw_rect(x: int, y: int, w: int, h: int) {
+    return extcall_draw_draw_rect(x, y, w, h);
   }
 }

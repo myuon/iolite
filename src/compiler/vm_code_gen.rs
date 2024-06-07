@@ -59,12 +59,17 @@ impl VmCodeGenerator {
             "extcall_window_end",
             "extcall_window_show",
             "extcall_window_set_handler",
+            "extcall_window_draw",
+            "extcall_window_redraw",
             "extcall_app_default",
             "extcall_app_run",
             "extcall_app_wait",
             "extcall_app_redraw",
             "extcall_app_event_key",
+            "extcall_app_event_coords",
             "extcall_app_quit",
+            "extcall_app_sleep",
+            "extcall_app_add_idle",
             "extcall_frame_default",
             "extcall_frame_set_rectangle",
             "extcall_frame_set_label",
@@ -75,6 +80,8 @@ impl VmCodeGenerator {
             "extcall_flex_set_margins",
             "extcall_flex_set_pad",
             "extcall_flex_end",
+            "extcall_draw_set_draw_color",
+            "extcall_draw_draw_rect",
         ];
         let mut index = 10000;
         for method in methods {

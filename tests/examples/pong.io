@@ -36,9 +36,16 @@ fun main() {
   let window = Window::build(100, 200, 800, 600, "Pong!");
 
   let ball = Ball::build(40, 40);
+  let paddle_x = 320;
 
   window.end();
   window.show();
+  window.draw(fun () {
+    Draw::set_draw_color(255, 255, 255);
+    Draw::draw_rect(paddle_x, 540, 160, 20);
+
+    return nil;
+  });
   window.set_callback(fun (event: Event) {
     if (Event::KEYDOWN().! == event.!) {
       let key = app.event_key();
@@ -46,12 +53,20 @@ fun main() {
       if (Key::ESCAPE().! == key.!) {
         app.quit();
       }
+    } else if (Event::MOVE().! == event.!) {
+      let coords = app.event_coords();
+
+      paddle_x = coords.x - 80;
     }
 
     return nil;
   });
 
-  let paddle_pos = 320;
+  app.add_idle(fun () {
+    // window.redraw();
+    // App::sleep(0.016);
 
+    return nil;
+  });
   app.run();
 }

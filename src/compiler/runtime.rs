@@ -5,6 +5,7 @@ use std::{
     sync::{Arc, Mutex},
 };
 
+use fltk::draw;
 #[cfg(feature = "gui")]
 use fltk::{app, button::Button, frame::Frame, group::Flex, prelude::*, window::Window};
 
@@ -513,6 +514,12 @@ impl Runtime {
                             let result = app::event_key().bits();
 
                             self.push(Value::Int(result as i32).as_u64() as i64);
+                        } else if index as usize == table["extcall_app_event_coords"] {
+                            let _ = self.pop_i64();
+                            let (x, y) = app::event_coords();
+                            let value = x + (y << 16);
+
+                            self.push(Value::Int(value).as_u64() as i64);
                         } else if index as usize == table["extcall_app_quit"] {
                             let _ = self.pop_i64();
 
@@ -520,6 +527,27 @@ impl Runtime {
                                 let app = app_ref.borrow().unwrap();
 
                                 app.quit();
+                            });
+
+                            self.push(Value::Nil.as_u64() as i64);
+                        } else if index as usize == table["extcall_app_sleep"] {
+                            let sec = self.pop_f32();
+
+                            app::sleep(sec as f64);
+
+                            self.push(Value::Nil.as_u64() as i64);
+                        } else if index as usize == table["extcall_app_add_idle"] {
+                            let _ = self.pop_i64();
+                            let callback_ptr = self.pop_i64() as u64;
+                            let callback_env = self.pop_i64() as u64;
+
+                            let task_id = nanoid!();
+                            self.closure_tasks
+                                .insert(task_id.clone(), (callback_ptr, callback_env));
+
+                            let sender = self.channel.0.clone();
+                            app::add_idle3(move |_| {
+                                sender.send((task_id.clone(), vec![])).unwrap();
                             });
 
                             self.push(Value::Nil.as_u64() as i64);
@@ -596,6 +624,41 @@ impl Runtime {
 
                                     true
                                 });
+                            });
+
+                            self.push(Value::Nil.as_u64() as i64);
+                        } else if index as usize == table["extcall_window_draw"] {
+                            let window_id = self.pop_i64() as i32;
+                            let callback_ptr = self.pop_i64() as u64;
+                            let callback_env = self.pop_i64() as u64;
+
+                            let task_id = nanoid!();
+                            self.closure_tasks
+                                .insert(task_id.clone(), (callback_ptr, callback_env));
+
+                            WIDGETS.with(|widgets_ref| {
+                                let mut widgets = widgets_ref.borrow_mut();
+                                let window = widgets[window_id as usize]
+                                    .downcast_mut::<Window>()
+                                    .unwrap();
+
+                                let sender = self.channel.0.clone();
+                                window.draw(move |_| {
+                                    sender.send((task_id.clone(), vec![])).unwrap();
+                                });
+                            });
+
+                            self.push(Value::Nil.as_u64() as i64);
+                        } else if index as usize == table["extcall_window_redraw"] {
+                            let window_id = self.pop_i64() as i32;
+
+                            WIDGETS.with(|widgets_ref| {
+                                let mut widgets = widgets_ref.borrow_mut();
+                                let window = widgets[window_id as usize]
+                                    .downcast_mut::<Window>()
+                                    .unwrap();
+
+                                window.redraw();
                             });
 
                             self.push(Value::Nil.as_u64() as i64);
@@ -757,6 +820,22 @@ impl Runtime {
 
                                 flex.end();
                             });
+
+                            self.push(Value::Nil.as_u64() as i64);
+                        } else if index as usize == table["extcall_draw_set_draw_color"] {
+                            let r = self.pop_i64() as u8;
+                            let g = self.pop_i64() as u8;
+                            let b = self.pop_i64() as u8;
+
+                            draw::set_draw_color(fltk::enums::Color::from_rgb(r, g, b));
+
+                            self.push(Value::Nil.as_u64() as i64);
+                        } else if index as usize == table["extcall_draw_draw_rect"] {
+                            let x = self.pop_i64() as i32;
+                            let y = self.pop_i64() as i32;
+                            let w = self.pop_i64() as i32;
+                            let h = self.pop_i64() as i32;
+                            draw::draw_rectf(x, y, w, h);
 
                             self.push(Value::Nil.as_u64() as i64);
                         } else {
