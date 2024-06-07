@@ -786,7 +786,15 @@ mod tests {
             let mut gen = VmCodeGenerator::new();
             gen.term(ir.clone()).unwrap();
 
-            assert_eq!(gen.code, expected, "ir: {:?}", ir);
+            assert_eq!(
+                gen.code
+                    .into_iter()
+                    .filter(|t| !matches!(t, Instruction::Debug(_)))
+                    .collect::<Vec<_>>(),
+                expected,
+                "ir: {:?}",
+                ir
+            );
         }
     }
 
