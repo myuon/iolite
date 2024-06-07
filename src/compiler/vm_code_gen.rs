@@ -143,13 +143,10 @@ impl VmCodeGenerator {
         if scope.stack_pointer == self.stack_pointer {
             return;
         }
-        self.emit(Instruction::Debug(format!(
-            "rewind scope: copy into {}",
-            self.stack_pointer - scope.stack_pointer,
-        )));
         self.copy_into(self.stack_pointer - scope.stack_pointer);
         // NOTE: block returns a value, so we need to keep the stack pointer
         self.pop_until(scope.stack_pointer + 1);
+        assert_eq!(self.stack_pointer, scope.stack_pointer + 1);
     }
 
     fn push_global(&mut self, name: String) {
