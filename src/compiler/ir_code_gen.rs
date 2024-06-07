@@ -672,13 +672,13 @@ impl IrCodeGenerator {
                     let then = self.block(then)?;
                     let else_ = match else_ {
                         Some(block) => self.block(block)?,
-                        None => IrTerm::Items(vec![]),
+                        None => IrTerm::Items(vec![IrTerm::Nil]),
                     };
 
                     terms.push(IrTerm::If {
                         cond: Box::new(cond),
-                        then: Box::new(then),
-                        else_: Box::new(else_),
+                        then: Box::new(IrTerm::Discard(Box::new(then))),
+                        else_: Box::new(IrTerm::Discard(Box::new(else_))),
                     });
                 }
                 Statement::Block(block) => {

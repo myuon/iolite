@@ -137,11 +137,16 @@ impl VmCodeGenerator {
     }
 
     fn rewind_scope(&mut self) {
+        self.emit(Instruction::Debug("rewind scope".to_string()));
         let scope = self.locals.pop().unwrap();
 
         if scope.stack_pointer == self.stack_pointer {
             return;
         }
+        self.emit(Instruction::Debug(format!(
+            "rewind scope: copy into {}",
+            self.stack_pointer - scope.stack_pointer,
+        )));
         self.copy_into(self.stack_pointer - scope.stack_pointer);
         // NOTE: block returns a value, so we need to keep the stack pointer
         self.pop_until(scope.stack_pointer + 1);
@@ -193,9 +198,7 @@ impl VmCodeGenerator {
             LoadSp => {
                 self.stack_pointer += 1;
             }
-            StoreSp => {
-                self.stack_pointer -= 1;
-            }
+            StoreSp => {}
             Push(_) | PushLabel(_) => {
                 self.stack_pointer += 1;
             }
@@ -479,15 +482,19 @@ impl VmCodeGenerator {
                 self.emit(Instruction::Not);
                 self.emit(Instruction::JumpIfTo(label_if_else.clone()));
 
-                self.term(*then)?;
+                assert_eq!(self.stack_pointer, stack_pointer);
+                self.term(*then.clone())?;
+                // then may return a value
+                self.stack_pointer = stack_pointer + 1;
                 self.emit(Instruction::JumpTo(label_if_end.clone()));
 
                 self.stack_pointer = stack_pointer;
                 self.emit(Instruction::Label(label_if_else.clone()));
-
                 self.term(*else_)?;
-                self.emit(Instruction::Label(label_if_end.clone()));
+                // else may return a value
                 self.stack_pointer = stack_pointer + 1;
+
+                self.emit(Instruction::Label(label_if_end.clone()));
             }
             IrTerm::StaticCall { callee, args } => {
                 if callee == "abort" {
