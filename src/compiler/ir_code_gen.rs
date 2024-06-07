@@ -675,11 +675,11 @@ impl IrCodeGenerator {
                         None => IrTerm::Items(vec![IrTerm::Nil]),
                     };
 
-                    terms.push(IrTerm::If {
+                    terms.push(IrTerm::Discard(Box::new(IrTerm::If {
                         cond: Box::new(cond),
-                        then: Box::new(IrTerm::Discard(Box::new(then))),
-                        else_: Box::new(IrTerm::Discard(Box::new(else_))),
-                    });
+                        then: Box::new(then),
+                        else_: Box::new(else_),
+                    })));
                 }
                 Statement::Block(block) => {
                     terms.push(self.block(block)?);
