@@ -18,6 +18,7 @@ declare fun extcall_frame_set_rectangle(frame: rawptr, x: int, y: int, width: in
 declare fun extcall_frame_set_label(frame: rawptr, title_ptr: rawptr, title_len: int);
 declare fun extcall_frame_resize(frame: rawptr, x: int, y: int, width: int, height: int);
 declare fun extcall_frame_set_color(frame: rawptr, r: int, g: int, b: int);
+declare fun extcall_frame_set_frame(frame: rawptr, frame_type: int);
 declare fun extcall_flex_default_fill(): rawptr;
 declare fun extcall_flex_column(flex: rawptr): rawptr;
 declare fun extcall_flex_set_margins(flex: rawptr, left: int, top: int, right: int, bottom: int);
@@ -263,6 +264,18 @@ module Key {
   }
 }
 
+struct FrameType(int);
+
+module FrameType {
+  fun O_FLAT_FRAME(): FrameType {
+    return FrameType(29);
+  }
+
+  fun to_int(self): int {
+    return self.!;
+  }
+}
+
 struct Frame(rawptr);
 
 module Frame {
@@ -284,6 +297,10 @@ module Frame {
 
   fun set_color(self, r: int, g: int, b: int) {
     return extcall_frame_set_color(self.!, r, g, b);
+  }
+
+  fun set_frame(self, frame_type: FrameType) {
+    return extcall_frame_set_frame(self.!, frame_type.to_int());
   }
 }
 

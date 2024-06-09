@@ -18,6 +18,8 @@ module Ball {
   fun build(w: int, h: int): Ball {
     let widget = Frame::default();
     widget.set_rectangle(0, 0, w, h);
+    widget.set_frame(FrameType::O_FLAT_FRAME());
+    widget.set_color(255, 255, 255);
 
     let pos = Position { x: 0, y: 0 };
     let dir = Direction { x: 1, y: 1 };
@@ -65,6 +67,28 @@ fun main() {
   });
 
   app.add_idle(fun () {
+    ball.pos.x = ball.pos.x + 10 * ball.dir.x;
+    ball.pos.y = ball.pos.y + 10 * ball.dir.y;
+
+    if (ball.pos.y == 540 - 40
+        && (ball.pos.x > paddle_x - 40 && ball.pos.x < paddle_x + 160))
+    {
+      ball.dir.y = -1;
+    }
+    if (ball.pos.y == 0) {
+      ball.dir.y = 1;
+    }
+    if (ball.pos.x == 800 - 40) {
+      ball.dir.x = -1;
+    }
+    if (ball.pos.x == 0) {
+      ball.dir.x = 1;
+    }
+    if (ball.pos.y > 600) {
+      ball.pos = Position { x: 0, y: 0 };
+      ball.dir = Direction { x: 1, y: 1 };
+    }
+
     ball.widget.resize(ball.pos.x, ball.pos.y, 40, 40);
 
     window.redraw();

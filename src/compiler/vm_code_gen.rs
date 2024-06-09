@@ -75,6 +75,7 @@ impl VmCodeGenerator {
             "extcall_frame_set_label",
             "extcall_frame_resize",
             "extcall_frame_set_color",
+            "extcall_frame_set_frame",
             "extcall_button_default",
             "extcall_button_set_callback",
             "extcall_flex_default_fill",

@@ -762,6 +762,19 @@ impl Runtime {
                             });
 
                             self.push(Value::Nil.as_u64() as i64);
+                        } else if index as usize == table["extcall_frame_set_frame"] {
+                            let frame_id = self.pop_i64() as i32;
+                            let frame_type = self.pop_i64() as usize;
+
+                            WIDGETS.with(|widgets_ref| {
+                                let mut widgets = widgets_ref.borrow_mut();
+
+                                let frame =
+                                    widgets[frame_id as usize].downcast_mut::<Frame>().unwrap();
+                                frame.set_frame(fltk::enums::FrameType::by_index(frame_type));
+                            });
+
+                            self.push(Value::Nil.as_u64() as i64);
                         } else if index as usize == table["extcall_button_set_callback"] {
                             let button_id = self.pop_i64() as i32;
 
