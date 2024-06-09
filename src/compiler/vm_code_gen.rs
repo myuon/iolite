@@ -73,6 +73,8 @@ impl VmCodeGenerator {
             "extcall_frame_default",
             "extcall_frame_set_rectangle",
             "extcall_frame_set_label",
+            "extcall_frame_resize",
+            "extcall_frame_set_color",
             "extcall_button_default",
             "extcall_button_set_callback",
             "extcall_flex_default_fill",

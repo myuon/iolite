@@ -16,6 +16,8 @@ declare fun extcall_button_set_callback(button: rawptr, callback_ptr: rawptr, ca
 declare fun extcall_frame_default(): rawptr;
 declare fun extcall_frame_set_rectangle(frame: rawptr, x: int, y: int, width: int, height: int);
 declare fun extcall_frame_set_label(frame: rawptr, title_ptr: rawptr, title_len: int);
+declare fun extcall_frame_resize(frame: rawptr, x: int, y: int, width: int, height: int);
+declare fun extcall_frame_set_color(frame: rawptr, r: int, g: int, b: int);
 declare fun extcall_flex_default_fill(): rawptr;
 declare fun extcall_flex_column(flex: rawptr): rawptr;
 declare fun extcall_flex_set_margins(flex: rawptr, left: int, top: int, right: int, bottom: int);
@@ -274,6 +276,14 @@ module Frame {
 
   fun set_rectangle(self, x: int, y: int, w: int, h: int) {
     return extcall_frame_set_rectangle(self.!, x, y, w, h);
+  }
+
+  fun resize(self, x: int, y: int, w: int, h: int) {
+    return extcall_frame_resize(self.!, x, y, w, h);
+  }
+
+  fun set_color(self, r: int, g: int, b: int) {
+    return extcall_frame_set_color(self.!, r, g, b);
   }
 }
 

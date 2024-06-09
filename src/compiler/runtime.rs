@@ -731,6 +731,37 @@ impl Runtime {
                             });
 
                             self.push(Value::Nil.as_u64() as i64);
+                        } else if index as usize == table["extcall_frame_resize"] {
+                            let frame_id = self.pop_i64() as i32;
+                            let x = self.pop_i64() as i32;
+                            let y = self.pop_i64() as i32;
+                            let width = self.pop_i64() as i32;
+                            let height = self.pop_i64() as i32;
+
+                            WIDGETS.with(|widgets_ref| {
+                                let mut widgets = widgets_ref.borrow_mut();
+
+                                let frame =
+                                    widgets[frame_id as usize].downcast_mut::<Frame>().unwrap();
+                                frame.resize(x, y, width, height);
+                            });
+
+                            self.push(Value::Nil.as_u64() as i64);
+                        } else if index as usize == table["extcall_frame_set_color"] {
+                            let frame_id = self.pop_i64() as i32;
+                            let r = self.pop_i64() as u8;
+                            let g = self.pop_i64() as u8;
+                            let b = self.pop_i64() as u8;
+
+                            WIDGETS.with(|widgets_ref| {
+                                let mut widgets = widgets_ref.borrow_mut();
+
+                                let frame =
+                                    widgets[frame_id as usize].downcast_mut::<Frame>().unwrap();
+                                frame.set_color(fltk::enums::Color::from_rgb(r, g, b));
+                            });
+
+                            self.push(Value::Nil.as_u64() as i64);
                         } else if index as usize == table["extcall_button_set_callback"] {
                             let button_id = self.pop_i64() as i32;
 

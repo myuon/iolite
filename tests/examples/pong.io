@@ -4,8 +4,8 @@ struct Position {
 }
 
 struct Direction {
-  x: bool,
-  y: bool,
+  x: int,
+  y: int,
 }
 
 struct Ball {
@@ -20,7 +20,7 @@ module Ball {
     widget.set_rectangle(0, 0, w, h);
 
     let pos = Position { x: 0, y: 0 };
-    let dir = Direction { x: true, y: true };
+    let dir = Direction { x: 1, y: 1 };
 
     return Ball {
       widget: widget,
@@ -36,6 +36,8 @@ fun main() {
   let window = Window::build(100, 200, 800, 600, "Pong!");
 
   let ball = Ball::build(40, 40);
+  ball.widget.set_color(255, 0, 0);
+
   let paddle_x = 320;
 
   window.end();
@@ -63,8 +65,10 @@ fun main() {
   });
 
   app.add_idle(fun () {
-    // window.redraw();
-    // App::sleep(0.016);
+    ball.widget.resize(ball.pos.x, ball.pos.y, 40, 40);
+
+    window.redraw();
+    App::sleep(0.016);
 
     return nil;
   });
