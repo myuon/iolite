@@ -54,7 +54,7 @@ pub struct Runtime {
         std::sync::mpsc::Sender<(String, Vec<Value>)>,
         std::sync::mpsc::Receiver<(String, Vec<Value>)>,
     ),
-    interrupted: Vec<(String, usize)>,
+    interrupted: Vec<(String, usize, usize)>,
     args: usize,
 }
 
@@ -402,8 +402,7 @@ impl Runtime {
 
         if let Ok((task_id, args)) = self.channel.1.try_recv() {
             let (callback_ptr, callback_env) = self.closure_tasks.get(&task_id).unwrap().clone();
-
-            self.args = args.len() + 1;
+            let args_len = args.len() + 1;
 
             // allocate for the return value
             self.push(0);
@@ -420,10 +419,10 @@ impl Runtime {
             self.push(self.pc as i64);
             self.pc = pc as usize;
 
-            self.interrupted.push((task_id.clone(), self.sp));
+            self.interrupted.push((task_id.clone(), self.sp, args_len));
 
             if print_stacks {
-                println!("Task {} started ({})", task_id, pc);
+                println!("Task {} started: pc={}, args={}", task_id, pc, self.args);
             }
 
             return Ok(ControlFlow::Continue);
@@ -850,10 +849,13 @@ impl Runtime {
             0x04 => {
                 let mut returned = false;
 
-                if let Some((task_id, sp)) = self.interrupted.iter().last() {
-                    if *sp == self.sp {
+                if let Some((task_id, sp, args)) = self.interrupted.iter().last().cloned() {
+                    if sp == self.sp {
                         if print_stacks {
-                            println!("Task {} finished, {}, current_sp: {}", task_id, sp, self.sp);
+                            println!(
+                                "Task {} finished, {}, current_sp: {}, args: {}",
+                                task_id, sp, self.sp, self.args
+                            );
                         }
 
                         let value = self.pop_value();
@@ -865,7 +867,7 @@ impl Runtime {
                         self.pc = value.as_u64() as usize;
 
                         // pops arguments
-                        for _ in 0..self.args {
+                        for _ in 0..args {
                             self.pop_i64();
                         }
                         // pops the return value
