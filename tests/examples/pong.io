@@ -38,10 +38,11 @@ fun main() {
   let window = Window::build(100, 200, 800, 600, "Pong!");
 
   let ball = Ball::build(40, 40);
-  ball.widget.set_color(255, 0, 0);
+  ball.widget.set_color(255, 255, 255);
 
   let paddle_x = 320;
 
+  window.set_color(0, 0, 0);
   window.end();
   window.show();
   window.draw(fun () {
@@ -70,18 +71,18 @@ fun main() {
     ball.pos.x = ball.pos.x + 10 * ball.dir.x;
     ball.pos.y = ball.pos.y + 10 * ball.dir.y;
 
-    if (ball.pos.y == 540 - 40
+    if (ball.pos.y >= 540 - 40
         && (ball.pos.x > paddle_x - 40 && ball.pos.x < paddle_x + 160))
     {
       ball.dir.y = -1;
     }
-    if (ball.pos.y == 0) {
+    if (ball.pos.y <= 0) {
       ball.dir.y = 1;
     }
-    if (ball.pos.x == 800 - 40) {
+    if (ball.pos.x >= 800 - 40) {
       ball.dir.x = -1;
     }
-    if (ball.pos.x == 0) {
+    if (ball.pos.x <= 0) {
       ball.dir.x = 1;
     }
     if (ball.pos.y > 600) {

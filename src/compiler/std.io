@@ -29,6 +29,7 @@ declare fun extcall_window_show(window: rawptr);
 declare fun extcall_window_set_handler(window: rawptr, handler_ptr: rawptr, handler_env: rawptr);
 declare fun extcall_window_draw(window: rawptr, handler_ptr: rawptr, handler_env: rawptr);
 declare fun extcall_window_redraw(window: rawptr);
+declare fun extcall_window_set_color(window: rawptr, r: int, g: int, b: int);
 declare fun extcall_draw_set_draw_color(r: int, g: int, b: int);
 declare fun extcall_draw_draw_rect(x: int, y: int, width: int, height: int);
 
@@ -366,6 +367,10 @@ module Window {
   fun redraw(self) {
     return extcall_window_redraw(self.!);
   }
+
+  fun set_color(self, r: int, g: int, b: int) {
+    return extcall_window_set_color(self.!, r, g, b);
+  }
 }
 
 struct Point {
@@ -402,7 +407,7 @@ module App {
     let value = extcall_app_event_coords(self.!);
 
     return Point {
-      x: value % 65535, // value & 0xffff
+      x: value % 65536, // value & 0xffff
       y: value / 65536, // value >> 16
     };
   }

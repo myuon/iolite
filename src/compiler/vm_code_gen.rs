@@ -61,6 +61,7 @@ impl VmCodeGenerator {
             "extcall_window_set_handler",
             "extcall_window_draw",
             "extcall_window_redraw",
+            "extcall_window_set_color",
             "extcall_app_default",
             "extcall_app_run",
             "extcall_app_wait",
