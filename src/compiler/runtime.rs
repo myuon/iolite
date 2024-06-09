@@ -55,7 +55,6 @@ pub struct Runtime {
         std::sync::mpsc::Receiver<(String, Vec<Value>)>,
     ),
     interrupted: Vec<(String, usize, usize)>,
-    args: usize,
 }
 
 impl Runtime {
@@ -79,7 +78,6 @@ impl Runtime {
             closure_tasks: HashMap::new(),
             channel: std::sync::mpsc::channel(),
             interrupted: vec![],
-            args: 0,
         }
     }
 
@@ -422,7 +420,7 @@ impl Runtime {
             self.interrupted.push((task_id.clone(), self.sp, args_len));
 
             if print_stacks {
-                println!("Task {} started: pc={}, args={}", task_id, pc, self.args);
+                println!("Task {} started: pc={}, args={}", task_id, pc, args_len);
             }
 
             return Ok(ControlFlow::Continue);
@@ -854,7 +852,7 @@ impl Runtime {
                         if print_stacks {
                             println!(
                                 "Task {} finished, {}, current_sp: {}, args: {}",
-                                task_id, sp, self.sp, self.args
+                                task_id, sp, self.sp, args
                             );
                         }
 
