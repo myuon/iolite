@@ -5,9 +5,8 @@ use std::{
     sync::{Arc, Mutex},
 };
 
-use fltk::draw;
 #[cfg(feature = "gui")]
-use fltk::{app, button::Button, frame::Frame, group::Flex, prelude::*, window::Window};
+use fltk::{app, button::Button, draw, frame::Frame, group::Flex, prelude::*, window::Window};
 
 use nanoid::nanoid;
 use thiserror::Error;
