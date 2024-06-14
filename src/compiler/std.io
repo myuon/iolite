@@ -2,6 +2,7 @@
 declare fun extcall_write(fd: int, buf: rawptr, length: int): int;
 // Requires fltk-lib
 declare fun extcall_window_new(x: int, y: int, width: int, height: int, title_ptr: rawptr, title_len: int): rawptr;
+declare fun extcall_window_make_current(window: rawptr);
 declare fun extcall_app_default(): rawptr;
 declare fun extcall_app_run(app: rawptr);
 declare fun extcall_app_wait(app: rawptr): bool;
@@ -20,6 +21,7 @@ declare fun extcall_frame_resize(frame: rawptr, x: int, y: int, width: int, heig
 declare fun extcall_frame_set_color(frame: rawptr, r: int, g: int, b: int);
 declare fun extcall_frame_set_frame(frame: rawptr, frame_type: int);
 declare fun extcall_frame_new(x: int, y: int, width: int, height: int): rawptr;
+declare fun extcall_frame_draw(frame: rawptr, handler_ptr: rawptr, handler_env: rawptr);
 declare fun extcall_flex_default_fill(): rawptr;
 declare fun extcall_flex_column(flex: rawptr): rawptr;
 declare fun extcall_flex_set_margins(flex: rawptr, left: int, top: int, right: int, bottom: int);
@@ -33,6 +35,7 @@ declare fun extcall_window_redraw(window: rawptr);
 declare fun extcall_window_set_color(window: rawptr, r: int, g: int, b: int);
 declare fun extcall_draw_set_draw_color(r: int, g: int, b: int);
 declare fun extcall_draw_draw_rect(x: int, y: int, width: int, height: int);
+declare fun extcall_draw_draw_box(frame_type: int, x: int, y: int, width: int, height: int, r: int, g: int, b: int);
 
 let heap_ptr = 0 as ptr[byte];
 
@@ -269,10 +272,14 @@ module Key {
 struct FrameType(int);
 
 module FrameType {
+  fun THIN_UP_BOX(): FrameType {
+    return FrameType(6);
+  }
+
   fun O_FLAT_FRAME(): FrameType {
     return FrameType(29);
   }
-
+  
   fun to_int(self): int {
     return self.!;
   }
@@ -307,6 +314,10 @@ module Frame {
 
   fun build(x: int, y: int, width: int, height: int): Frame {
     return Frame(extcall_frame_new(x, y, width, height));
+  }
+
+  fun draw(self, handler: () => nil) {
+    return extcall_frame_draw(self.!, handler.ptr, handler.env);
   }
 }
 
@@ -376,6 +387,10 @@ module Window {
   fun set_color(self, r: int, g: int, b: int) {
     return extcall_window_set_color(self.!, r, g, b);
   }
+
+  fun make_current(self) {
+    return extcall_window_make_current(self.!);
+  }
 }
 
 struct Point {
@@ -439,5 +454,9 @@ module Draw {
 
   fun draw_rect(x: int, y: int, w: int, h: int) {
     return extcall_draw_draw_rect(x, y, w, h);
+  }
+
+  fun draw_box(frame_type: FrameType, x: int, y: int, w: int, h: int, r: int, g: int, b: int) {
+    return extcall_draw_draw_box(frame_type.to_int(), x, y, w, h, r, g, b);
   }
 }

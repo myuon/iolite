@@ -674,6 +674,19 @@ impl Runtime {
                             });
 
                             self.push(Value::Nil.as_u64() as i64);
+                        } else if index as usize == table["extcall_window_make_current"] {
+                            let window_id = self.pop_i64() as i32;
+
+                            WIDGETS.with(|widgets_ref| {
+                                let mut widgets = widgets_ref.borrow_mut();
+                                let window = widgets[window_id as usize]
+                                    .downcast_mut::<Window>()
+                                    .unwrap();
+
+                                window.make_current();
+                            });
+
+                            self.push(Value::Nil.as_u64() as i64);
                         } else if index as usize == table["extcall_button_default"] {
                             let title_ptr = self.pop_i64() as u64;
                             let title_len = self.pop_i64() as usize;
@@ -807,6 +820,27 @@ impl Runtime {
                             });
 
                             self.push(Value::Nil.as_u64() as i64);
+                        } else if index as usize == table["extcall_frame_draw"] {
+                            let flex_id = self.pop_i64() as i32;
+                            let callback_ptr = self.pop_i64() as u64;
+                            let callback_env = self.pop_i64() as u64;
+
+                            let task_id = nanoid!();
+                            self.closure_tasks
+                                .insert(task_id.clone(), (callback_ptr, callback_env));
+
+                            WIDGETS.with(|widgets_ref| {
+                                let mut widgets = widgets_ref.borrow_mut();
+                                let frame =
+                                    widgets[flex_id as usize].downcast_mut::<Frame>().unwrap();
+
+                                let sender = self.channel.0.clone();
+                                frame.draw(move |_| {
+                                    sender.send((task_id.clone(), vec![])).unwrap();
+                                });
+                            });
+
+                            self.push(Value::Nil.as_u64() as i64);
                         } else if index as usize == table["extcall_button_set_callback"] {
                             let button_id = self.pop_i64() as i32;
 
@@ -908,6 +942,25 @@ impl Runtime {
                             let w = self.pop_i64() as i32;
                             let h = self.pop_i64() as i32;
                             draw::draw_rectf(x, y, w, h);
+
+                            self.push(Value::Nil.as_u64() as i64);
+                        } else if index as usize == table["extcall_draw_draw_box"] {
+                            let box_type = self.pop_i64() as i32;
+                            let x = self.pop_i64() as i32;
+                            let y = self.pop_i64() as i32;
+                            let w = self.pop_i64() as i32;
+                            let h = self.pop_i64() as i32;
+                            let r = self.pop_i64() as u8;
+                            let g = self.pop_i64() as u8;
+                            let b = self.pop_i64() as u8;
+                            draw::draw_box(
+                                fltk::enums::FrameType::by_index(box_type as usize),
+                                x,
+                                y,
+                                w,
+                                h,
+                                fltk::enums::Color::from_rgb(r, g, b),
+                            );
 
                             self.push(Value::Nil.as_u64() as i64);
                         } else {

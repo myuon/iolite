@@ -62,6 +62,7 @@ impl VmCodeGenerator {
             "extcall_window_draw",
             "extcall_window_redraw",
             "extcall_window_set_color",
+            "extcall_window_make_current",
             "extcall_app_default",
             "extcall_app_run",
             "extcall_app_wait",
@@ -78,6 +79,7 @@ impl VmCodeGenerator {
             "extcall_frame_set_color",
             "extcall_frame_set_frame",
             "extcall_frame_new",
+            "extcall_frame_draw",
             "extcall_button_default",
             "extcall_button_set_callback",
             "extcall_flex_default_fill",
@@ -87,6 +89,7 @@ impl VmCodeGenerator {
             "extcall_flex_end",
             "extcall_draw_set_draw_color",
             "extcall_draw_draw_rect",
+            "extcall_draw_draw_box",
         ];
         let mut index = 10000;
         for method in methods {
