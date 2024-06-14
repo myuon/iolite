@@ -16,8 +16,7 @@ struct Ball {
 
 module Ball {
   fun build(w: int, h: int): Ball {
-    let widget = Frame::default();
-    widget.set_rectangle(0, 0, w, h);
+    let widget = Frame::build(0, 0, w, h);
     widget.set_frame(FrameType::O_FLAT_FRAME());
     widget.set_color(255, 255, 255);
 
@@ -38,10 +37,8 @@ fun main() {
   let window = Window::build(100, 200, 800, 600, "Pong!");
 
   let ball = Ball::build(40, 40);
-  ball.widget.set_color(255, 255, 255);
 
   let paddle_x = 320;
-
   window.set_color(0, 0, 0);
   window.end();
   window.show();
@@ -52,6 +49,7 @@ fun main() {
     return nil;
   });
   window.set_callback(fun (event: Event) {
+    print_str("handle\n");
     if (Event::KEYDOWN().! == event.!) {
       let key = app.event_key();
 

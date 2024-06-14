@@ -695,6 +695,23 @@ impl Runtime {
                             });
 
                             self.push(Value::Int(id as i32).as_u64() as i64);
+                        } else if index as usize == table["extcall_frame_new"] {
+                            let x = self.pop_i64() as i32;
+                            let y = self.pop_i64() as i32;
+                            let width = self.pop_i64() as i32;
+                            let height = self.pop_i64() as i32;
+                            let frame = Frame::new(x, y, width, height, None);
+
+                            let mut id = 0;
+
+                            WIDGETS.with(|widgets_ref| {
+                                let mut widgets = widgets_ref.borrow_mut();
+
+                                id = widgets.len();
+                                widgets.push(Box::new(frame));
+                            });
+
+                            self.push(Value::Int(id as i32).as_u64() as i64);
                         } else if index as usize == table["extcall_frame_default"] {
                             let frame = Frame::default();
 
@@ -882,7 +899,6 @@ impl Runtime {
                             let r = self.pop_i64() as u8;
                             let g = self.pop_i64() as u8;
                             let b = self.pop_i64() as u8;
-
                             draw::set_draw_color(fltk::enums::Color::from_rgb(r, g, b));
 
                             self.push(Value::Nil.as_u64() as i64);

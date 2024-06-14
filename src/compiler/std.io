@@ -19,6 +19,7 @@ declare fun extcall_frame_set_label(frame: rawptr, title_ptr: rawptr, title_len:
 declare fun extcall_frame_resize(frame: rawptr, x: int, y: int, width: int, height: int);
 declare fun extcall_frame_set_color(frame: rawptr, r: int, g: int, b: int);
 declare fun extcall_frame_set_frame(frame: rawptr, frame_type: int);
+declare fun extcall_frame_new(x: int, y: int, width: int, height: int): rawptr;
 declare fun extcall_flex_default_fill(): rawptr;
 declare fun extcall_flex_column(flex: rawptr): rawptr;
 declare fun extcall_flex_set_margins(flex: rawptr, left: int, top: int, right: int, bottom: int);
@@ -302,6 +303,10 @@ module Frame {
 
   fun set_frame(self, frame_type: FrameType) {
     return extcall_frame_set_frame(self.!, frame_type.to_int());
+  }
+
+  fun build(x: int, y: int, width: int, height: int): Frame {
+    return Frame(extcall_frame_new(x, y, width, height));
   }
 }
 

@@ -876,7 +876,11 @@ impl Typechecker {
             found: None,
         });
 
-        self.module(module).unwrap();
+        if let Err(err) = self.module(module) {
+            eprintln!("{}", err);
+
+            return None;
+        }
 
         self.infer_type_at.clone()?.found
     }
