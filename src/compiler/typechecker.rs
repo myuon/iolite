@@ -288,7 +288,7 @@ impl Typechecker {
                         }
 
                         for (expected, actual) in arg_types_expected.iter().zip(arg_types_actual) {
-                            Self::unify(expected.clone(), actual, Span::unknown())?;
+                            Self::unify(expected.clone(), actual, callee.span.clone())?;
                         }
 
                         Ok(*ret_ty)
@@ -302,7 +302,7 @@ impl Typechecker {
                             ));
                         }
 
-                        Self::unify(*ty, arg_types_actual[0].clone(), Span::unknown())?;
+                        Self::unify(*ty, arg_types_actual[0].clone(), callee.span.clone())?;
 
                         *newtype = Some(name.clone());
 
