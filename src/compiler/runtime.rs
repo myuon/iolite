@@ -7,9 +7,8 @@ use std::{
 
 #[cfg(feature = "gui")]
 use fltk::{app, button::Button, draw, frame::Frame, group::Flex, prelude::*, window::Window};
-use libui::controls::VerticalBox;
 #[cfg(feature = "gui")]
-use libui::prelude::*;
+use libui::{controls::*, prelude::*};
 use nanoid::nanoid;
 use thiserror::Error;
 
