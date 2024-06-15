@@ -103,8 +103,12 @@ impl VmCodeGenerator {
             "extcall_ui_main",
             "extcall_window_new",
             "extcall_vertical_box_new",
+            "extcall_vertical_box_to_control",
+            "extcall_horizontal_box_new",
+            "extcall_horizontal_box_to_control",
             "extcall_window_set_child",
             "extcall_window_show",
+            "extcall_area_build",
         ];
         let mut index = 20000;
         for method in methods {

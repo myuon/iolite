@@ -538,7 +538,7 @@ impl Runtime {
                                     .clone();
 
                                 let control = gui[control_id as usize]
-                                    .downcast_mut::<libui::controls::VerticalBox>()
+                                    .downcast_mut::<libui::controls::Control>()
                                     .unwrap()
                                     .clone();
 
@@ -570,6 +570,113 @@ impl Runtime {
                                 id = gui.len();
 
                                 gui.push(Box::new(vbox));
+                            });
+
+                            self.push(Value::Int(id as i32).as_u64() as i64);
+                        } else if index as usize == table["extcall_vertical_box_to_control"] {
+                            let box_id = self.pop_i64() as i32;
+                            let mut id = 0;
+
+                            GUI_DATA.with(|gui_ref| {
+                                let mut gui = gui_ref.borrow_mut();
+
+                                let vbox = gui[box_id as usize]
+                                    .downcast_mut::<libui::controls::VerticalBox>()
+                                    .unwrap()
+                                    .clone();
+
+                                id = gui.len();
+
+                                let control: libui::controls::Control = vbox.into();
+
+                                gui.push(Box::new(control.clone()));
+                            });
+
+                            self.push(Value::Int(id as i32).as_u64() as i64);
+                        } else if index as usize == table["extcall_horizontal_box_new"] {
+                            let mut id = 0;
+
+                            let hbox = HorizontalBox::new();
+
+                            GUI_DATA.with(|gui_ref| {
+                                let mut gui = gui_ref.borrow_mut();
+
+                                id = gui.len();
+
+                                gui.push(Box::new(hbox));
+                            });
+
+                            self.push(Value::Int(id as i32).as_u64() as i64);
+                        } else if index as usize == table["extcall_horizontal_box_to_control"] {
+                            let box_id = self.pop_i64() as i32;
+                            let mut id = 0;
+
+                            GUI_DATA.with(|gui_ref| {
+                                let mut gui = gui_ref.borrow_mut();
+
+                                let hbox = gui[box_id as usize]
+                                    .downcast_mut::<libui::controls::HorizontalBox>()
+                                    .unwrap()
+                                    .clone();
+
+                                id = gui.len();
+
+                                let control: libui::controls::Control = hbox.into();
+
+                                gui.push(Box::new(control.clone()));
+                            });
+
+                            self.push(Value::Int(id as i32).as_u64() as i64);
+                        } else if index as usize == table["extcall_area_build"] {
+                            let draw_ptr = self.pop_i64() as u64;
+                            let draw_env = self.pop_i64() as u64;
+
+                            let task_id = nanoid!();
+                            self.closure_tasks
+                                .insert(task_id.clone(), (draw_ptr, draw_env));
+
+                            struct Handler {
+                                task_id: String,
+                                sender: std::sync::mpsc::Sender<(String, Vec<Value>)>,
+                            }
+
+                            let sender = self.channel.0.clone();
+                            impl AreaHandler for Handler {
+                                fn draw(
+                                    &mut self,
+                                    _area: &Area,
+                                    area_draw_params: &AreaDrawParams,
+                                ) {
+                                    let mut id = 0;
+                                    GUI_DATA.with(|gui_ref| {
+                                        let mut gui = gui_ref.borrow_mut();
+
+                                        id = gui.len();
+
+                                        gui.push(Box::new(
+                                            area_draw_params as *const AreaDrawParams,
+                                        ));
+                                    });
+
+                                    self.sender
+                                        .send((self.task_id.clone(), vec![Value::Int(id as i32)]))
+                                        .unwrap();
+                                }
+                            }
+
+                            let mut id = 0;
+
+                            GUI_DATA.with(|gui_ref| {
+                                let mut gui = gui_ref.borrow_mut();
+
+                                let area = Area::new(Box::new(Handler {
+                                    task_id: task_id.clone(),
+                                    sender: sender.clone(),
+                                }));
+
+                                id = gui.len();
+
+                                gui.push(Box::new(area));
                             });
 
                             self.push(Value::Int(id as i32).as_u64() as i64);

@@ -43,6 +43,11 @@ declare fun extcall_window_new(ui: rawptr, title_ptr: rawptr, title_len: int, wi
 declare fun extcall_window_set_child(window: rawptr, child: rawptr);
 declare fun extcall_window_show(window: rawptr);
 declare fun extcall_vertical_box_new(): rawptr;
+declare fun extcall_vertical_box_to_control(vertical_box: rawptr): rawptr;
+declare fun extcall_horizontal_box_new(): rawptr;
+declare fun extcall_horizontal_box_to_control(horizontal_box: rawptr): rawptr;
+declare fun extcall_horizontal_box_append(area: rawptr, strategy: int): rawptr;
+declare fun extcall_area_build(draw_handler_ptr: rawptr, draw_handler_env: rawptr): rawptr;
 
 let heap_ptr = 0 as ptr[byte];
 
@@ -503,5 +508,35 @@ struct VerticalBox(rawptr);
 module VerticalBox {
   fun build(): VerticalBox {
     return VerticalBox(extcall_vertical_box_new());
+  }
+
+  fun to_control(self): rawptr {
+    return extcall_vertical_box_to_control(self.!);
+  }
+}
+
+struct HorizontalBox(rawptr);
+
+module HorizontalBox {
+  fun build(): HorizontalBox {
+    return HorizontalBox(extcall_horizontal_box_new());
+  }
+
+  fun to_control(self): rawptr {
+    return extcall_horizontal_box_to_control(self.!);
+  }
+}
+
+struct Area(rawptr);
+
+struct AreaDrawParams(rawptr);
+
+module Area {
+  fun build(draw_handler: (AreaDrawParams) => nil): Area {
+    let handler = fun (params: rawptr) {
+      return draw_handler(AreaDrawParams(params));
+    };
+
+    return Area(extcall_area_build(handler.ptr, handler.env));
   }
 }

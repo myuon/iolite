@@ -568,6 +568,7 @@ impl Typechecker {
                     );
                 }
 
+                let prev_return_ty = self.return_ty.clone();
                 self.return_ty = result.data.clone();
                 self.ident_referred = vec![];
 
@@ -589,6 +590,7 @@ impl Typechecker {
                 let ty = Type::Fun(param_types.clone(), Box::new(self.return_ty.clone()));
 
                 self.types = types_cloned;
+                self.return_ty = prev_return_ty;
 
                 Ok(ty)
             }
