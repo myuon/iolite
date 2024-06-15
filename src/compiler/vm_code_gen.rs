@@ -97,6 +97,21 @@ impl VmCodeGenerator {
             index += 1;
         }
 
+        // libui
+        let methods = vec![
+            "extcall_ui_init",
+            "extcall_ui_main",
+            "extcall_window_new",
+            "extcall_vertical_box_new",
+            "extcall_window_set_child",
+            "extcall_window_show",
+        ];
+        let mut index = 20000;
+        for method in methods {
+            table.insert(method.to_string(), index);
+            index += 1;
+        }
+
         table
     }
 

@@ -7,7 +7,9 @@ use std::{
 
 #[cfg(feature = "gui")]
 use fltk::{app, button::Button, draw, frame::Frame, group::Flex, prelude::*, window::Window};
-
+use libui::controls::VerticalBox;
+#[cfg(feature = "gui")]
+use libui::prelude::*;
 use nanoid::nanoid;
 use thiserror::Error;
 
@@ -34,6 +36,8 @@ pub enum ControlFlow {
 thread_local! {
     static APP: RefCell<Option<app::App >> = RefCell::new(None);
     static WIDGETS: RefCell<Vec<Box<dyn std::any::Any>>> = RefCell::new(vec![]);
+
+    static GUI_DATA: RefCell<Vec<Box<dyn std::any::Any>>> = RefCell::new(vec![]);
 }
 
 pub struct Runtime {
@@ -467,7 +471,111 @@ impl Runtime {
                     #[cfg(feature = "gui")]
                     index => {
                         let table = VmCodeGenerator::extcall_table();
-                        if index as usize == table["extcall_app_default"] {
+                        if index as usize == table["extcall_ui_init"] {
+                            let ui = UI::init().unwrap();
+
+                            let mut id = 0;
+
+                            GUI_DATA.with(|gui_ref| {
+                                id = gui_ref.borrow().len();
+
+                                let mut gui = gui_ref.borrow_mut();
+                                gui.push(Box::new(ui));
+                            });
+
+                            self.push(Value::Int(id as i32).as_u64() as i64);
+                        } else if index as usize == table["extcall_ui_main"] {
+                            let id = self.pop_i64();
+
+                            GUI_DATA.with(|gui_ref| {
+                                let gui = gui_ref.borrow_mut();
+                                let ui = gui[id as usize].downcast_ref::<UI>().unwrap();
+
+                                ui.main();
+                            });
+
+                            self.push(Value::Nil.as_u64() as i64);
+                        } else if index as usize == table["extcall_window_new"] {
+                            let ui_id = self.pop_i64() as i32;
+                            let title_ptr = self.pop_i64() as u64;
+                            let title_len = self.pop_i64() as usize;
+                            println!("title_ptr: {}, title_len: {}", title_ptr, title_len);
+                            let title = String::from_utf8(
+                                self.memory[title_ptr as usize..(title_ptr as usize + title_len)]
+                                    .to_vec(),
+                            )
+                            .unwrap();
+                            let width = self.pop_i64() as i32;
+                            let height = self.pop_i64() as i32;
+
+                            let mut id = 0;
+
+                            GUI_DATA.with(|gui_ref| {
+                                let mut gui = gui_ref.borrow_mut();
+                                let ui = gui[ui_id as usize].downcast_mut::<UI>().unwrap();
+
+                                let window = libui::prelude::Window::new(
+                                    ui,
+                                    title.as_str(),
+                                    width,
+                                    height,
+                                    WindowType::NoMenubar,
+                                );
+
+                                id = gui.len();
+
+                                gui.push(Box::new(window));
+                            });
+
+                            self.push(Value::Int(id as i32).as_u64() as i64);
+                        } else if index as usize == table["extcall_window_set_child"] {
+                            let window_id = self.pop_i64() as i32;
+                            let control_id = self.pop_i64() as i32;
+
+                            GUI_DATA.with(|gui_ref| {
+                                let mut gui = gui_ref.borrow_mut();
+                                let mut window = gui[window_id as usize]
+                                    .downcast_mut::<libui::prelude::Window>()
+                                    .unwrap()
+                                    .clone();
+
+                                let control = gui[control_id as usize]
+                                    .downcast_mut::<libui::controls::VerticalBox>()
+                                    .unwrap()
+                                    .clone();
+
+                                window.set_child(control);
+                            });
+
+                            self.push(Value::Nil.as_u64() as i64);
+                        } else if index as usize == table["extcall_window_show"] {
+                            let window_id = self.pop_i64() as i32;
+
+                            GUI_DATA.with(|gui_ref| {
+                                let mut gui = gui_ref.borrow_mut();
+                                let window = gui[window_id as usize]
+                                    .downcast_mut::<libui::prelude::Window>()
+                                    .unwrap();
+
+                                window.show();
+                            });
+
+                            self.push(Value::Nil.as_u64() as i64);
+                        } else if index as usize == table["extcall_vertical_box_new"] {
+                            let mut id = 0;
+
+                            let vbox = VerticalBox::new();
+
+                            GUI_DATA.with(|gui_ref| {
+                                let mut gui = gui_ref.borrow_mut();
+
+                                id = gui.len();
+
+                                gui.push(Box::new(vbox));
+                            });
+
+                            self.push(Value::Int(id as i32).as_u64() as i64);
+                        } else if index as usize == table["extcall_app_default"] {
                             let app = app::App::default();
 
                             APP.with(|app_ref| {
