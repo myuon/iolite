@@ -498,7 +498,6 @@ impl Runtime {
                             let ui_id = self.pop_i64() as i32;
                             let title_ptr = self.pop_i64() as u64;
                             let title_len = self.pop_i64() as usize;
-                            println!("title_ptr: {}, title_len: {}", title_ptr, title_len);
                             let title = String::from_utf8(
                                 self.memory[title_ptr as usize..(title_ptr as usize + title_len)]
                                     .to_vec(),
