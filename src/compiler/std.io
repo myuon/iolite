@@ -36,6 +36,18 @@ declare fun extcall_window_set_color(window: rawptr, r: int, g: int, b: int);
 declare fun extcall_draw_set_draw_color(r: int, g: int, b: int);
 declare fun extcall_draw_draw_rect(x: int, y: int, width: int, height: int);
 declare fun extcall_draw_draw_box(frame_type: int, x: int, y: int, width: int, height: int, r: int, g: int, b: int);
+// Requires sdl2-lib
+declare fun extcall_sdl_init(): rawptr;
+declare fun extcall_sdl_context_video(context: rawptr): rawptr;
+declare fun extcall_sdl_context_event_pump(context: rawptr): rawptr;
+declare fun extcall_event_pump_poll(pump: rawptr): rawptr;
+declare fun extcall_event_is_quit(event: rawptr): bool;
+declare fun extcall_video_window(video: rawptr, title_ptr: rawptr, title_len: int, width: int, height: int): rawptr;
+declare fun extcall_window_get_canvas(window: rawptr): rawptr;
+declare fun extcall_canvas_set_draw_color(canvas: rawptr, r: int, g: int, b: int);
+declare fun extcall_canvas_clear(canvas: rawptr);
+declare fun extcall_canvas_present(canvas: rawptr);
+declare fun extcall_sleep(sec: float);
 
 let heap_ptr = 0 as ptr[byte];
 
@@ -133,330 +145,398 @@ fun int_to_string(n: int): array[byte] {
 
 // fltk
 
-struct Event(int);
+// struct Event(int);
+
+// module Event {
+//   fun from_bits(bits: int): Event {
+//     return Event(bits);
+//   }
+
+//   fun NO_EVENT(): Event {
+//     return Event(0);
+//   }
+
+//   fun PUSH(): Event {
+//     return Event(1);
+//   }
+
+//   fun RELEASED(): Event {
+//     return Event(2);
+//   }
+
+//   fun ENTER(): Event {
+//     return Event(3);
+//   }
+
+//   fun LEAVE(): Event {
+//     return Event(4);
+//   }
+
+//   fun DRAG(): Event {
+//     return Event(5);
+//   }
+
+//   fun FOCUS(): Event {
+//     return Event(6);
+//   }
+
+//   fun UNFOCUS(): Event {
+//     return Event(7);
+//   }
+
+//   fun KEYDOWN(): Event {
+//     return Event(8);
+//   }
+
+//   fun KEYUP(): Event {
+//     return Event(9);
+//   }
+
+//   fun CLOSE(): Event {
+//     return Event(10);
+//   }
+
+//   fun MOVE(): Event {
+//     return Event(11);
+//   }
+
+//   fun SHORTCUT(): Event {
+//     return Event(12);
+//   }
+
+//   fun DEACTIVATE(): Event {
+//     return Event(13);
+//   }
+
+//   fun ACTIVATE(): Event {
+//     return Event(14);
+//   }
+
+//   fun HIDE(): Event {
+//     return Event(15);
+//   }
+
+//   fun SHOW(): Event {
+//     return Event(16);
+//   }
+
+//   fun PASTE(): Event {
+//     return Event(17);
+//   }
+
+//   fun SELECTION_CLEAR(): Event {
+//     return Event(18);
+//   }
+
+//   fun MOUSE_WHEEL(): Event {
+//     return Event(19);
+//   }
+
+//   fun DND_ENTER(): Event {
+//     return Event(20);
+//   }
+
+//   fun DND_DROP(): Event {
+//     return Event(21);
+//   }
+
+//   fun DND_LEAVE(): Event {
+//     return Event(22);
+//   }
+
+//   fun DND_RELEASE(): Event {
+//     return Event(23);
+//   }
+
+//   fun SCREEN_CONFIG_CHANGED(): Event {
+//     return Event(24);
+//   }
+
+//   fun FULLSCREEN(): Event {
+//     return Event(25);
+//   }
+
+//   fun ZOOM_GESTURE(): Event {
+//     return Event(26);
+//   }
+
+//   fun ZOOM(): Event {
+//     return Event(27);
+//   }
+
+//   fun RESIZE(): Event {
+//     return Event(28);
+//   }
+// }
+
+// struct Key(int);
+
+// module Key {
+//   fun from_bits(bits: int): Key {
+//     return Key(bits);
+//   }
+
+//   fun ESCAPE(): Key {
+//     return Key(65307);
+//   }
+// }
+
+// struct FrameType(int);
+
+// module FrameType {
+//   fun THIN_UP_BOX(): FrameType {
+//     return FrameType(6);
+//   }
+
+//   fun O_FLAT_FRAME(): FrameType {
+//     return FrameType(29);
+//   }
+  
+//   fun to_int(self): int {
+//     return self.!;
+//   }
+// }
+
+// struct Frame(rawptr);
+
+// module Frame {
+//   fun default(): Frame {
+//     return Frame(extcall_frame_default());
+//   }
+
+//   fun set_label(self, label: array[byte]) {
+//     return extcall_frame_set_label(self.!, label.ptr as rawptr, label.length);
+//   }
+
+//   fun set_rectangle(self, x: int, y: int, w: int, h: int) {
+//     return extcall_frame_set_rectangle(self.!, x, y, w, h);
+//   }
+
+//   fun resize(self, x: int, y: int, w: int, h: int) {
+//     return extcall_frame_resize(self.!, x, y, w, h);
+//   }
+
+//   fun set_color(self, r: int, g: int, b: int) {
+//     return extcall_frame_set_color(self.!, r, g, b);
+//   }
+
+//   fun set_frame(self, frame_type: FrameType) {
+//     return extcall_frame_set_frame(self.!, frame_type.to_int());
+//   }
+
+//   fun build(x: int, y: int, width: int, height: int): Frame {
+//     return Frame(extcall_frame_new(x, y, width, height));
+//   }
+
+//   fun draw(self, handler: () => nil) {
+//     return extcall_frame_draw(self.!, handler.ptr, handler.env);
+//   }
+// }
+
+// struct Button(rawptr);
+
+// module Button {
+//   fun default(title: array[byte]): Button {
+//     return Button(extcall_button_default(title.ptr as rawptr, title.length));
+//   }
+
+//   fun set_callback(self, callback: () => nil) {
+//     return extcall_button_set_callback(self.!, callback.ptr, callback.env);
+//   }
+// }
+
+// struct Flex(rawptr);
+
+// module Flex {
+//   fun default_fill(): Flex {
+//     return Flex(extcall_flex_default_fill());
+//   }
+
+//   fun column(self) {
+//     return extcall_flex_column(self.!);
+//   }
+
+//   fun set_margins(self, left: int, top: int, right: int, bottom: int) {
+//     return extcall_flex_set_margins(self.!, left, top, right, bottom);
+//   }
+
+//   fun end(self) {
+//     return extcall_flex_end(self.!);
+//   }
+// }
+
+// struct Window(rawptr);
+
+// module Window {
+//   fun build(x: int, y: int, width: int, height: int, title: array[byte]): Window {
+//     return Window(extcall_window_new(x, y, width, height, title.ptr as rawptr, title.length));
+//   }
+
+//   fun end(self) {
+//     return extcall_window_end(self.!);
+//   }
+
+//   fun show(self) {
+//     return extcall_window_show(self.!);
+//   }
+
+//   fun set_callback(self, handler_: (Event) => nil) {
+//     let handler = fun (e: int) {
+//       handler_(Event::from_bits(e));
+//     };
+
+//     return extcall_window_set_handler(self.!, handler.ptr, handler.env);
+//   }
+
+//   fun draw(self, handler: () => nil) {
+//     return extcall_window_draw(self.!, handler.ptr, handler.env);
+//   }
+
+//   fun redraw(self) {
+//     return extcall_window_redraw(self.!);
+//   }
+
+//   fun set_color(self, r: int, g: int, b: int) {
+//     return extcall_window_set_color(self.!, r, g, b);
+//   }
+
+//   fun make_current(self) {
+//     return extcall_window_make_current(self.!);
+//   }
+// }
+
+// struct Point {
+//   x: int,
+//   y: int,
+// }
+
+// struct App(rawptr);
+
+// module App {
+//   fun default(): App {
+//     return App(extcall_app_default());
+//   }
+
+//   fun wait(self): bool {
+//     return extcall_app_wait(self.!);
+//   }
+
+//   fun redraw(self) {
+//     return extcall_app_redraw(self.!);
+//   }
+
+//   fun run(self) {
+//     while (self.wait()) {
+//       self.redraw();
+//     }
+//   }
+
+//   fun event_key(self): Key {
+//     return Key::from_bits(extcall_app_event_key(self.!));
+//   }
+
+//   fun event_coords(self): Point {
+//     let value = extcall_app_event_coords(self.!);
+
+//     return Point {
+//       x: value % 65536, // value & 0xffff
+//       y: value / 65536, // value >> 16
+//     };
+//   }
+
+//   fun quit(self) {
+//     return extcall_app_quit(self.!);
+//   }
+
+//   fun add_idle(self, handler: () => nil) {
+//     return extcall_app_add_idle(self.!, handler.ptr, handler.env);
+//   }
+
+//   fun sleep(sec: float) {
+//     return extcall_app_sleep(sec);
+//   }
+// }
+
+// struct Draw(nil);
+
+// module Draw {
+//   fun set_draw_color(r: int, g: int, b: int) {
+//     return extcall_draw_set_draw_color(r, g, b);
+//   }
+
+//   fun draw_rect(x: int, y: int, w: int, h: int) {
+//     return extcall_draw_draw_rect(x, y, w, h);
+//   }
+
+//   fun draw_box(frame_type: FrameType, x: int, y: int, w: int, h: int, r: int, g: int, b: int) {
+//     return extcall_draw_draw_box(frame_type.to_int(), x, y, w, h, r, g, b);
+//   }
+// }
+
+struct Event(rawptr);
 
 module Event {
-  fun from_bits(bits: int): Event {
-    return Event(bits);
-  }
-
-  fun NO_EVENT(): Event {
-    return Event(0);
-  }
-
-  fun PUSH(): Event {
-    return Event(1);
-  }
-
-  fun RELEASED(): Event {
-    return Event(2);
-  }
-
-  fun ENTER(): Event {
-    return Event(3);
-  }
-
-  fun LEAVE(): Event {
-    return Event(4);
-  }
-
-  fun DRAG(): Event {
-    return Event(5);
-  }
-
-  fun FOCUS(): Event {
-    return Event(6);
-  }
-
-  fun UNFOCUS(): Event {
-    return Event(7);
-  }
-
-  fun KEYDOWN(): Event {
-    return Event(8);
-  }
-
-  fun KEYUP(): Event {
-    return Event(9);
-  }
-
-  fun CLOSE(): Event {
-    return Event(10);
-  }
-
-  fun MOVE(): Event {
-    return Event(11);
-  }
-
-  fun SHORTCUT(): Event {
-    return Event(12);
-  }
-
-  fun DEACTIVATE(): Event {
-    return Event(13);
-  }
-
-  fun ACTIVATE(): Event {
-    return Event(14);
-  }
-
-  fun HIDE(): Event {
-    return Event(15);
-  }
-
-  fun SHOW(): Event {
-    return Event(16);
-  }
-
-  fun PASTE(): Event {
-    return Event(17);
-  }
-
-  fun SELECTION_CLEAR(): Event {
-    return Event(18);
-  }
-
-  fun MOUSE_WHEEL(): Event {
-    return Event(19);
-  }
-
-  fun DND_ENTER(): Event {
-    return Event(20);
-  }
-
-  fun DND_DROP(): Event {
-    return Event(21);
-  }
-
-  fun DND_LEAVE(): Event {
-    return Event(22);
-  }
-
-  fun DND_RELEASE(): Event {
-    return Event(23);
-  }
-
-  fun SCREEN_CONFIG_CHANGED(): Event {
-    return Event(24);
-  }
-
-  fun FULLSCREEN(): Event {
-    return Event(25);
-  }
-
-  fun ZOOM_GESTURE(): Event {
-    return Event(26);
-  }
-
-  fun ZOOM(): Event {
-    return Event(27);
-  }
-
-  fun RESIZE(): Event {
-    return Event(28);
+  fun is_quit(self): bool {
+    return extcall_event_is_quit(self.!);
   }
 }
 
-struct Key(int);
+struct EventPump(rawptr);
 
-module Key {
-  fun from_bits(bits: int): Key {
-    return Key(bits);
-  }
-
-  fun ESCAPE(): Key {
-    return Key(65307);
+module EventPump {
+  fun poll(self): Event {
+    return Event(extcall_event_pump_poll(self.!));
   }
 }
 
-struct FrameType(int);
+struct Canvas(rawptr);
 
-module FrameType {
-  fun THIN_UP_BOX(): FrameType {
-    return FrameType(6);
+module Canvas {
+  fun set_draw_color(self, r: int, g: int, b: int) {
+    return extcall_canvas_set_draw_color(self.!, r, g, b);
   }
 
-  fun O_FLAT_FRAME(): FrameType {
-    return FrameType(29);
-  }
-  
-  fun to_int(self): int {
-    return self.!;
-  }
-}
-
-struct Frame(rawptr);
-
-module Frame {
-  fun default(): Frame {
-    return Frame(extcall_frame_default());
+  fun clear(self) {
+    return extcall_canvas_clear(self.!);
   }
 
-  fun set_label(self, label: array[byte]) {
-    return extcall_frame_set_label(self.!, label.ptr as rawptr, label.length);
-  }
-
-  fun set_rectangle(self, x: int, y: int, w: int, h: int) {
-    return extcall_frame_set_rectangle(self.!, x, y, w, h);
-  }
-
-  fun resize(self, x: int, y: int, w: int, h: int) {
-    return extcall_frame_resize(self.!, x, y, w, h);
-  }
-
-  fun set_color(self, r: int, g: int, b: int) {
-    return extcall_frame_set_color(self.!, r, g, b);
-  }
-
-  fun set_frame(self, frame_type: FrameType) {
-    return extcall_frame_set_frame(self.!, frame_type.to_int());
-  }
-
-  fun build(x: int, y: int, width: int, height: int): Frame {
-    return Frame(extcall_frame_new(x, y, width, height));
-  }
-
-  fun draw(self, handler: () => nil) {
-    return extcall_frame_draw(self.!, handler.ptr, handler.env);
-  }
-}
-
-struct Button(rawptr);
-
-module Button {
-  fun default(title: array[byte]): Button {
-    return Button(extcall_button_default(title.ptr as rawptr, title.length));
-  }
-
-  fun set_callback(self, callback: () => nil) {
-    return extcall_button_set_callback(self.!, callback.ptr, callback.env);
-  }
-}
-
-struct Flex(rawptr);
-
-module Flex {
-  fun default_fill(): Flex {
-    return Flex(extcall_flex_default_fill());
-  }
-
-  fun column(self) {
-    return extcall_flex_column(self.!);
-  }
-
-  fun set_margins(self, left: int, top: int, right: int, bottom: int) {
-    return extcall_flex_set_margins(self.!, left, top, right, bottom);
-  }
-
-  fun end(self) {
-    return extcall_flex_end(self.!);
+  fun present(self) {
+    return extcall_canvas_present(self.!);
   }
 }
 
 struct Window(rawptr);
 
 module Window {
-  fun build(x: int, y: int, width: int, height: int, title: array[byte]): Window {
-    return Window(extcall_window_new(x, y, width, height, title.ptr as rawptr, title.length));
-  }
-
-  fun end(self) {
-    return extcall_window_end(self.!);
-  }
-
-  fun show(self) {
-    return extcall_window_show(self.!);
-  }
-
-  fun set_callback(self, handler_: (Event) => nil) {
-    let handler = fun (e: int) {
-      handler_(Event::from_bits(e));
-    };
-
-    return extcall_window_set_handler(self.!, handler.ptr, handler.env);
-  }
-
-  fun draw(self, handler: () => nil) {
-    return extcall_window_draw(self.!, handler.ptr, handler.env);
-  }
-
-  fun redraw(self) {
-    return extcall_window_redraw(self.!);
-  }
-
-  fun set_color(self, r: int, g: int, b: int) {
-    return extcall_window_set_color(self.!, r, g, b);
-  }
-
-  fun make_current(self) {
-    return extcall_window_make_current(self.!);
+  fun get_canvas(self): Canvas {
+    return Canvas(extcall_window_get_canvas(self.!));
   }
 }
 
-struct Point {
-  x: int,
-  y: int,
-}
+struct VideoSubsystem(rawptr);
 
-struct App(rawptr);
-
-module App {
-  fun default(): App {
-    return App(extcall_app_default());
-  }
-
-  fun wait(self): bool {
-    return extcall_app_wait(self.!);
-  }
-
-  fun redraw(self) {
-    return extcall_app_redraw(self.!);
-  }
-
-  fun run(self) {
-    while (self.wait()) {
-      self.redraw();
-    }
-  }
-
-  fun event_key(self): Key {
-    return Key::from_bits(extcall_app_event_key(self.!));
-  }
-
-  fun event_coords(self): Point {
-    let value = extcall_app_event_coords(self.!);
-
-    return Point {
-      x: value % 65536, // value & 0xffff
-      y: value / 65536, // value >> 16
-    };
-  }
-
-  fun quit(self) {
-    return extcall_app_quit(self.!);
-  }
-
-  fun add_idle(self, handler: () => nil) {
-    return extcall_app_add_idle(self.!, handler.ptr, handler.env);
-  }
-
-  fun sleep(sec: float) {
-    return extcall_app_sleep(sec);
+module VideoSubsystem {
+  fun window(self, title: array[byte], width: int, height: int): Window {
+    return Window(extcall_video_window(self.!, title.ptr as rawptr, title.length, width, height));
   }
 }
 
-struct Draw(nil);
+struct SDL(rawptr);
 
-module Draw {
-  fun set_draw_color(r: int, g: int, b: int) {
-    return extcall_draw_set_draw_color(r, g, b);
+module SDL {
+  fun init(): SDL {
+    return SDL(extcall_sdl_init());
   }
 
-  fun draw_rect(x: int, y: int, w: int, h: int) {
-    return extcall_draw_draw_rect(x, y, w, h);
+  fun video(self): VideoSubsystem {
+    return VideoSubsystem(extcall_sdl_context_video(self.!));
   }
 
-  fun draw_box(frame_type: FrameType, x: int, y: int, w: int, h: int, r: int, g: int, b: int) {
-    return extcall_draw_draw_box(frame_type.to_int(), x, y, w, h, r, g, b);
+  fun event_pump(self): EventPump {
+    return EventPump(extcall_sdl_context_event_pump(self.!));
   }
+}
+
+fun sleep(sec: float) {
+  return extcall_sleep(sec);
 }

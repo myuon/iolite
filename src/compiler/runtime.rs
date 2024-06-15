@@ -34,6 +34,22 @@ pub enum ControlFlow {
 thread_local! {
     static APP: RefCell<Option<app::App >> = RefCell::new(None);
     static WIDGETS: RefCell<Vec<Box<dyn std::any::Any>>> = RefCell::new(vec![]);
+
+    static GUI_DATA: RefCell<Vec<Box<dyn std::any::Any>>> = RefCell::new(vec![]);
+}
+
+#[cfg(feature = "gui")]
+fn register_gui_data(data: impl std::any::Any) -> usize {
+    let mut id = 0;
+    GUI_DATA.with(|gui_data_ref| {
+        let mut gui_data = gui_data_ref.borrow_mut();
+
+        id = gui_data.len();
+
+        gui_data.push(Box::new(data));
+    });
+
+    id
 }
 
 pub struct Runtime {
@@ -467,7 +483,159 @@ impl Runtime {
                     #[cfg(feature = "gui")]
                     index => {
                         let table = VmCodeGenerator::extcall_table();
-                        if index as usize == table["extcall_app_default"] {
+
+                        if index as usize == table["extcall_sdl_init"] {
+                            let context = sdl2::init().unwrap();
+                            let id = register_gui_data(context);
+                            self.push(Value::Int(id as i32).as_u64() as i64);
+                        } else if index as usize == table["extcall_sdl_context_video"] {
+                            let context_id = self.pop_i64() as i32;
+
+                            let video = GUI_DATA.with(|data_ref| {
+                                let data = data_ref.borrow();
+                                let context = data[context_id as usize]
+                                    .downcast_ref::<sdl2::Sdl>()
+                                    .unwrap();
+                                let video = context.video().unwrap();
+
+                                video
+                            });
+                            let id = register_gui_data(video);
+
+                            self.push(Value::Int(id as i32).as_u64() as i64);
+                        } else if index as usize == table["extcall_sdl_context_event_pump"] {
+                            let context_id = self.pop_i64() as i32;
+
+                            let event_pump = GUI_DATA.with(|data_ref| {
+                                let data = data_ref.borrow();
+                                let context = data[context_id as usize]
+                                    .downcast_ref::<sdl2::Sdl>()
+                                    .unwrap();
+                                let event_pump = context.event_pump().unwrap();
+
+                                event_pump
+                            });
+                            let id = register_gui_data(event_pump);
+
+                            self.push(Value::Int(id as i32).as_u64() as i64);
+                        } else if index as usize == table["extcall_event_pump_poll"] {
+                            let pump_id = self.pop_i64() as i32;
+
+                            let event = GUI_DATA.with(|data_ref| {
+                                let mut data = data_ref.borrow_mut();
+                                let event_pump = data[pump_id as usize]
+                                    .downcast_mut::<sdl2::EventPump>()
+                                    .unwrap();
+
+                                event_pump.poll_event()
+                            });
+                            let id = register_gui_data(event);
+
+                            self.push(Value::Int(id as i32).as_u64() as i64);
+                        } else if index as usize == table["extcall_event_is_quit"] {
+                            let event_id = self.pop_i64() as i32;
+
+                            let is_quit = GUI_DATA.with(|data_ref| {
+                                let data = data_ref.borrow();
+                                let event = data[event_id as usize]
+                                    .downcast_ref::<Option<sdl2::event::Event>>()
+                                    .unwrap();
+
+                                matches!(event, Some(sdl2::event::Event::Quit { .. }))
+                            });
+
+                            self.push(Value::Bool(is_quit).as_u64() as i64);
+                        } else if index as usize == table["extcall_video_window"] {
+                            let video_id = self.pop_i64() as i32;
+                            let title_ptr = self.pop_i64() as u64;
+                            let title_len = self.pop_i64() as usize;
+                            let title = String::from_utf8(
+                                self.memory[title_ptr as usize..(title_ptr as usize + title_len)]
+                                    .to_vec(),
+                            )
+                            .unwrap();
+                            let width = self.pop_i64() as i32;
+                            let height = self.pop_i64() as i32;
+
+                            let window = GUI_DATA.with(|data_ref| {
+                                let data = data_ref.borrow();
+                                let video = data[video_id as usize]
+                                    .downcast_ref::<sdl2::VideoSubsystem>()
+                                    .unwrap();
+                                let window = video
+                                    .window(title.as_str(), width as u32, height as u32)
+                                    .build()
+                                    .unwrap();
+
+                                window
+                            });
+                            let id = register_gui_data(window);
+
+                            self.push(Value::Int(id as i32).as_u64() as i64);
+                        } else if index as usize == table["extcall_window_get_canvas"] {
+                            let window_id = self.pop_i64() as i32;
+
+                            let canvas = GUI_DATA.with(|data_ref| {
+                                let data = data_ref.borrow();
+                                let window = data[window_id as usize]
+                                    .downcast_ref::<sdl2::video::Window>()
+                                    .unwrap();
+                                let canvas = window.clone().into_canvas().build().unwrap();
+
+                                canvas
+                            });
+                            let id = register_gui_data(canvas);
+
+                            self.push(Value::Int(id as i32).as_u64() as i64);
+                        } else if index as usize == table["extcall_canvas_set_draw_color"] {
+                            let canvas_id = self.pop_i64() as i32;
+                            let r = self.pop_i64() as u8;
+                            let g = self.pop_i64() as u8;
+                            let b = self.pop_i64() as u8;
+
+                            GUI_DATA.with(|data_ref| {
+                                let mut data = data_ref.borrow_mut();
+                                let canvas = data[canvas_id as usize]
+                                    .downcast_mut::<sdl2::render::Canvas<sdl2::video::Window>>()
+                                    .unwrap();
+
+                                canvas.set_draw_color(sdl2::pixels::Color::RGB(r, g, b));
+                            });
+
+                            self.push(Value::Nil.as_u64() as i64);
+                        } else if index as usize == table["extcall_canvas_clear"] {
+                            let canvas_id = self.pop_i64() as i32;
+
+                            GUI_DATA.with(|data_ref| {
+                                let mut data = data_ref.borrow_mut();
+                                let canvas = data[canvas_id as usize]
+                                    .downcast_mut::<sdl2::render::Canvas<sdl2::video::Window>>()
+                                    .unwrap();
+
+                                canvas.clear();
+                            });
+
+                            self.push(Value::Nil.as_u64() as i64);
+                        } else if index as usize == table["extcall_canvas_present"] {
+                            let canvas_id = self.pop_i64() as i32;
+
+                            GUI_DATA.with(|data_ref| {
+                                let mut data = data_ref.borrow_mut();
+                                let canvas = data[canvas_id as usize]
+                                    .downcast_mut::<sdl2::render::Canvas<sdl2::video::Window>>()
+                                    .unwrap();
+
+                                canvas.present();
+                            });
+
+                            self.push(Value::Nil.as_u64() as i64);
+                        } else if index as usize == table["extcall_sleep"] {
+                            let sec = self.pop_f32();
+
+                            std::thread::sleep(std::time::Duration::from_secs_f32(sec));
+
+                            self.push(Value::Nil.as_u64() as i64);
+                        } else if index as usize == table["extcall_app_default"] {
                             let app = app::App::default();
 
                             APP.with(|app_ref| {

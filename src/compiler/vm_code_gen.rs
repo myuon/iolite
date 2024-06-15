@@ -97,6 +97,26 @@ impl VmCodeGenerator {
             index += 1;
         }
 
+        // sdl2
+        let methods = vec![
+            "extcall_sdl_init",
+            "extcall_sdl_context_video",
+            "extcall_sdl_context_event_pump",
+            "extcall_event_pump_poll",
+            "extcall_event_is_quit",
+            "extcall_video_window",
+            "extcall_window_get_canvas",
+            "extcall_canvas_set_draw_color",
+            "extcall_canvas_clear",
+            "extcall_canvas_present",
+            "extcall_sleep",
+        ];
+        let mut index = 20000;
+        for method in methods {
+            table.insert(method.to_string(), index);
+            index += 1;
+        }
+
         table
     }
 

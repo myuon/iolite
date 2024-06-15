@@ -1,44 +1,24 @@
 fun main() {
-  let app = App::default();
-  let count = 0;
+  let sdl_context = SDL::init();
+  let video = sdl_context.video();
 
-  let window = Window::build(100, 200, 300, 400, "Hello, World!");
+  let window = video.window("SDL2", 800, 600);
 
-  let flex = Flex::default_fill();
-  flex.column();
-  flex.set_margins(30, 40, 30, 40);
+  let canvas = window.get_canvas();
 
-  let button_inc = Button::default("+");
+  canvas.set_draw_color(255, 0, 0);
+  canvas.clear();
+  canvas.present();
 
-  let frame = Frame::default();
-  frame.set_label(count.to_string());
-
-  let button_dec = Button::default("-");
-
-  flex.end();
-
-  window.end();
-  window.show();
-
-  button_inc.set_callback(fun () {
-    count = count + 1;
-    frame.set_label(count.to_string());
-
-    return nil;
-  });
-
-  button_dec.set_callback(fun () {
-    if (count > 0) {
-      count = count - 1;
-      frame.set_label(count.to_string());
+  let event_pump = sdl_context.event_pump();
+  while (true) {
+    let event  = event_pump.poll();
+    if (event.is_quit()) {
+      return nil;
     }
 
-    return nil;
-  });
-
-  while (app.wait()) {
-    app.redraw();
+    sleep(0.016);
+    canvas.clear();
+    canvas.present();
   }
-
-  return nil;
 }
