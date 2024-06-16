@@ -693,6 +693,21 @@ impl Runtime {
                             });
 
                             self.push(Value::Nil.as_u64() as i64);
+                        } else if index as usize == table["extcall_canvas_texture_creator"] {
+                            let canvas_id = self.pop_i64() as i32;
+
+                            let texture_creator = GUI_DATA.with(|data_ref| {
+                                let data = data_ref.borrow();
+                                let canvas = data[canvas_id as usize]
+                                    .downcast_ref::<sdl2::render::Canvas<sdl2::video::Window>>()
+                                    .unwrap();
+                                let texture_creator = canvas.texture_creator();
+
+                                texture_creator
+                            });
+                            let id = register_gui_data(texture_creator);
+
+                            self.push(Value::Int(id as i32).as_u64() as i64);
                         } else if index as usize == table["extcall_canvas_fill_rect"] {
                             let canvas_id = self.pop_i64() as i32;
                             let x = self.pop_i64() as i32;

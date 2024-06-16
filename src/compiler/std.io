@@ -52,6 +52,7 @@ declare fun extcall_canvas_set_draw_color(canvas: rawptr, r: int, g: int, b: int
 declare fun extcall_canvas_clear(canvas: rawptr);
 declare fun extcall_canvas_present(canvas: rawptr);
 declare fun extcall_canvas_fill_rect(canvas: rawptr, x: int, y: int, width: int, height: int);
+declare fun extcall_canvas_texture_creator(canvas: rawptr): rawptr;
 declare fun extcall_sleep(sec: float);
 declare fun extcall_time_now(): rawptr;
 declare fun extcall_time_duration_since(time: rawptr): rawptr;
@@ -573,6 +574,8 @@ module EventPump {
   }
 }
 
+struct TextureCreator(rawptr);
+
 struct Canvas(rawptr);
 
 module Canvas {
@@ -590,6 +593,10 @@ module Canvas {
 
   fun fill_rect(self, x: int, y: int, width: int, height: int) {
     return extcall_canvas_fill_rect(self.!, x, y, width, height);
+  }
+
+  fun texture_creator(self): TextureCreator {
+    return TextureCreator(extcall_canvas_texture_creator(self.!));
   }
 }
 

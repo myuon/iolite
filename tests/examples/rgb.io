@@ -8,6 +8,7 @@ fun main() {
 
   let event_pump = sdl_context.event_pump();
   while (true) {
+    let time = SystemTime::now();
     let event  = event_pump.poll();
     if (event.is_quit()) {
       return nil;
@@ -32,7 +33,17 @@ fun main() {
       r = r + 1;
     }
 
-    sleep(0.016);
+    let elapsed = SystemTime::duration_since(time);
+    let elapsed_ms = elapsed.as_millis();
+    let tick_ms = 16;
+    if elapsed_ms < 16 {
+      sleep(((16 - elapsed_ms) as float) / (1000 as float));
+    } else {
+      tick_ms = elapsed_ms;
+    }
+
+    window.set_title(concat_str("SDL2 - ", (1000 / tick_ms).to_string()));
+
     canvas.present();
   }
 }

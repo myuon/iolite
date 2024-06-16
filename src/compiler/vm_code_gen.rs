@@ -114,6 +114,7 @@ impl VmCodeGenerator {
             "extcall_canvas_clear",
             "extcall_canvas_present",
             "extcall_canvas_fill_rect",
+            "extcall_canvas_texture_creator",
             "extcall_sleep",
             "extcall_time_now",
             "extcall_time_duration_since",
