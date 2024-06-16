@@ -22,6 +22,8 @@ pub enum ParseError {
         expected: Option<Lexeme>,
         got: Token,
     },
+    #[error("todo: {0:?}")]
+    TodoForExpr(Source<Expr>),
 }
 
 impl Parser {
@@ -1116,7 +1118,7 @@ impl Parser {
                                 end,
                             );
                         }
-                        _ => todo!(),
+                        _ => return Err(ParseError::TodoForExpr(current)),
                     }
                 }
                 Lexeme::Dot => {

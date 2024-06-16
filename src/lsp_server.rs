@@ -241,6 +241,7 @@ async fn lsp_handler(
                         Ok(CompilerError::ParseError(err)) => match err {
                             ParseError::UnexpectedEos => Span::unknown(),
                             ParseError::UnexpectedToken { got, .. } => got.span,
+                            ParseError::TodoForExpr(expr) => expr.span,
                         },
                         Ok(CompilerError::TypecheckError(err)) => match err {
                             TypecheckerError::IdentNotFound(ident) => ident.span,
