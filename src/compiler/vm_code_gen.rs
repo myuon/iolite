@@ -53,50 +53,6 @@ impl VmCodeGenerator {
         table.insert("extcall_write".to_string(), 1);
         // table.insert("exit".to_string(), 2);
 
-        // fltk
-        let methods = vec![
-            "extcall_window_new",
-            "extcall_window_end",
-            "extcall_window_show",
-            "extcall_window_set_handler",
-            "extcall_window_draw",
-            "extcall_window_redraw",
-            "extcall_window_set_color",
-            "extcall_window_make_current",
-            "extcall_app_default",
-            "extcall_app_run",
-            "extcall_app_wait",
-            "extcall_app_redraw",
-            "extcall_app_event_key",
-            "extcall_app_event_coords",
-            "extcall_app_quit",
-            "extcall_app_sleep",
-            "extcall_app_add_idle",
-            "extcall_frame_default",
-            "extcall_frame_set_rectangle",
-            "extcall_frame_set_label",
-            "extcall_frame_resize",
-            "extcall_frame_set_color",
-            "extcall_frame_set_frame",
-            "extcall_frame_new",
-            "extcall_frame_draw",
-            "extcall_button_default",
-            "extcall_button_set_callback",
-            "extcall_flex_default_fill",
-            "extcall_flex_column",
-            "extcall_flex_set_margins",
-            "extcall_flex_set_pad",
-            "extcall_flex_end",
-            "extcall_draw_set_draw_color",
-            "extcall_draw_draw_rect",
-            "extcall_draw_draw_box",
-        ];
-        let mut index = 10000;
-        for method in methods {
-            table.insert(method.to_string(), index);
-            index += 1;
-        }
-
         // sdl2
         let methods = vec![
             "extcall_sdl_init",
@@ -125,7 +81,7 @@ impl VmCodeGenerator {
             "extcall_time_duration_since",
             "extcall_duration_as_millis",
         ];
-        let mut index = 20000;
+        let mut index = 10000;
         for method in methods {
             table.insert(method.to_string(), index);
             index += 1;
