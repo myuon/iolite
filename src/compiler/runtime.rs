@@ -629,6 +629,30 @@ impl Runtime {
                             });
 
                             self.push(Value::Nil.as_u64() as i64);
+                        } else if index as usize == table["extcall_canvas_fill_rect"] {
+                            let canvas_id = self.pop_i64() as i32;
+                            let x = self.pop_i64() as i32;
+                            let y = self.pop_i64() as i32;
+                            let width = self.pop_i64() as i32;
+                            let height = self.pop_i64() as i32;
+
+                            GUI_DATA.with(|data_ref| {
+                                let mut data = data_ref.borrow_mut();
+                                let canvas = data[canvas_id as usize]
+                                    .downcast_mut::<sdl2::render::Canvas<sdl2::video::Window>>()
+                                    .unwrap();
+
+                                canvas
+                                    .fill_rect(sdl2::rect::Rect::new(
+                                        x,
+                                        y,
+                                        width as u32,
+                                        height as u32,
+                                    ))
+                                    .unwrap();
+                            });
+
+                            self.push(Value::Nil.as_u64() as i64);
                         } else if index as usize == table["extcall_sleep"] {
                             let sec = self.pop_f32();
 

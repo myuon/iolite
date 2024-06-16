@@ -47,6 +47,7 @@ declare fun extcall_window_get_canvas(window: rawptr): rawptr;
 declare fun extcall_canvas_set_draw_color(canvas: rawptr, r: int, g: int, b: int);
 declare fun extcall_canvas_clear(canvas: rawptr);
 declare fun extcall_canvas_present(canvas: rawptr);
+declare fun extcall_canvas_fill_rect(canvas: rawptr, x: int, y: int, width: int, height: int);
 declare fun extcall_sleep(sec: float);
 
 let heap_ptr = 0 as ptr[byte];
@@ -502,6 +503,10 @@ module Canvas {
 
   fun present(self) {
     return extcall_canvas_present(self.!);
+  }
+
+  fun fill_rect(self, x: int, y: int, width: int, height: int) {
+    return extcall_canvas_fill_rect(self.!, x, y, width, height);
   }
 }
 

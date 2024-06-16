@@ -109,6 +109,7 @@ impl VmCodeGenerator {
             "extcall_canvas_set_draw_color",
             "extcall_canvas_clear",
             "extcall_canvas_present",
+            "extcall_canvas_fill_rect",
             "extcall_sleep",
         ];
         let mut index = 20000;
