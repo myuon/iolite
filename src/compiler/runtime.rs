@@ -550,6 +550,32 @@ impl Runtime {
                             });
 
                             self.push(Value::Bool(is_pressed).as_u64() as i64);
+                        } else if index as usize == table["extcall_event_pump_mouse_x"] {
+                            let pump_id = self.pop_i64() as i32;
+
+                            let x = GUI_DATA.with(|data_ref| {
+                                let data = data_ref.borrow();
+                                let event_pump = data[pump_id as usize]
+                                    .downcast_ref::<sdl2::EventPump>()
+                                    .unwrap();
+
+                                event_pump.mouse_state().x()
+                            });
+
+                            self.push(Value::Int(x as i32).as_u64() as i64);
+                        } else if index as usize == table["extcall_event_pump_mouse_y"] {
+                            let pump_id = self.pop_i64() as i32;
+
+                            let y = GUI_DATA.with(|data_ref| {
+                                let data = data_ref.borrow();
+                                let event_pump = data[pump_id as usize]
+                                    .downcast_ref::<sdl2::EventPump>()
+                                    .unwrap();
+
+                                event_pump.mouse_state().y()
+                            });
+
+                            self.push(Value::Int(y as i32).as_u64() as i64);
                         } else if index as usize == table["extcall_event_is_quit"] {
                             let event_id = self.pop_i64() as i32;
 

@@ -42,6 +42,8 @@ declare fun extcall_sdl_context_video(context: rawptr): rawptr;
 declare fun extcall_sdl_context_event_pump(context: rawptr): rawptr;
 declare fun extcall_event_pump_poll(pump: rawptr): rawptr;
 declare fun extcall_event_pump_is_scancode_pressed(pump: rawptr, scancode: int): bool;
+declare fun extcall_event_pump_mouse_x(pump: rawptr): int;
+declare fun extcall_event_pump_mouse_y(pump: rawptr): int;
 declare fun extcall_event_is_quit(event: rawptr): bool;
 declare fun extcall_video_window(video: rawptr, title_ptr: rawptr, title_len: int, width: int, height: int): rawptr;
 declare fun extcall_window_get_canvas(window: rawptr): rawptr;
@@ -507,6 +509,11 @@ module Event {
   }
 }
 
+struct MousePosition {
+  x: int,
+  y: int,
+}
+
 struct EventPump(rawptr);
 
 module EventPump {
@@ -516,6 +523,13 @@ module EventPump {
 
   fun is_scancode_pressed(self, scancode: Scancode): bool {
     return extcall_event_pump_is_scancode_pressed(self.!, scancode.!);
+  }
+
+  fun mouse_position(self): MousePosition {
+    return MousePosition {
+      x: extcall_event_pump_mouse_x(self.!),
+      y: extcall_event_pump_mouse_y(self.!),
+    };
   }
 }
 

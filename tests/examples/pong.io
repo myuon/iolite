@@ -9,22 +9,16 @@ struct Direction {
 }
 
 struct Ball {
-  widget: Frame,
   pos: Position,
   dir: Direction,
 }
 
 module Ball {
   fun build(w: int, h: int): Ball {
-    let widget = Frame::build(0, 0, w, h);
-    widget.set_frame(FrameType::O_FLAT_FRAME());
-    widget.set_color(255, 255, 255);
-
     let pos = Position { x: 0, y: 0 };
     let dir = Direction { x: 1, y: 1 };
 
     return Ball {
-      widget: widget,
       pos: pos,
       dir: dir,
     };
@@ -32,40 +26,30 @@ module Ball {
 }
 
 fun main() {
-  let app = App::default();
+  let sdl_context = SDL::init();
+  let video = sdl_context.video();
 
-  let window = Window::build(100, 200, 800, 600, "Pong!");
+  let window = video.window("Pong!", 800, 600);
 
   let ball = Ball::build(40, 40);
 
   let paddle_x = 320;
-  window.set_color(0, 0, 0);
-  window.end();
-  window.show();
-  window.draw(fun () {
-    Draw::set_draw_color(255, 255, 255);
-    Draw::draw_rect(paddle_x, 540, 160, 20);
 
-    return nil;
-  });
-  window.set_callback(fun (event: Event) {
-    print_str("handle\n");
-    if (Event::KEYDOWN().! == event.!) {
-      let key = app.event_key();
+  let canvas = window.get_canvas();
 
-      if (Key::ESCAPE().! == key.!) {
-        app.quit();
-      }
-    } else if (Event::MOVE().! == event.!) {
-      let coords = app.event_coords();
-
-      paddle_x = coords.x - 80;
+  let event_pump = sdl_context.event_pump();
+  while (true) {
+    let event = event_pump.poll();
+    if (event.is_quit()) {
+      return nil;
+    }
+    if (event_pump.is_scancode_pressed(Scancode::ESCAPE())) {
+      return nil;
     }
 
-    return nil;
-  });
+    let mouse = event_pump.mouse_position();
+    paddle_x = mouse.x - 80;
 
-  app.add_idle(fun () {
     ball.pos.x = ball.pos.x + 10 * ball.dir.x;
     ball.pos.y = ball.pos.y + 10 * ball.dir.y;
 
@@ -88,12 +72,14 @@ fun main() {
       ball.dir = Direction { x: 1, y: 1 };
     }
 
-    ball.widget.resize(ball.pos.x, ball.pos.y, 40, 40);
+    canvas.set_draw_color(0, 0, 0);
+    canvas.clear();
 
-    window.redraw();
-    App::sleep(0.016);
+    canvas.set_draw_color(255, 255, 255);
+    canvas.fill_rect(paddle_x, 540, 160, 20);
+    canvas.fill_rect(ball.pos.x, ball.pos.y, 40, 40);
 
-    return nil;
-  });
-  app.run();
+    sleep(0.016);
+    canvas.present();
+  }
 }
