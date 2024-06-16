@@ -1,41 +1,51 @@
 // Requires posix-lib
 declare fun extcall_write(fd: int, buf: rawptr, length: int): int;
-// Requires fltk-lib
-declare fun extcall_window_new(x: int, y: int, width: int, height: int, title_ptr: rawptr, title_len: int): rawptr;
-declare fun extcall_window_make_current(window: rawptr);
-declare fun extcall_app_default(): rawptr;
-declare fun extcall_app_run(app: rawptr);
-declare fun extcall_app_wait(app: rawptr): bool;
-declare fun extcall_app_redraw(app: rawptr);
-declare fun extcall_app_event_key(app: rawptr): int;
-declare fun extcall_app_event_coords(app: rawptr): int;
-declare fun extcall_app_quit(app: rawptr);
-declare fun extcall_app_sleep(sec: float);
-declare fun extcall_app_add_idle(app: rawptr, handler_ptr: rawptr, handler_env: rawptr);
-declare fun extcall_button_default(title_ptr: rawptr, title_len: int): rawptr;
-declare fun extcall_button_set_callback(button: rawptr, callback_ptr: rawptr, callback_env: rawptr);
-declare fun extcall_frame_default(): rawptr;
-declare fun extcall_frame_set_rectangle(frame: rawptr, x: int, y: int, width: int, height: int);
-declare fun extcall_frame_set_label(frame: rawptr, title_ptr: rawptr, title_len: int);
-declare fun extcall_frame_resize(frame: rawptr, x: int, y: int, width: int, height: int);
-declare fun extcall_frame_set_color(frame: rawptr, r: int, g: int, b: int);
-declare fun extcall_frame_set_frame(frame: rawptr, frame_type: int);
-declare fun extcall_frame_new(x: int, y: int, width: int, height: int): rawptr;
-declare fun extcall_frame_draw(frame: rawptr, handler_ptr: rawptr, handler_env: rawptr);
-declare fun extcall_flex_default_fill(): rawptr;
-declare fun extcall_flex_column(flex: rawptr): rawptr;
-declare fun extcall_flex_set_margins(flex: rawptr, left: int, top: int, right: int, bottom: int);
-declare fun extcall_flex_set_pad(flex: rawptr, pad: int);
-declare fun extcall_flex_end(flex: rawptr);
-declare fun extcall_window_end(window: rawptr);
-declare fun extcall_window_show(window: rawptr);
-declare fun extcall_window_set_handler(window: rawptr, handler_ptr: rawptr, handler_env: rawptr);
-declare fun extcall_window_draw(window: rawptr, handler_ptr: rawptr, handler_env: rawptr);
-declare fun extcall_window_redraw(window: rawptr);
-declare fun extcall_window_set_color(window: rawptr, r: int, g: int, b: int);
-declare fun extcall_draw_set_draw_color(r: int, g: int, b: int);
-declare fun extcall_draw_draw_rect(x: int, y: int, width: int, height: int);
-declare fun extcall_draw_draw_box(frame_type: int, x: int, y: int, width: int, height: int, r: int, g: int, b: int);
+// Requires sdl2-lib
+declare fun extcall_sdl_init(): rawptr;
+declare fun extcall_sdl_context_video(context: rawptr): rawptr;
+declare fun extcall_sdl_context_event_pump(context: rawptr): rawptr;
+declare fun extcall_event_pump_poll(pump: rawptr): rawptr;
+declare fun extcall_event_pump_is_scancode_pressed(pump: rawptr, scancode: int): bool;
+declare fun extcall_event_pump_mouse_x(pump: rawptr): int;
+declare fun extcall_event_pump_mouse_y(pump: rawptr): int;
+declare fun extcall_event_is_quit(event: rawptr): bool;
+declare fun extcall_video_window(video: rawptr, title_ptr: rawptr, title_len: int, width: int, height: int): rawptr;
+declare fun extcall_window_get_canvas(window: rawptr): rawptr;
+declare fun extcall_window_set_title(window: rawptr, title_ptr: rawptr, title_len: int): rawptr;
+declare fun extcall_canvas_set_draw_color(canvas: rawptr, r: int, g: int, b: int);
+declare fun extcall_canvas_clear(canvas: rawptr);
+declare fun extcall_canvas_present(canvas: rawptr);
+declare fun extcall_canvas_fill_rect(canvas: rawptr, x: int, y: int, width: int, height: int);
+declare fun extcall_canvas_texture_creator(canvas: rawptr): rawptr;
+declare fun extcall_canvas_copy_texture_at(canvas: rawptr, texture_creator: rawptr, texture: rawptr, dst_x: int, dst_y: int, dst_width: int, dst_height: int): rawptr;
+declare fun extcall_surface_new(width: int, height: int, format: int): rawptr;
+declare fun extcall_surface_as_texture(surface: rawptr, texture_creator: rawptr): rawptr;
+declare fun extcall_surface_blit_to_canvas_at(surface: rawptr, canvas: rawptr, dst_x: int, dst_y: int);
+declare fun extcall_surface_fill_rect(surface: rawptr, x: int, y: int, width: int, height: int, r: int, g: int, b: int);
+declare fun extcall_sleep(sec: float);
+declare fun extcall_time_now(): rawptr;
+declare fun extcall_time_duration_since(time: rawptr): rawptr;
+declare fun extcall_duration_as_millis(time: rawptr): int;
+
+struct Duration(rawptr);
+
+module Duration {
+  fun as_millis(self): int {
+    return extcall_duration_as_millis(self.!);
+  }
+}
+
+struct SystemTime(rawptr);
+
+module SystemTime {
+  fun now(): SystemTime {
+    return SystemTime(extcall_time_now());
+  }
+
+  fun duration_since(self): Duration {
+    return Duration(extcall_time_duration_since(self.!));
+  }
+}
 
 let heap_ptr = 0 as ptr[byte];
 
@@ -131,332 +141,165 @@ fun int_to_string(n: int): array[byte] {
   return text;
 }
 
-// fltk
+fun concat_str(a: array[byte], b: array[byte]): array[byte] {
+  let text = new[array[byte]](a.length + b.length);
+  let i = 0;
+  while (i < a.length) {
+    text.(i) = a.(i);
+    i = i + 1;
+  }
+  let j = 0;
+  while (j < b.length) {
+    text.(i) = b.(j);
+    i = i + 1;
+    j = j + 1;
+  }
+  return text;
+}
 
-struct Event(int);
+
+// SDL2 bindings
+
+struct Scancode(int);
+
+module Scancode {
+  fun ESCAPE(): Scancode {
+    return Scancode(41);
+  }
+
+  fun RIGHT(): Scancode {
+    return Scancode(79);
+  }
+
+  fun LEFT(): Scancode {
+    return Scancode(80);
+  }
+
+  fun DOWN(): Scancode {
+    return Scancode(81);
+  }
+
+  fun UP(): Scancode {
+    return Scancode(82);
+  }
+}
+
+struct Event(rawptr);
 
 module Event {
-  fun from_bits(bits: int): Event {
-    return Event(bits);
-  }
-
-  fun NO_EVENT(): Event {
-    return Event(0);
-  }
-
-  fun PUSH(): Event {
-    return Event(1);
-  }
-
-  fun RELEASED(): Event {
-    return Event(2);
-  }
-
-  fun ENTER(): Event {
-    return Event(3);
-  }
-
-  fun LEAVE(): Event {
-    return Event(4);
-  }
-
-  fun DRAG(): Event {
-    return Event(5);
-  }
-
-  fun FOCUS(): Event {
-    return Event(6);
-  }
-
-  fun UNFOCUS(): Event {
-    return Event(7);
-  }
-
-  fun KEYDOWN(): Event {
-    return Event(8);
-  }
-
-  fun KEYUP(): Event {
-    return Event(9);
-  }
-
-  fun CLOSE(): Event {
-    return Event(10);
-  }
-
-  fun MOVE(): Event {
-    return Event(11);
-  }
-
-  fun SHORTCUT(): Event {
-    return Event(12);
-  }
-
-  fun DEACTIVATE(): Event {
-    return Event(13);
-  }
-
-  fun ACTIVATE(): Event {
-    return Event(14);
-  }
-
-  fun HIDE(): Event {
-    return Event(15);
-  }
-
-  fun SHOW(): Event {
-    return Event(16);
-  }
-
-  fun PASTE(): Event {
-    return Event(17);
-  }
-
-  fun SELECTION_CLEAR(): Event {
-    return Event(18);
-  }
-
-  fun MOUSE_WHEEL(): Event {
-    return Event(19);
-  }
-
-  fun DND_ENTER(): Event {
-    return Event(20);
-  }
-
-  fun DND_DROP(): Event {
-    return Event(21);
-  }
-
-  fun DND_LEAVE(): Event {
-    return Event(22);
-  }
-
-  fun DND_RELEASE(): Event {
-    return Event(23);
-  }
-
-  fun SCREEN_CONFIG_CHANGED(): Event {
-    return Event(24);
-  }
-
-  fun FULLSCREEN(): Event {
-    return Event(25);
-  }
-
-  fun ZOOM_GESTURE(): Event {
-    return Event(26);
-  }
-
-  fun ZOOM(): Event {
-    return Event(27);
-  }
-
-  fun RESIZE(): Event {
-    return Event(28);
+  fun is_quit(self): bool {
+    return extcall_event_is_quit(self.!);
   }
 }
 
-struct Key(int);
+struct MousePosition {
+  x: int,
+  y: int,
+}
 
-module Key {
-  fun from_bits(bits: int): Key {
-    return Key(bits);
+struct EventPump(rawptr);
+
+module EventPump {
+  fun poll(self): Event {
+    return Event(extcall_event_pump_poll(self.!));
   }
 
-  fun ESCAPE(): Key {
-    return Key(65307);
+  fun is_scancode_pressed(self, scancode: Scancode): bool {
+    return extcall_event_pump_is_scancode_pressed(self.!, scancode.!);
+  }
+
+  fun mouse_position(self): MousePosition {
+    return MousePosition {
+      x: extcall_event_pump_mouse_x(self.!),
+      y: extcall_event_pump_mouse_y(self.!),
+    };
   }
 }
 
-struct FrameType(int);
+struct Texture(rawptr);
 
-module FrameType {
-  fun THIN_UP_BOX(): FrameType {
-    return FrameType(6);
+struct TextureCreator(rawptr);
+
+struct Canvas(rawptr);
+
+module Canvas {
+  fun set_draw_color(self, r: int, g: int, b: int) {
+    return extcall_canvas_set_draw_color(self.!, r, g, b);
   }
 
-  fun O_FLAT_FRAME(): FrameType {
-    return FrameType(29);
-  }
-  
-  fun to_int(self): int {
-    return self.!;
-  }
-}
-
-struct Frame(rawptr);
-
-module Frame {
-  fun default(): Frame {
-    return Frame(extcall_frame_default());
+  fun clear(self) {
+    return extcall_canvas_clear(self.!);
   }
 
-  fun set_label(self, label: array[byte]) {
-    return extcall_frame_set_label(self.!, label.ptr as rawptr, label.length);
+  fun present(self) {
+    return extcall_canvas_present(self.!);
   }
 
-  fun set_rectangle(self, x: int, y: int, w: int, h: int) {
-    return extcall_frame_set_rectangle(self.!, x, y, w, h);
+  fun fill_rect(self, x: int, y: int, width: int, height: int) {
+    return extcall_canvas_fill_rect(self.!, x, y, width, height);
   }
 
-  fun resize(self, x: int, y: int, w: int, h: int) {
-    return extcall_frame_resize(self.!, x, y, w, h);
+  fun texture_creator(self): TextureCreator {
+    return TextureCreator(extcall_canvas_texture_creator(self.!));
   }
 
-  fun set_color(self, r: int, g: int, b: int) {
-    return extcall_frame_set_color(self.!, r, g, b);
-  }
-
-  fun set_frame(self, frame_type: FrameType) {
-    return extcall_frame_set_frame(self.!, frame_type.to_int());
-  }
-
-  fun build(x: int, y: int, width: int, height: int): Frame {
-    return Frame(extcall_frame_new(x, y, width, height));
-  }
-
-  fun draw(self, handler: () => nil) {
-    return extcall_frame_draw(self.!, handler.ptr, handler.env);
-  }
-}
-
-struct Button(rawptr);
-
-module Button {
-  fun default(title: array[byte]): Button {
-    return Button(extcall_button_default(title.ptr as rawptr, title.length));
-  }
-
-  fun set_callback(self, callback: () => nil) {
-    return extcall_button_set_callback(self.!, callback.ptr, callback.env);
-  }
-}
-
-struct Flex(rawptr);
-
-module Flex {
-  fun default_fill(): Flex {
-    return Flex(extcall_flex_default_fill());
-  }
-
-  fun column(self) {
-    return extcall_flex_column(self.!);
-  }
-
-  fun set_margins(self, left: int, top: int, right: int, bottom: int) {
-    return extcall_flex_set_margins(self.!, left, top, right, bottom);
-  }
-
-  fun end(self) {
-    return extcall_flex_end(self.!);
+  fun copy_texture_at(self, texture_creator: TextureCreator, texture: Texture, dst_x: int, dst_y: int, dst_width: int, dst_height: int) {
+    return extcall_canvas_copy_texture_at(self.!, texture_creator.!, texture.!, dst_x, dst_y, dst_width, dst_height);
   }
 }
 
 struct Window(rawptr);
 
 module Window {
-  fun build(x: int, y: int, width: int, height: int, title: array[byte]): Window {
-    return Window(extcall_window_new(x, y, width, height, title.ptr as rawptr, title.length));
+  fun get_canvas(self): Canvas {
+    return Canvas(extcall_window_get_canvas(self.!));
   }
 
-  fun end(self) {
-    return extcall_window_end(self.!);
-  }
-
-  fun show(self) {
-    return extcall_window_show(self.!);
-  }
-
-  fun set_callback(self, handler_: (Event) => nil) {
-    let handler = fun (e: int) {
-      handler_(Event::from_bits(e));
-    };
-
-    return extcall_window_set_handler(self.!, handler.ptr, handler.env);
-  }
-
-  fun draw(self, handler: () => nil) {
-    return extcall_window_draw(self.!, handler.ptr, handler.env);
-  }
-
-  fun redraw(self) {
-    return extcall_window_redraw(self.!);
-  }
-
-  fun set_color(self, r: int, g: int, b: int) {
-    return extcall_window_set_color(self.!, r, g, b);
-  }
-
-  fun make_current(self) {
-    return extcall_window_make_current(self.!);
+  fun set_title(self, title: array[byte]) {
+    return extcall_window_set_title(self.!, title.ptr as rawptr, title.length);
   }
 }
 
-struct Point {
-  x: int,
-  y: int,
-}
+struct Surface(rawptr);
 
-struct App(rawptr);
-
-module App {
-  fun default(): App {
-    return App(extcall_app_default());
+module Surface {
+  fun build(width: int, height: int, pixel_format: int): Surface {
+    return Surface(extcall_surface_new(width, height, pixel_format));
   }
 
-  fun wait(self): bool {
-    return extcall_app_wait(self.!);
+  fun as_texture(self, texture_creator: TextureCreator): Texture {
+    return Texture(extcall_surface_as_texture(self.!, texture_creator.!));
   }
 
-  fun redraw(self) {
-    return extcall_app_redraw(self.!);
-  }
-
-  fun run(self) {
-    while (self.wait()) {
-      self.redraw();
-    }
-  }
-
-  fun event_key(self): Key {
-    return Key::from_bits(extcall_app_event_key(self.!));
-  }
-
-  fun event_coords(self): Point {
-    let value = extcall_app_event_coords(self.!);
-
-    return Point {
-      x: value % 65536, // value & 0xffff
-      y: value / 65536, // value >> 16
-    };
-  }
-
-  fun quit(self) {
-    return extcall_app_quit(self.!);
-  }
-
-  fun add_idle(self, handler: () => nil) {
-    return extcall_app_add_idle(self.!, handler.ptr, handler.env);
-  }
-
-  fun sleep(sec: float) {
-    return extcall_app_sleep(sec);
+  fun fill_rect(self, x: int, y: int, width: int, height: int, r: int, g: int, b: int) {
+    return extcall_surface_fill_rect(self.!, x, y, width, height, r, g, b);
   }
 }
 
-struct Draw(nil);
+struct VideoSubsystem(rawptr);
 
-module Draw {
-  fun set_draw_color(r: int, g: int, b: int) {
-    return extcall_draw_set_draw_color(r, g, b);
+module VideoSubsystem {
+  fun window(self, title: array[byte], width: int, height: int): Window {
+    return Window(extcall_video_window(self.!, title.ptr as rawptr, title.length, width, height));
+  }
+}
+
+struct SDL(rawptr);
+
+module SDL {
+  fun init(): SDL {
+    return SDL(extcall_sdl_init());
   }
 
-  fun draw_rect(x: int, y: int, w: int, h: int) {
-    return extcall_draw_draw_rect(x, y, w, h);
+  fun video(self): VideoSubsystem {
+    return VideoSubsystem(extcall_sdl_context_video(self.!));
   }
 
-  fun draw_box(frame_type: FrameType, x: int, y: int, w: int, h: int, r: int, g: int, b: int) {
-    return extcall_draw_draw_box(frame_type.to_int(), x, y, w, h, r, g, b);
+  fun event_pump(self): EventPump {
+    return EventPump(extcall_sdl_context_event_pump(self.!));
   }
+}
+
+fun sleep(sec: float) {
+  return extcall_sleep(sec);
 }
