@@ -114,6 +114,9 @@ impl VmCodeGenerator {
             "extcall_canvas_present",
             "extcall_canvas_fill_rect",
             "extcall_sleep",
+            "extcall_time_now",
+            "extcall_time_duration_since",
+            "extcall_duration_as_millis",
         ];
         let mut index = 20000;
         for method in methods {

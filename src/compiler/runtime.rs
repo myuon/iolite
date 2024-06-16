@@ -768,6 +768,39 @@ impl Runtime {
                             app::sleep(sec as f64);
 
                             self.push(Value::Nil.as_u64() as i64);
+                        } else if index as usize == table["extcall_time_now"] {
+                            let now = std::time::SystemTime::now();
+                            let id = register_gui_data(now);
+
+                            self.push(Value::Int(id as i32).as_u64() as i64);
+                        } else if index as usize == table["extcall_time_duration_since"] {
+                            let time_id = self.pop_i64() as i32;
+                            let duration = GUI_DATA.with(|data_ref| {
+                                let data = data_ref.borrow();
+                                let now = std::time::SystemTime::now();
+                                let time = data[time_id as usize]
+                                    .downcast_ref::<std::time::SystemTime>()
+                                    .unwrap();
+                                let duration = now.duration_since(*time).unwrap();
+
+                                duration
+                            });
+                            let id = register_gui_data(duration);
+
+                            self.push(Value::Int(id as i32).as_u64() as i64);
+                        } else if index as usize == table["extcall_duration_as_millis"] {
+                            let duration_id = self.pop_i64() as i32;
+                            let duration = GUI_DATA.with(|data_ref| {
+                                let data = data_ref.borrow();
+                                let duration = data[duration_id as usize]
+                                    .downcast_ref::<std::time::Duration>()
+                                    .unwrap();
+                                let millis = duration.as_millis();
+
+                                millis
+                            });
+
+                            self.push(Value::Int(duration as i32).as_u64() as i64);
                         } else if index as usize == table["extcall_app_add_idle"] {
                             let _ = self.pop_i64();
                             let callback_ptr = self.pop_i64() as u64;

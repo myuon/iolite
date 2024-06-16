@@ -39,6 +39,7 @@ fun main() {
 
   let event_pump = sdl_context.event_pump();
   while (true) {
+    let time = SystemTime::now();
     let event = event_pump.poll();
     if (event.is_quit()) {
       return nil;
@@ -79,7 +80,16 @@ fun main() {
     canvas.fill_rect(paddle_x, 540, 160, 20);
     canvas.fill_rect(ball.pos.x, ball.pos.y, 40, 40);
 
-    sleep(0.016);
+    let elapsed = SystemTime::duration_since(time);
+    let elapsed_ms = elapsed.as_millis();
+    print_str("Elapsed: ");
+    print_str(elapsed_ms.to_string());
+    print_str("\n");
+
+    if elapsed_ms <= 16 {
+      sleep((16.67 - elapsed_ms as float) / (1000 as float));
+    }
+
     canvas.present();
   }
 }

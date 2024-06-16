@@ -52,6 +52,29 @@ declare fun extcall_canvas_clear(canvas: rawptr);
 declare fun extcall_canvas_present(canvas: rawptr);
 declare fun extcall_canvas_fill_rect(canvas: rawptr, x: int, y: int, width: int, height: int);
 declare fun extcall_sleep(sec: float);
+declare fun extcall_time_now(): rawptr;
+declare fun extcall_time_duration_since(time: rawptr): rawptr;
+declare fun extcall_duration_as_millis(time: rawptr): int;
+
+struct Duration(rawptr);
+
+module Duration {
+  fun as_millis(self): int {
+    return extcall_duration_as_millis(self.!);
+  }
+}
+
+struct SystemTime(rawptr);
+
+module SystemTime {
+  fun now(): SystemTime {
+    return SystemTime(extcall_time_now());
+  }
+
+  fun duration_since(self): Duration {
+    return Duration(extcall_time_duration_since(self.!));
+  }
+}
 
 let heap_ptr = 0 as ptr[byte];
 
