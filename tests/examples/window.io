@@ -6,19 +6,23 @@ fun main() {
 
   let canvas = window.get_canvas();
 
-  canvas.set_draw_color(255, 0, 0);
+  canvas.set_draw_color(0, 255, 255);
   canvas.clear();
   canvas.present();
 
   let event_pump = sdl_context.event_pump();
+  let i = 0;
   while (true) {
     let event  = event_pump.poll();
     if (event.is_quit()) {
       return nil;
     }
 
-    sleep(0.016);
+    i = (i + 1) % 255;
+    canvas.set_draw_color(i, 64, 255 - i);
     canvas.clear();
+
+    sleep(0.016);
     canvas.present();
   }
 }
