@@ -119,6 +119,7 @@ impl VmCodeGenerator {
             "extcall_surface_new",
             "extcall_surface_blit_to_window_at",
             "extcall_surface_as_texture",
+            "extcall_surface_fill_rect",
             "extcall_sleep",
             "extcall_time_now",
             "extcall_time_duration_since",

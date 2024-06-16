@@ -714,6 +714,8 @@ impl Runtime {
                             let texture_id = self.pop_i64() as i32;
                             let dst_x = self.pop_i64() as i32;
                             let dst_y = self.pop_i64() as i32;
+                            let dst_width = self.pop_i64() as i32;
+                            let dst_height = self.pop_i64() as i32;
 
                             GUI_DATA.with(|data_ref| {
                                 let data = data_ref.borrow_mut();
@@ -728,7 +730,11 @@ impl Runtime {
                                     .unwrap();
                                 let texture = unsafe { texture_creator.raw_create_texture(*texture_raw)};
 
-                                canvas.borrow_mut().copy(&texture, None, None).unwrap();
+                                canvas.borrow_mut().copy(
+                                    &texture,
+                                    None,
+                                    sdl2::rect::Rect::new(dst_x, dst_y, dst_width as u32, dst_height as u32)
+                                ).unwrap();
                             });
 
                             self.push(Value::Nil.as_u64() as i64);
@@ -768,6 +774,31 @@ impl Runtime {
                             let id = register_gui_data(texture);
 
                             self.push(Value::Int(id as i32).as_u64() as i64);
+                        } else if index as usize == table["extcall_surface_fill_rect"] {
+                            let surface_id = self.pop_i64() as i32;
+                            let x = self.pop_i64() as i32;
+                            let y = self.pop_i64() as i32;
+                            let width = self.pop_i64() as i32;
+                            let height = self.pop_i64() as i32;
+                            let r = self.pop_i64() as u8;
+                            let g = self.pop_i64() as u8;
+                            let b = self.pop_i64() as u8;
+
+                            GUI_DATA.with(|data_ref| {
+                                let mut data = data_ref.borrow_mut();
+                                let surface = data[surface_id as usize]
+                                    .downcast_mut::<sdl2::surface::Surface>()
+                                    .unwrap();
+
+                                surface
+                                    .fill_rect(
+                                        sdl2::rect::Rect::new(x, y, width as u32, height as u32),
+                                        sdl2::pixels::Color::RGB(r, g, b),
+                                    )
+                                    .unwrap();
+                            });
+
+                            self.push(Value::Nil.as_u64() as i64);
                         } else if index as usize == table["extcall_canvas_fill_rect"] {
                             let canvas_id = self.pop_i64() as i32;
                             let x = self.pop_i64() as i32;

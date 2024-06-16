@@ -9,9 +9,23 @@ fun main() {
   let event_pump = sdl_context.event_pump();
 
   let texture_creator = canvas.texture_creator();
-  let surface = Surface::build(250, 250, 376840196);
-  let texture = surface.as_texture(texture_creator);
-  canvas.copy_texture_at(texture_creator, texture, 10, 10);
+  let surface = Surface::build(500, 500, 376840196);
+
+  let r = 0;
+  while (r < 4) {
+    let g = 0;
+    while (g < 25) {
+      let b = 0;
+      while (b < 25) {
+        surface.fill_rect((r % 2) * 250 + g * 10, (r / 2) * 250 + b * 10, 10, 10, r * 64, g * 10, b * 10);
+        b = b + 1;
+      }
+
+      g = g + 1;
+    }
+
+    r = r + 1;
+  }
 
   while (true) {
     let time = SystemTime::now();
@@ -20,24 +34,11 @@ fun main() {
       return nil;
     }
 
+    canvas.set_draw_color(0, 0, 0);
     canvas.clear();
 
-    let r = 0;
-    while (r < 4) {
-      let g = 0;
-      while (g < 25) {
-        let b = 0;
-        while (b < 25) {
-          canvas.set_draw_color(r * 64, g * 10, b * 10);
-          canvas.fill_rect((r % 2) * 250 + g * 10, (r / 2) * 250 + b * 10, 10, 10);
-          b = b + 1;
-        }
-
-        g = g + 1;
-      }
-
-      r = r + 1;
-    }
+    let texture = surface.as_texture(texture_creator);
+    canvas.copy_texture_at(texture_creator, texture, 0, 0, 500, 500);
 
     let elapsed = SystemTime::duration_since(time);
     let elapsed_ms = elapsed.as_millis();
