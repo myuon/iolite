@@ -53,6 +53,10 @@ declare fun extcall_canvas_clear(canvas: rawptr);
 declare fun extcall_canvas_present(canvas: rawptr);
 declare fun extcall_canvas_fill_rect(canvas: rawptr, x: int, y: int, width: int, height: int);
 declare fun extcall_canvas_texture_creator(canvas: rawptr): rawptr;
+declare fun extcall_canvas_copy_texture_at(canvas: rawptr, texture_creator: rawptr, texture: rawptr, dst_x: int, dst_y: int): rawptr;
+declare fun extcall_surface_new(width: int, height: int, format: int): rawptr;
+declare fun extcall_surface_as_texture(surface: rawptr, texture_creator: rawptr): rawptr;
+declare fun extcall_surface_blit_to_canvas_at(surface: rawptr, canvas: rawptr, dst_x: int, dst_y: int);
 declare fun extcall_sleep(sec: float);
 declare fun extcall_time_now(): rawptr;
 declare fun extcall_time_duration_since(time: rawptr): rawptr;
@@ -574,6 +578,8 @@ module EventPump {
   }
 }
 
+struct Texture(rawptr);
+
 struct TextureCreator(rawptr);
 
 struct Canvas(rawptr);
@@ -598,6 +604,10 @@ module Canvas {
   fun texture_creator(self): TextureCreator {
     return TextureCreator(extcall_canvas_texture_creator(self.!));
   }
+
+  fun copy_texture_at(self, texture_creator: TextureCreator, texture: Texture, dst_x: int, dst_y: int) {
+    return extcall_canvas_copy_texture_at(self.!, texture_creator.!, texture.!, dst_x, dst_y);
+  }
 }
 
 struct Window(rawptr);
@@ -609,6 +619,18 @@ module Window {
 
   fun set_title(self, title: array[byte]) {
     return extcall_window_set_title(self.!, title.ptr as rawptr, title.length);
+  }
+}
+
+struct Surface(rawptr);
+
+module Surface {
+  fun build(width: int, height: int, pixel_format: int): Surface {
+    return Surface(extcall_surface_new(width, height, pixel_format));
+  }
+
+  fun as_texture(self, texture_creator: TextureCreator): Texture {
+    return Texture(extcall_surface_as_texture(self.!, texture_creator.!));
   }
 }
 

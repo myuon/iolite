@@ -7,6 +7,12 @@ fun main() {
   let canvas = window.get_canvas();
 
   let event_pump = sdl_context.event_pump();
+
+  let texture_creator = canvas.texture_creator();
+  let surface = Surface::build(250, 250, 376840196);
+  let texture = surface.as_texture(texture_creator);
+  canvas.copy_texture_at(texture_creator, texture, 10, 10);
+
   while (true) {
     let time = SystemTime::now();
     let event  = event_pump.poll();

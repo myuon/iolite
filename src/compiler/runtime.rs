@@ -1,5 +1,5 @@
 use std::{
-    cell::RefCell,
+    cell::{Cell, RefCell},
     collections::HashMap,
     io::{stdout, BufWriter, Write},
     sync::{Arc, Mutex},
@@ -628,7 +628,7 @@ impl Runtime {
 
                                 canvas
                             });
-                            let id = register_gui_data(canvas);
+                            let id = register_gui_data(RefCell::new(canvas));
 
                             self.push(Value::Int(id as i32).as_u64() as i64);
                         } else if index as usize == table["extcall_window_set_title"] {
@@ -658,12 +658,12 @@ impl Runtime {
                             let b = self.pop_i64() as u8;
 
                             GUI_DATA.with(|data_ref| {
-                                let mut data = data_ref.borrow_mut();
+                                let  data = data_ref.borrow();
                                 let canvas = data[canvas_id as usize]
-                                    .downcast_mut::<sdl2::render::Canvas<sdl2::video::Window>>()
+                                    .downcast_ref::<RefCell<sdl2::render::Canvas<sdl2::video::Window>>>()
                                     .unwrap();
 
-                                canvas.set_draw_color(sdl2::pixels::Color::RGB(r, g, b));
+                                canvas.borrow_mut().set_draw_color(sdl2::pixels::Color::RGB(r, g, b));
                             });
 
                             self.push(Value::Nil.as_u64() as i64);
@@ -671,12 +671,12 @@ impl Runtime {
                             let canvas_id = self.pop_i64() as i32;
 
                             GUI_DATA.with(|data_ref| {
-                                let mut data = data_ref.borrow_mut();
+                                let  data = data_ref.borrow();
                                 let canvas = data[canvas_id as usize]
-                                    .downcast_mut::<sdl2::render::Canvas<sdl2::video::Window>>()
+                                    .downcast_ref::<RefCell<sdl2::render::Canvas<sdl2::video::Window>>>()
                                     .unwrap();
 
-                                canvas.clear();
+                                canvas.borrow_mut().clear();
                             });
 
                             self.push(Value::Nil.as_u64() as i64);
@@ -684,12 +684,12 @@ impl Runtime {
                             let canvas_id = self.pop_i64() as i32;
 
                             GUI_DATA.with(|data_ref| {
-                                let mut data = data_ref.borrow_mut();
+                                let data = data_ref.borrow();
                                 let canvas = data[canvas_id as usize]
-                                    .downcast_mut::<sdl2::render::Canvas<sdl2::video::Window>>()
+                                    .downcast_ref::<RefCell<sdl2::render::Canvas<sdl2::video::Window>>>()
                                     .unwrap();
 
-                                canvas.present();
+                                canvas.borrow_mut().present();
                             });
 
                             self.push(Value::Nil.as_u64() as i64);
@@ -699,13 +699,73 @@ impl Runtime {
                             let texture_creator = GUI_DATA.with(|data_ref| {
                                 let data = data_ref.borrow();
                                 let canvas = data[canvas_id as usize]
-                                    .downcast_ref::<sdl2::render::Canvas<sdl2::video::Window>>()
+                                    .downcast_ref::<RefCell<sdl2::render::Canvas<sdl2::video::Window>>>()
                                     .unwrap();
-                                let texture_creator = canvas.texture_creator();
+                                let texture_creator = canvas.borrow().texture_creator();
 
                                 texture_creator
                             });
                             let id = register_gui_data(texture_creator);
+
+                            self.push(Value::Int(id as i32).as_u64() as i64);
+                        } else if index as usize == table["extcall_canvas_copy_texture_at"] {
+                            let canvas_id = self.pop_i64() as i32;
+                            let texture_creator_id = self.pop_i64() as i32;
+                            let texture_id = self.pop_i64() as i32;
+                            let dst_x = self.pop_i64() as i32;
+                            let dst_y = self.pop_i64() as i32;
+
+                            GUI_DATA.with(|data_ref| {
+                                let data = data_ref.borrow_mut();
+                                let canvas = data[canvas_id as usize]
+                                    .downcast_ref::<RefCell<sdl2::render::Canvas<sdl2::video::Window>>>()
+                                    .unwrap();
+                                let texture_creator = data[texture_creator_id as usize]
+                                    .downcast_ref::<sdl2::render::TextureCreator<sdl2::video::WindowContext>>()
+                                    .unwrap();
+                                let texture_raw = data[texture_id as usize]
+                                    .downcast_ref::<*mut sdl2::sys::SDL_Texture>()
+                                    .unwrap();
+                                let texture = unsafe { texture_creator.raw_create_texture(*texture_raw)};
+
+                                canvas.borrow_mut().copy(&texture, None, None).unwrap();
+                            });
+
+                            self.push(Value::Nil.as_u64() as i64);
+                        } else if index as usize == table["extcall_surface_new"] {
+                            let width = self.pop_i64() as i32;
+                            let height = self.pop_i64() as i32;
+                            let pixel_format = self.pop_i64() as u32;
+
+                            let surface = sdl2::surface::Surface::new(
+                                width as u32,
+                                height as u32,
+                                sdl2::pixels::PixelFormatEnum::try_from(pixel_format).unwrap(),
+                            )
+                            .unwrap();
+                            let id = register_gui_data(surface);
+
+                            self.push(Value::Int(id as i32).as_u64() as i64);
+                        } else if index as usize == table["extcall_surface_as_texture"] {
+                            let surface_id = self.pop_i64() as i32;
+                            let texture_creator_id = self.pop_i64() as i32;
+
+                            let texture = GUI_DATA.with(|data_ref| {
+                                let data = data_ref.borrow_mut();
+                                let surface = data[surface_id as usize]
+                                    .downcast_ref::<sdl2::surface::Surface<'static>>()
+                                    .unwrap();
+                                let texture_creator = data[texture_creator_id as usize]
+                                    .downcast_ref::<sdl2::render::TextureCreator<sdl2::video::WindowContext>>()
+                                    .unwrap();
+                                let texture = surface.as_texture(texture_creator).unwrap();
+                                let value = texture.raw();
+
+                                std::mem::forget(texture);
+
+                                value
+                            });
+                            let id = register_gui_data(texture);
 
                             self.push(Value::Int(id as i32).as_u64() as i64);
                         } else if index as usize == table["extcall_canvas_fill_rect"] {
@@ -716,12 +776,12 @@ impl Runtime {
                             let height = self.pop_i64() as i32;
 
                             GUI_DATA.with(|data_ref| {
-                                let mut data = data_ref.borrow_mut();
+                                let data = data_ref.borrow();
                                 let canvas = data[canvas_id as usize]
-                                    .downcast_mut::<sdl2::render::Canvas<sdl2::video::Window>>()
+                                    .downcast_ref::<RefCell<sdl2::render::Canvas<sdl2::video::Window>>>()
                                     .unwrap();
 
-                                canvas
+                                canvas.borrow_mut()
                                     .fill_rect(sdl2::rect::Rect::new(
                                         x,
                                         y,
