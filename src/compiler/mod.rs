@@ -238,7 +238,20 @@ impl Compiler {
         } else {
             vec![]
         };
-        tokens.extend(lexer.run().map_err(CompilerError::LexerError)?);
+        tokens.extend(match lexer.run() {
+            Ok(tokens) => tokens,
+            Err(err) => {
+                let position = match err {
+                    LexerError::InvalidCharacter(_, position) => position,
+                };
+                let (line, col) =
+                    Self::find_position_with_input(&self.modules[&path].source, position);
+
+                eprintln!("Error in {} at line {}, column {}", path, line, col);
+
+                return Err(CompilerError::LexerError(err).into());
+            }
+        });
 
         let mut parser = parser::Parser::new(path.clone(), tokens);
         let decls = match parser.decls(None) {

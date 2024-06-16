@@ -185,6 +185,19 @@ impl Lexer {
             ("import", Lexeme::Import),
             ("declare", Lexeme::Declare),
             ("module", Lexeme::Module),
+        ];
+
+        for (keyword, lexeme) in keywords.iter() {
+            if self.input[self.position..].starts_with(keyword) {
+                if let Some(c) = self.input[self.position + keyword.len()..].chars().nth(0) {
+                    if !c.is_alphanumeric() && c != '_' {
+                        return Some((lexeme.clone(), keyword.len()));
+                    }
+                }
+            }
+        }
+
+        let keywords = vec![
             ("=>", Lexeme::Arrow),
             ("<=", Lexeme::Le),
             (">=", Lexeme::Ge),
