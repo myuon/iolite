@@ -631,6 +631,26 @@ impl Runtime {
                             let id = register_gui_data(canvas);
 
                             self.push(Value::Int(id as i32).as_u64() as i64);
+                        } else if index as usize == table["extcall_window_set_title"] {
+                            let window_id = self.pop_i64() as i32;
+                            let title_ptr = self.pop_i64() as u64;
+                            let title_len = self.pop_i64() as usize;
+                            let title = String::from_utf8(
+                                self.memory[title_ptr as usize..(title_ptr as usize + title_len)]
+                                    .to_vec(),
+                            )
+                            .unwrap();
+
+                            GUI_DATA.with(|data_ref| {
+                                let mut data = data_ref.borrow_mut();
+                                let window = data[window_id as usize]
+                                    .downcast_mut::<sdl2::video::Window>()
+                                    .unwrap();
+
+                                window.set_title(title.as_str()).unwrap();
+                            });
+
+                            self.push(Value::Nil.as_u64() as i64);
                         } else if index as usize == table["extcall_canvas_set_draw_color"] {
                             let canvas_id = self.pop_i64() as i32;
                             let r = self.pop_i64() as u8;

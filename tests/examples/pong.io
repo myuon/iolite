@@ -82,12 +82,13 @@ fun main() {
 
     let elapsed = SystemTime::duration_since(time);
     let elapsed_ms = elapsed.as_millis();
-    print_str("Elapsed: ");
-    print_str(elapsed_ms.to_string());
-    print_str("\n");
 
     if elapsed_ms <= 16 {
       sleep((16.67 - elapsed_ms as float) / (1000 as float));
+      window.set_title(concat_str("Pong! - ", 60.to_string()));
+    } else {
+      let fps = 1000 / elapsed_ms;
+      window.set_title(concat_str("Pong! - ", fps.to_string()));
     }
 
     canvas.present();

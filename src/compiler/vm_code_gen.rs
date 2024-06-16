@@ -109,6 +109,7 @@ impl VmCodeGenerator {
             "extcall_event_is_quit",
             "extcall_video_window",
             "extcall_window_get_canvas",
+            "extcall_window_set_title",
             "extcall_canvas_set_draw_color",
             "extcall_canvas_clear",
             "extcall_canvas_present",

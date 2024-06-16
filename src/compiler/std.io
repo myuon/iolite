@@ -47,6 +47,7 @@ declare fun extcall_event_pump_mouse_y(pump: rawptr): int;
 declare fun extcall_event_is_quit(event: rawptr): bool;
 declare fun extcall_video_window(video: rawptr, title_ptr: rawptr, title_len: int, width: int, height: int): rawptr;
 declare fun extcall_window_get_canvas(window: rawptr): rawptr;
+declare fun extcall_window_set_title(window: rawptr, title_ptr: rawptr, title_len: int): rawptr;
 declare fun extcall_canvas_set_draw_color(canvas: rawptr, r: int, g: int, b: int);
 declare fun extcall_canvas_clear(canvas: rawptr);
 declare fun extcall_canvas_present(canvas: rawptr);
@@ -167,6 +168,22 @@ fun int_to_string(n: int): array[byte] {
     i = i - 1;
   }
 
+  return text;
+}
+
+fun concat_str(a: array[byte], b: array[byte]): array[byte] {
+  let text = new[array[byte]](a.length + b.length);
+  let i = 0;
+  while (i < a.length) {
+    text.(i) = a.(i);
+    i = i + 1;
+  }
+  let j = 0;
+  while (j < b.length) {
+    text.(i) = b.(j);
+    i = i + 1;
+    j = j + 1;
+  }
   return text;
 }
 
@@ -581,6 +598,10 @@ struct Window(rawptr);
 module Window {
   fun get_canvas(self): Canvas {
     return Canvas(extcall_window_get_canvas(self.!));
+  }
+
+  fun set_title(self, title: array[byte]) {
+    return extcall_window_set_title(self.!, title.ptr as rawptr, title.length);
   }
 }
 
