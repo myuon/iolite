@@ -103,6 +103,7 @@ impl VmCodeGenerator {
             "extcall_sdl_context_video",
             "extcall_sdl_context_event_pump",
             "extcall_event_pump_poll",
+            "extcall_event_pump_is_scancode_pressed",
             "extcall_event_is_quit",
             "extcall_video_window",
             "extcall_window_get_canvas",

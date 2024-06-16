@@ -532,6 +532,24 @@ impl Runtime {
                             let id = register_gui_data(event);
 
                             self.push(Value::Int(id as i32).as_u64() as i64);
+                        } else if index as usize == table["extcall_event_pump_is_scancode_pressed"]
+                        {
+                            let pump_id = self.pop_i64() as i32;
+                            let scancode = self.pop_i64() as i32;
+
+                            let is_pressed = GUI_DATA.with(|data_ref| {
+                                let data = data_ref.borrow();
+                                let event_pump = data[pump_id as usize]
+                                    .downcast_ref::<sdl2::EventPump>()
+                                    .unwrap();
+                                let is_pressed = event_pump.keyboard_state().is_scancode_pressed(
+                                    sdl2::keyboard::Scancode::from_i32(scancode).unwrap(),
+                                );
+
+                                is_pressed
+                            });
+
+                            self.push(Value::Bool(is_pressed).as_u64() as i64);
                         } else if index as usize == table["extcall_event_is_quit"] {
                             let event_id = self.pop_i64() as i32;
 

@@ -41,6 +41,7 @@ declare fun extcall_sdl_init(): rawptr;
 declare fun extcall_sdl_context_video(context: rawptr): rawptr;
 declare fun extcall_sdl_context_event_pump(context: rawptr): rawptr;
 declare fun extcall_event_pump_poll(pump: rawptr): rawptr;
+declare fun extcall_event_pump_is_scancode_pressed(pump: rawptr, scancode: int): bool;
 declare fun extcall_event_is_quit(event: rawptr): bool;
 declare fun extcall_video_window(video: rawptr, title_ptr: rawptr, title_len: int, width: int, height: int): rawptr;
 declare fun extcall_window_get_canvas(window: rawptr): rawptr;
@@ -474,6 +475,30 @@ fun int_to_string(n: int): array[byte] {
 //   }
 // }
 
+struct Scancode(int);
+
+module Scancode {
+  fun ESCAPE(): Scancode {
+    return Scancode(41);
+  }
+
+  fun RIGHT(): Scancode {
+    return Scancode(79);
+  }
+
+  fun LEFT(): Scancode {
+    return Scancode(80);
+  }
+
+  fun DOWN(): Scancode {
+    return Scancode(81);
+  }
+
+  fun UP(): Scancode {
+    return Scancode(82);
+  }
+}
+
 struct Event(rawptr);
 
 module Event {
@@ -487,6 +512,10 @@ struct EventPump(rawptr);
 module EventPump {
   fun poll(self): Event {
     return Event(extcall_event_pump_poll(self.!));
+  }
+
+  fun is_scancode_pressed(self, scancode: Scancode): bool {
+    return extcall_event_pump_is_scancode_pressed(self.!, scancode.!);
   }
 }
 
