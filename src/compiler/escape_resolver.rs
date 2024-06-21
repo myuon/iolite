@@ -170,6 +170,7 @@ impl EscapeResolver {
                 self.escaped.clear();
             }
             IrDecl::Let { name: _ } => {}
+            IrDecl::Declared(_) => {}
         }
 
         Ok(())

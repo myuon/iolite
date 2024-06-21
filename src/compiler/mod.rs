@@ -539,6 +539,7 @@ impl Compiler {
     pub fn vm_code_gen(ir: IrProgram) -> Result<VmProgram, CompilerError> {
         let mut modules = vec![];
         let mut functions = vec![];
+        let mut table = HashMap::new();
 
         for m in ir.modules {
             let module_name = m.name.clone();
@@ -546,13 +547,15 @@ impl Compiler {
             let global_section = m.global_section.clone();
             let init_function_name = m.init_function.clone().unwrap();
 
-            let mut vm_code_gen = vm_code_gen::VmCodeGenerator::new();
+            let mut vm_code_gen = vm_code_gen::VmCodeGenerator::new(table.clone());
             vm_code_gen.functions = functions;
             vm_code_gen
                 .program(m)
                 .map_err(CompilerError::VmCodeGeneratorError)?;
 
             functions = vm_code_gen.functions;
+
+            table = vm_code_gen.extcall_table;
 
             modules.push(VmModule {
                 name: module_name,
@@ -563,7 +566,10 @@ impl Compiler {
             })
         }
 
-        Ok(VmProgram { modules })
+        Ok(VmProgram {
+            modules,
+            extcall_table: table,
+        })
     }
 
     pub fn byte_code_gen(code: Vec<Instruction>) -> Result<Vec<u8>, CompilerError> {
@@ -646,7 +652,7 @@ impl Compiler {
 
     pub fn run_input(input: String, print_stacks: bool) -> Result<i64, CompilerError> {
         let program = Self::compile_with_input(input)?;
-        Self::run_vm(program, print_stacks, false)
+        Self::run_vm(program, print_stacks, false, HashMap::new())
     }
 
     pub fn run(&self, path: String, print_stacks: bool) -> Result<i64> {
@@ -657,15 +663,16 @@ impl Compiler {
 
         let program = Self::compile_with_input(module.source.clone())?;
 
-        Ok(Self::run_vm(program, print_stacks, false)?)
+        Ok(Self::run_vm(program, print_stacks, false, HashMap::new())?)
     }
 
     pub fn run_vm(
         program: Vec<u8>,
         print_stacks: bool,
         print_memory_store: bool,
+        extcall_table: HashMap<String, usize>,
     ) -> Result<i64, CompilerError> {
-        let mut runtime = Self::exec_vm(program, print_stacks, print_memory_store)?;
+        let mut runtime = Self::exec_vm(program, print_stacks, print_memory_store, extcall_table)?;
 
         Ok(runtime.pop_i64())
     }
@@ -674,8 +681,9 @@ impl Compiler {
         program: Vec<u8>,
         print_stacks: bool,
         stdout: Arc<Mutex<BufWriter<Vec<u8>>>>,
+        extcall_table: HashMap<String, usize>,
     ) -> Result<i64, CompilerError> {
-        let mut runtime = Runtime::new(1024, program);
+        let mut runtime = Runtime::new(1024, program, extcall_table);
         runtime.trap_stdout = Some(stdout);
         runtime.exec(print_stacks, false).unwrap();
 
@@ -686,8 +694,9 @@ impl Compiler {
         program: Vec<u8>,
         print_stacks: bool,
         print_memory_store: bool,
+        extcall_table: HashMap<String, usize>,
     ) -> Result<Runtime, CompilerError> {
-        let mut runtime = Runtime::new(1024 * 1024, program);
+        let mut runtime = Runtime::new(1024 * 1024, program, extcall_table);
         runtime.exec(print_stacks, print_memory_store).unwrap();
 
         Ok(runtime)
@@ -756,7 +765,7 @@ mod tests {
                 let program =
                     Compiler::compile_with_input(format!("fun main() {{ return {}; }}", input))
                         .unwrap();
-                let mut runtime = Compiler::exec_vm(program, false, false).unwrap();
+                let mut runtime = Compiler::exec_vm(program, false, false, HashMap::new()).unwrap();
                 assert_eq!(
                     runtime.pop_value(),
                     Value::Float(expected),
@@ -794,7 +803,7 @@ mod tests {
                 let program =
                     Compiler::compile_with_input(format!("fun main() {{ return {}; }}", input))
                         .unwrap();
-                let mut runtime = Compiler::exec_vm(program, false, false).unwrap();
+                let mut runtime = Compiler::exec_vm(program, false, false, HashMap::new()).unwrap();
                 assert_eq!(
                     runtime.pop_value(),
                     Value::Bool(expected),
@@ -1106,7 +1115,7 @@ mod tests {
                 let linked = Compiler::link(code)?;
                 let binary = Compiler::byte_code_gen(linked)?;
 
-                let actual = Compiler::run_vm(binary, false, false).unwrap();
+                let actual = Compiler::run_vm(binary, false, false, HashMap::new()).unwrap();
                 assert_eq!(actual, expected, "input: {}", input);
 
                 Ok(())
@@ -1138,12 +1147,13 @@ mod tests {
                 compiler.typecheck(main.clone())?;
 
                 let ir = compiler.ir_code_gen(main.clone())?;
-                let code = Compiler::vm_code_gen(ir)?;
-                let linked = Compiler::link(code)?;
+                let program = Compiler::vm_code_gen(ir)?;
+                let table = program.extcall_table.clone();
+                let linked = Compiler::link(program)?;
                 let binary = Compiler::byte_code_gen(linked)?;
 
                 let stdout = Arc::new(Mutex::new(BufWriter::new(vec![])));
-                let result = Compiler::run_vm_with_io_trap(binary, false, stdout.clone())?;
+                let result = Compiler::run_vm_with_io_trap(binary, false, stdout.clone(), table)?;
 
                 let expected = dir_path.join("result.test").display().to_string();
                 if std::path::Path::new(&expected).exists() {

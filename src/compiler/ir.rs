@@ -98,6 +98,7 @@ pub enum IrDecl {
     Let {
         name: String,
     },
+    Declared(String),
 }
 
 #[derive(Debug, PartialEq, Clone)]

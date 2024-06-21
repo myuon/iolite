@@ -1,4 +1,7 @@
-use std::io::{Read, Write};
+use std::{
+    collections::HashMap,
+    io::{Read, Write},
+};
 
 use anyhow::{anyhow, bail, Result};
 use clap::{Parser, Subcommand};
@@ -150,6 +153,8 @@ async fn main() -> Result<()> {
                 eprintln!("VM code generated");
             }
 
+            let table = vm.extcall_table.clone();
+
             let linked = compiler::Compiler::link(vm)?;
             if let Some(file_path) = emit_linked_vm {
                 let mut file = std::fs::File::create(file_path.clone())?;
@@ -184,7 +189,8 @@ async fn main() -> Result<()> {
                 eprintln!("Byte code generated");
             }
 
-            let result = compiler::Compiler::run_vm(binary, print_stacks, print_memory_store)?;
+            let result =
+                compiler::Compiler::run_vm(binary, print_stacks, print_memory_store, table)?;
             println!("result: {:?}", Value::from_u64(result as u64));
         }
         CliCommands::Lsp {} => {
@@ -192,7 +198,10 @@ async fn main() -> Result<()> {
         }
         CliCommands::Dap {} => {
             Dap::new(DapImpl)
-                .start(DapContext::new(Runtime::new(1024, vec![])), 3031)
+                .start(
+                    DapContext::new(Runtime::new(1024, vec![], HashMap::new())),
+                    3031,
+                )
                 .await?;
         }
     }

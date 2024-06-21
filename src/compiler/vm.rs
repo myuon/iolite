@@ -1,3 +1,5 @@
+use std::collections::HashMap;
+
 use proptest::prelude::*;
 
 use super::ast::Span;
@@ -275,4 +277,5 @@ pub struct VmModule {
 #[derive(Debug, Clone, PartialEq)]
 pub struct VmProgram {
     pub(crate) modules: Vec<VmModule>,
+    pub(crate) extcall_table: HashMap<String, usize>,
 }

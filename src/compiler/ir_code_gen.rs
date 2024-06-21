@@ -219,7 +219,7 @@ impl IrCodeGenerator {
             }
             Declaration::Struct { .. } => Ok(vec![]),
             Declaration::Import(_) => Ok(vec![]),
-            Declaration::DeclareFunction { .. } => Ok(vec![]),
+            Declaration::DeclareFunction { name, .. } => Ok(vec![IrDecl::Declared(name.data)]),
             Declaration::Module(module) => {
                 let current_module = self.current_module.clone();
                 self.current_module = module.name.clone();

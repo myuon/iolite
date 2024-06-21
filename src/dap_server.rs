@@ -546,7 +546,7 @@ impl DapServer<DapContext> for DapImpl {
 
 #[cfg(test)]
 mod tests {
-    use std::time::Duration;
+    use std::{collections::HashMap, time::Duration};
 
     use dap::{
         requests::{
@@ -572,7 +572,7 @@ mod tests {
         let (sender, mut receiver) = tokio::sync::mpsc::channel::<Sendable>(100);
         let sender = SimpleSender::new(sender, Arc::new(|event| Sendable::Event(event)));
 
-        let ctx = DapContext::new(Runtime::new(1024, vec![]));
+        let ctx = DapContext::new(Runtime::new(1024, vec![], HashMap::new()));
 
         let reqs = vec![
             (

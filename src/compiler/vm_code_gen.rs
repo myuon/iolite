@@ -31,10 +31,11 @@ pub struct VmCodeGenerator {
     stack_pointer: usize,
     pub code: Vec<Instruction>,
     data_section: HashMap<String, usize>,
+    pub(crate) extcall_table: HashMap<String, usize>,
 }
 
 impl VmCodeGenerator {
-    pub fn new() -> Self {
+    pub fn new(table: HashMap<String, usize>) -> Self {
         Self {
             arity: vec![],
             locals: vec![],
@@ -43,51 +44,8 @@ impl VmCodeGenerator {
             stack_pointer: 0,
             code: vec![],
             data_section: HashMap::new(),
+            extcall_table: table,
         }
-    }
-
-    pub fn extcall_table() -> HashMap<String, usize> {
-        let mut table = HashMap::new();
-        // posix
-        // table.insert("read".to_string(), 0);
-        table.insert("extcall_write".to_string(), 1);
-        // table.insert("exit".to_string(), 2);
-
-        // sdl2
-        let methods = vec![
-            "extcall_sdl_init",
-            "extcall_sdl_context_video",
-            "extcall_sdl_context_event_pump",
-            "extcall_event_pump_poll",
-            "extcall_event_pump_is_scancode_pressed",
-            "extcall_event_pump_mouse_x",
-            "extcall_event_pump_mouse_y",
-            "extcall_event_is_quit",
-            "extcall_video_window",
-            "extcall_window_get_canvas",
-            "extcall_window_set_title",
-            "extcall_canvas_set_draw_color",
-            "extcall_canvas_clear",
-            "extcall_canvas_present",
-            "extcall_canvas_fill_rect",
-            "extcall_canvas_texture_creator",
-            "extcall_canvas_copy_texture_at",
-            "extcall_surface_new",
-            "extcall_surface_blit_to_window_at",
-            "extcall_surface_as_texture",
-            "extcall_surface_fill_rect",
-            "extcall_sleep",
-            "extcall_time_now",
-            "extcall_time_duration_since",
-            "extcall_duration_as_millis",
-        ];
-        let mut index = 10000;
-        for method in methods {
-            table.insert(method.to_string(), index);
-            index += 1;
-        }
-
-        table
     }
 
     fn is_arity(&self, name: &str) -> bool {
@@ -522,7 +480,7 @@ impl VmCodeGenerator {
                 }
             }
             IrTerm::ExtCall { callee: name, args } => {
-                let symbol = Self::extcall_table().get(&name).cloned().ok_or(
+                let symbol = self.extcall_table.get(&name).cloned().ok_or(
                     VmCodeGeneratorError::LocalNotFound(format!("extcall: {}", name)),
                 )?;
                 let args_len = args.len();
@@ -643,6 +601,7 @@ impl VmCodeGenerator {
                 IrDecl::Let { name } => {
                     self.globals.push(name.clone());
                 }
+                _ => (),
             }
         }
 
@@ -656,6 +615,15 @@ impl VmCodeGenerator {
     pub fn program(&mut self, module: IrModule) -> Result<(), VmCodeGeneratorError> {
         for (id, offset, _) in module.data_section {
             self.data_section.insert(id, offset);
+        }
+        for decl in &module.decls {
+            match decl {
+                IrDecl::Declared(name) => {
+                    self.extcall_table
+                        .insert(name.clone(), self.extcall_table.len());
+                }
+                _ => (),
+            }
         }
 
         self.module(module.decls)?;
@@ -785,7 +753,7 @@ mod tests {
         ];
 
         for (ir, expected) in cases {
-            let mut gen = VmCodeGenerator::new();
+            let mut gen = VmCodeGenerator::new(HashMap::new());
             gen.term(ir.clone()).unwrap();
 
             assert_eq!(
@@ -802,7 +770,7 @@ mod tests {
 
     #[test]
     fn test_insert_at() {
-        let mut gen = VmCodeGenerator::new();
+        let mut gen = VmCodeGenerator::new(HashMap::new());
         gen.emit(Instruction::Push(Value::Int(1).as_u64()));
         gen.emit(Instruction::Push(Value::Int(2).as_u64()));
         gen.emit(Instruction::Push(Value::Int(3).as_u64()));
@@ -812,7 +780,7 @@ mod tests {
         let mut emitter = ByteCodeEmitter::new();
         emitter.exec(gen.code).unwrap();
 
-        let mut vm = Runtime::new(1000, emitter.buffer);
+        let mut vm = Runtime::new(1000, emitter.buffer, HashMap::new());
         vm.exec(false, false).unwrap();
 
         assert_eq!(vm.memory_view_64(), vec![1, 10, 3, 10]);

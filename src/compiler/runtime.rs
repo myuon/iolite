@@ -63,10 +63,11 @@ pub struct Runtime {
         std::sync::mpsc::Receiver<(String, Vec<Value>)>,
     ),
     interrupted: Vec<(String, usize, usize)>,
+    extcall_table: HashMap<String, usize>,
 }
 
 impl Runtime {
-    pub fn new(size: usize, program: Vec<u8>) -> Self {
+    pub fn new(size: usize, program: Vec<u8>, extcall_table: HashMap<String, usize>) -> Self {
         let memory = vec![0; size];
         let bp = memory.len();
         let sp = bp;
@@ -86,6 +87,7 @@ impl Runtime {
             closure_tasks: HashMap::new(),
             channel: std::sync::mpsc::channel(),
             interrupted: vec![],
+            extcall_table,
         }
     }
 
@@ -450,9 +452,7 @@ impl Runtime {
             // extcall
             0x03 => {
                 let label = self.consume_u64();
-                let table = VmCodeGenerator::extcall_table();
-
-                if label as usize == table["extcall_write"] {
+                if label as usize == self.extcall_table["extcall_write"] {
                     let fd = self.pop_i64();
                     let address = self.pop_address();
                     let size = self.pop_i64();
@@ -475,11 +475,11 @@ impl Runtime {
                     };
                 } else {
                     #[cfg(feature = "gui")]
-                    if label as usize == table["extcall_sdl_init"] {
+                    if label as usize == self.extcall_table["extcall_sdl_init"] {
                         let context = sdl2::init().unwrap();
                         let id = register_gui_data(context);
                         self.push(Value::Int(id as i32).as_u64() as i64);
-                    } else if label as usize == table["extcall_sdl_context_video"] {
+                    } else if label as usize == self.extcall_table["extcall_sdl_context_video"] {
                         let context_id = self.pop_i64() as i32;
 
                         let video = GUI_DATA.with(|data_ref| {
@@ -494,7 +494,8 @@ impl Runtime {
                         let id = register_gui_data(video);
 
                         self.push(Value::Int(id as i32).as_u64() as i64);
-                    } else if label as usize == table["extcall_sdl_context_event_pump"] {
+                    } else if label as usize == self.extcall_table["extcall_sdl_context_event_pump"]
+                    {
                         let context_id = self.pop_i64() as i32;
 
                         let event_pump = GUI_DATA.with(|data_ref| {
@@ -509,7 +510,7 @@ impl Runtime {
                         let id = register_gui_data(event_pump);
 
                         self.push(Value::Int(id as i32).as_u64() as i64);
-                    } else if label as usize == table["extcall_event_pump_poll"] {
+                    } else if label as usize == self.extcall_table["extcall_event_pump_poll"] {
                         let pump_id = self.pop_i64() as i32;
 
                         let event = GUI_DATA.with(|data_ref| {
@@ -523,7 +524,9 @@ impl Runtime {
                         let id = register_gui_data(event);
 
                         self.push(Value::Int(id as i32).as_u64() as i64);
-                    } else if label as usize == table["extcall_event_pump_is_scancode_pressed"] {
+                    } else if label as usize
+                        == self.extcall_table["extcall_event_pump_is_scancode_pressed"]
+                    {
                         let pump_id = self.pop_i64() as i32;
                         let scancode = self.pop_i64() as i32;
 
@@ -540,7 +543,7 @@ impl Runtime {
                         });
 
                         self.push(Value::Bool(is_pressed).as_u64() as i64);
-                    } else if label as usize == table["extcall_event_pump_mouse_x"] {
+                    } else if label as usize == self.extcall_table["extcall_event_pump_mouse_x"] {
                         let pump_id = self.pop_i64() as i32;
 
                         let x = GUI_DATA.with(|data_ref| {
@@ -553,7 +556,7 @@ impl Runtime {
                         });
 
                         self.push(Value::Int(x as i32).as_u64() as i64);
-                    } else if label as usize == table["extcall_event_pump_mouse_y"] {
+                    } else if label as usize == self.extcall_table["extcall_event_pump_mouse_y"] {
                         let pump_id = self.pop_i64() as i32;
 
                         let y = GUI_DATA.with(|data_ref| {
@@ -566,7 +569,7 @@ impl Runtime {
                         });
 
                         self.push(Value::Int(y as i32).as_u64() as i64);
-                    } else if label as usize == table["extcall_event_is_quit"] {
+                    } else if label as usize == self.extcall_table["extcall_event_is_quit"] {
                         let event_id = self.pop_i64() as i32;
 
                         let is_quit = GUI_DATA.with(|data_ref| {
@@ -579,7 +582,7 @@ impl Runtime {
                         });
 
                         self.push(Value::Bool(is_quit).as_u64() as i64);
-                    } else if label as usize == table["extcall_video_window"] {
+                    } else if label as usize == self.extcall_table["extcall_video_window"] {
                         let video_id = self.pop_i64() as i32;
                         let title_ptr = self.pop_i64() as u64;
                         let title_len = self.pop_i64() as usize;
@@ -606,7 +609,7 @@ impl Runtime {
                         let id = register_gui_data(window);
 
                         self.push(Value::Int(id as i32).as_u64() as i64);
-                    } else if label as usize == table["extcall_window_get_canvas"] {
+                    } else if label as usize == self.extcall_table["extcall_window_get_canvas"] {
                         let window_id = self.pop_i64() as i32;
 
                         let canvas = GUI_DATA.with(|data_ref| {
@@ -621,7 +624,7 @@ impl Runtime {
                         let id = register_gui_data(RefCell::new(canvas));
 
                         self.push(Value::Int(id as i32).as_u64() as i64);
-                    } else if label as usize == table["extcall_window_set_title"] {
+                    } else if label as usize == self.extcall_table["extcall_window_set_title"] {
                         let window_id = self.pop_i64() as i32;
                         let title_ptr = self.pop_i64() as u64;
                         let title_len = self.pop_i64() as usize;
@@ -641,7 +644,8 @@ impl Runtime {
                         });
 
                         self.push(Value::Nil.as_u64() as i64);
-                    } else if label as usize == table["extcall_canvas_set_draw_color"] {
+                    } else if label as usize == self.extcall_table["extcall_canvas_set_draw_color"]
+                    {
                         let canvas_id = self.pop_i64() as i32;
                         let r = self.pop_i64() as u8;
                         let g = self.pop_i64() as u8;
@@ -660,7 +664,7 @@ impl Runtime {
                         });
 
                         self.push(Value::Nil.as_u64() as i64);
-                    } else if label as usize == table["extcall_canvas_clear"] {
+                    } else if label as usize == self.extcall_table["extcall_canvas_clear"] {
                         let canvas_id = self.pop_i64() as i32;
 
                         GUI_DATA.with(|data_ref| {
@@ -674,7 +678,7 @@ impl Runtime {
                         });
 
                         self.push(Value::Nil.as_u64() as i64);
-                    } else if label as usize == table["extcall_canvas_present"] {
+                    } else if label as usize == self.extcall_table["extcall_canvas_present"] {
                         let canvas_id = self.pop_i64() as i32;
 
                         GUI_DATA.with(|data_ref| {
@@ -688,7 +692,8 @@ impl Runtime {
                         });
 
                         self.push(Value::Nil.as_u64() as i64);
-                    } else if label as usize == table["extcall_canvas_texture_creator"] {
+                    } else if label as usize == self.extcall_table["extcall_canvas_texture_creator"]
+                    {
                         let canvas_id = self.pop_i64() as i32;
 
                         let texture_creator = GUI_DATA.with(|data_ref| {
@@ -704,7 +709,8 @@ impl Runtime {
                         let id = register_gui_data(texture_creator);
 
                         self.push(Value::Int(id as i32).as_u64() as i64);
-                    } else if label as usize == table["extcall_canvas_copy_texture_at"] {
+                    } else if label as usize == self.extcall_table["extcall_canvas_copy_texture_at"]
+                    {
                         let canvas_id = self.pop_i64() as i32;
                         let texture_creator_id = self.pop_i64() as i32;
                         let texture_id = self.pop_i64() as i32;
@@ -734,7 +740,7 @@ impl Runtime {
                             });
 
                         self.push(Value::Nil.as_u64() as i64);
-                    } else if label as usize == table["extcall_surface_new"] {
+                    } else if label as usize == self.extcall_table["extcall_surface_new"] {
                         let width = self.pop_i64() as i32;
                         let height = self.pop_i64() as i32;
                         let pixel_format = self.pop_i64() as u32;
@@ -748,7 +754,7 @@ impl Runtime {
                         let id = register_gui_data(surface);
 
                         self.push(Value::Int(id as i32).as_u64() as i64);
-                    } else if label as usize == table["extcall_surface_as_texture"] {
+                    } else if label as usize == self.extcall_table["extcall_surface_as_texture"] {
                         let surface_id = self.pop_i64() as i32;
                         let texture_creator_id = self.pop_i64() as i32;
 
@@ -773,7 +779,7 @@ impl Runtime {
                         let id = register_gui_data(texture);
 
                         self.push(Value::Int(id as i32).as_u64() as i64);
-                    } else if label as usize == table["extcall_surface_fill_rect"] {
+                    } else if label as usize == self.extcall_table["extcall_surface_fill_rect"] {
                         let surface_id = self.pop_i64() as i32;
                         let x = self.pop_i64() as i32;
                         let y = self.pop_i64() as i32;
@@ -798,7 +804,7 @@ impl Runtime {
                         });
 
                         self.push(Value::Nil.as_u64() as i64);
-                    } else if label as usize == table["extcall_canvas_fill_rect"] {
+                    } else if label as usize == self.extcall_table["extcall_canvas_fill_rect"] {
                         let canvas_id = self.pop_i64() as i32;
                         let x = self.pop_i64() as i32;
                         let y = self.pop_i64() as i32;
@@ -819,18 +825,18 @@ impl Runtime {
                         });
 
                         self.push(Value::Nil.as_u64() as i64);
-                    } else if label as usize == table["extcall_sleep"] {
+                    } else if label as usize == self.extcall_table["extcall_sleep"] {
                         let sec = self.pop_f32();
 
                         std::thread::sleep(std::time::Duration::from_secs_f32(sec));
 
                         self.push(Value::Nil.as_u64() as i64);
-                    } else if label as usize == table["extcall_time_now"] {
+                    } else if label as usize == self.extcall_table["extcall_time_now"] {
                         let now = std::time::SystemTime::now();
                         let id = register_gui_data(now);
 
                         self.push(Value::Int(id as i32).as_u64() as i64);
-                    } else if label as usize == table["extcall_time_duration_since"] {
+                    } else if label as usize == self.extcall_table["extcall_time_duration_since"] {
                         let time_id = self.pop_i64() as i32;
                         let duration = GUI_DATA.with(|data_ref| {
                             let data = data_ref.borrow();
@@ -845,7 +851,7 @@ impl Runtime {
                         let id = register_gui_data(duration);
 
                         self.push(Value::Int(id as i32).as_u64() as i64);
-                    } else if label as usize == table["extcall_duration_as_millis"] {
+                    } else if label as usize == self.extcall_table["extcall_duration_as_millis"] {
                         let duration_id = self.pop_i64() as i32;
                         let duration = GUI_DATA.with(|data_ref| {
                             let data = data_ref.borrow();
@@ -1287,7 +1293,7 @@ mod tests {
         ];
 
         for (program, sp, memory, want) in cases {
-            let mut runtime = Runtime::new(memory.len(), program.clone());
+            let mut runtime = Runtime::new(memory.len(), program.clone(), HashMap::new());
             runtime.sp = sp;
             runtime.bp = sp;
             runtime.memory = memory;
