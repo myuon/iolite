@@ -7,8 +7,6 @@ use std::{
 
 use thiserror::Error;
 
-use crate::compiler::vm_code_gen::VmCodeGenerator;
-
 use super::{ast::Span, ir::Value, vm::Instruction};
 
 #[derive(Debug, Clone, Error)]
@@ -864,6 +862,24 @@ impl Runtime {
                         });
 
                         self.push(Value::Int(duration as i32).as_u64() as i64);
+                    } else if label as usize == self.extcall_table["extcall_sdl_image_init"] {
+                        let image = sdl2::image::init(sdl2::image::InitFlag::all()).unwrap();
+                        let id = register_gui_data(image);
+
+                        self.push(Value::Int(id as i32).as_u64() as i64);
+                    } else if label as usize == self.extcall_table["extcall_sdl_image_load"] {
+                        let path_ptr = self.pop_i64() as u64;
+                        let path_len = self.pop_i64() as usize;
+                        let path = String::from_utf8(
+                            self.memory[path_ptr as usize..(path_ptr as usize + path_len)].to_vec(),
+                        )
+                        .unwrap();
+
+                        let image: sdl2::surface::Surface =
+                            sdl2::image::LoadSurface::from_file(path.as_str()).unwrap();
+                        let id = register_gui_data(image);
+
+                        self.push(Value::Int(id as i32).as_u64() as i64);
                     } else {
                         todo!()
                     }

@@ -26,6 +26,8 @@ declare fun extcall_sleep(sec: float);
 declare fun extcall_time_now(): rawptr;
 declare fun extcall_time_duration_since(time: rawptr): rawptr;
 declare fun extcall_duration_as_millis(time: rawptr): int;
+declare fun extcall_sdl_image_init(): rawptr;
+declare fun extcall_sdl_image_load(path: rawptr, length: int): rawptr;
 
 struct Duration(rawptr);
 
@@ -297,6 +299,18 @@ module SDL {
 
   fun event_pump(self): EventPump {
     return EventPump(extcall_sdl_context_event_pump(self.!));
+  }
+}
+
+struct SDLImage(rawptr);
+
+module SDLImage {
+  fun init(): SDLImage {
+    return SDLImage(extcall_sdl_image_init());
+  }
+
+  fun from_file(path: array[byte]): Surface {
+    return Surface(extcall_sdl_image_load(path.ptr as rawptr, path.length));
   }
 }
 
