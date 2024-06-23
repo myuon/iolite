@@ -4,8 +4,8 @@ use thiserror::Error;
 
 use super::{
     ast::{
-        BinOp, Block, Conversion, Declaration, Expr, Literal, Module, Source, Span, Statement,
-        Type, TypeMap, TypeMapKey,
+        BinOp, Block, Conversion, Declaration, Expr, ForMode, Literal, Module, Source, Span,
+        Statement, Type, TypeMap, TypeMapKey,
     },
     ir::TypeTag,
 };
@@ -668,13 +668,29 @@ impl Typechecker {
             Statement::Block(block) => {
                 self.block(block)?;
             }
-            Statement::For { var, expr, body } => {
+            Statement::For {
+                mode,
+                var,
+                expr,
+                body,
+            } => {
                 let ty = self.expr(expr)?;
                 match ty {
                     Type::Range(ty) => {
                         self.types
                             .insert_ident(var.data.clone(), Source::span(*ty, var.span.clone()));
                         self.block(body)?;
+
+                        *mode = ForMode::Range;
+                    }
+                    Type::Array(ty) => {
+                        self.types.insert_ident(
+                            var.data.clone(),
+                            Source::span(*ty.clone(), var.span.clone()),
+                        );
+                        self.block(body)?;
+
+                        *mode = ForMode::Array(*ty);
                     }
                     _ => todo!("{:?}", ty),
                 }

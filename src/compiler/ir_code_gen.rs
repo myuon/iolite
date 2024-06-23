@@ -5,8 +5,8 @@ use thiserror::Error;
 
 use super::{
     ast::{
-        BinOp, Block, Conversion, Declaration, Expr, Literal, Module, Source, Statement, Type,
-        TypeMap, TypeMapKey,
+        BinOp, Block, Conversion, Declaration, Expr, ForMode, Literal, Module, Source, Statement,
+        Type, TypeMap, TypeMapKey,
     },
     escape_resolver::EscapeResolver,
     ir::{IrDecl, IrModule, IrOp, IrTerm, TypeTag, Value},
@@ -684,24 +684,80 @@ impl IrCodeGenerator {
                 Statement::Block(block) => {
                     terms.push(self.block(block)?);
                 }
-                Statement::For { var, expr, body } => match expr.data {
-                    Expr::Range { start, end } => {
+                Statement::For {
+                    mode,
+                    var,
+                    expr,
+                    body,
+                } => match mode {
+                    ForMode::Range => match expr.data {
+                        Expr::Range { start, end } => {
+                            terms.push(IrTerm::Let {
+                                name: var.data.clone(),
+                                value: Box::new(self.expr(*start)?),
+                            });
+
+                            let end = self.expr(*end)?;
+                            let mut body = vec![self.block(body)?];
+                            body.push(IrTerm::Store {
+                                size: Value::size() as usize,
+                                address: Box::new(IrTerm::Ident(var.data.clone())),
+                                value: Box::new(IrTerm::Op {
+                                    op: IrOp::AddInt,
+                                    args: vec![
+                                        IrTerm::Load {
+                                            size: Value::size() as usize,
+                                            address: Box::new(IrTerm::Ident(var.data.clone())),
+                                        },
+                                        IrTerm::Int(1),
+                                    ],
+                                }),
+                            });
+                            terms.push(IrTerm::While {
+                                cond: Box::new(IrTerm::Op {
+                                    op: IrOp::Lt,
+                                    args: vec![
+                                        IrTerm::Load {
+                                            size: Value::size() as usize,
+                                            address: Box::new(IrTerm::Ident(var.data.clone())),
+                                        },
+                                        end,
+                                    ],
+                                }),
+                                body: Box::new(IrTerm::Items(body)),
+                            });
+                        }
+                        _ => todo!(),
+                    },
+                    ForMode::Array(ty) => {
+                        let var_id = format!("for_index_{}", nanoid!());
                         terms.push(IrTerm::Let {
-                            name: var.data.clone(),
-                            value: Box::new(self.expr(*start)?),
+                            name: var_id.clone(),
+                            value: Box::new(IrTerm::Int(0)),
                         });
 
-                        let end = self.expr(*end)?;
-                        let mut body = vec![self.block(body)?];
+                        let mut body = vec![
+                            IrTerm::Let {
+                                name: var.data.clone(),
+                                value: Box::new(self.expr(Source::unknown(Expr::Index {
+                                    ty: Type::Array(Box::new(ty.clone())),
+                                    ptr: Box::new(expr.clone()),
+                                    index: Box::new(Source::unknown(Expr::Ident(Source::unknown(
+                                        var_id.clone(),
+                                    )))),
+                                }))?),
+                            },
+                            self.block(body)?,
+                        ];
                         body.push(IrTerm::Store {
                             size: Value::size() as usize,
-                            address: Box::new(IrTerm::Ident(var.data.clone())),
+                            address: Box::new(IrTerm::Ident(var_id.clone())),
                             value: Box::new(IrTerm::Op {
                                 op: IrOp::AddInt,
                                 args: vec![
                                     IrTerm::Load {
                                         size: Value::size() as usize,
-                                        address: Box::new(IrTerm::Ident(var.data.clone())),
+                                        address: Box::new(IrTerm::Ident(var_id.clone())),
                                     },
                                     IrTerm::Int(1),
                                 ],
@@ -713,15 +769,18 @@ impl IrCodeGenerator {
                                 args: vec![
                                     IrTerm::Load {
                                         size: Value::size() as usize,
-                                        address: Box::new(IrTerm::Ident(var.data.clone())),
+                                        address: Box::new(IrTerm::Ident(var_id.clone())),
                                     },
-                                    end,
+                                    self.expr(Source::unknown(Expr::Project {
+                                        expr_ty: Type::Array(Box::new(ty.clone())),
+                                        expr: Box::new(expr),
+                                        field: Source::unknown("length".to_string()),
+                                    }))?,
                                 ],
                             }),
                             body: Box::new(IrTerm::Items(body)),
                         });
                     }
-                    _ => todo!(),
                 },
             }
         }

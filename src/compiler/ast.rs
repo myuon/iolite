@@ -187,6 +187,12 @@ pub enum Expr {
 }
 
 #[derive(Debug, PartialEq, Clone)]
+pub enum ForMode {
+    Range,
+    Array(Type),
+}
+
+#[derive(Debug, PartialEq, Clone)]
 pub enum Statement {
     Let(Source<String>, Source<Expr>),
     Return(Source<Expr>),
@@ -197,6 +203,7 @@ pub enum Statement {
         body: Source<Block>,
     },
     For {
+        mode: ForMode,
         var: Source<String>,
         expr: Source<Expr>,
         body: Source<Block>,

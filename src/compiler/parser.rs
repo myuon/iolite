@@ -1,7 +1,9 @@
 use thiserror::Error;
 
 use super::{
-    ast::{BinOp, Block, Declaration, Expr, Literal, Module, Source, Span, Statement, Type},
+    ast::{
+        BinOp, Block, Declaration, Expr, ForMode, Literal, Module, Source, Span, Statement, Type,
+    },
     lexer::{Lexeme, Token},
 };
 
@@ -523,6 +525,7 @@ impl Parser {
 
                 Ok(Source::new_span(
                     Statement::For {
+                        mode: ForMode::Range,
                         var,
                         expr,
                         body: block,
