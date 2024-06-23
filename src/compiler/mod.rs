@@ -692,7 +692,7 @@ impl Compiler {
         stdout: Arc<Mutex<BufWriter<Vec<u8>>>>,
         extcall_table: HashMap<String, usize>,
     ) -> Result<i64, CompilerError> {
-        let mut runtime = Runtime::new(1024, program, extcall_table);
+        let mut runtime = Runtime::new(1024 * 1024, program, extcall_table);
         runtime.trap_stdout = Some(stdout);
         runtime.exec(print_stacks, false).unwrap();
 
