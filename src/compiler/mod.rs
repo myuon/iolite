@@ -714,6 +714,8 @@ impl Compiler {
 
 #[cfg(test)]
 mod tests {
+    use std::panic::catch_unwind;
+
     use self::ir::Value;
 
     use super::*;
@@ -1163,7 +1165,13 @@ mod tests {
                 let linked = Compiler::link(program)?;
                 let binary = Compiler::byte_code_gen(linked)?;
 
-                let result = Compiler::run_vm_with_io_trap(binary, false, stdout.clone(), table)?;
+                let catch = catch_unwind(|| {
+                    Compiler::run_vm_with_io_trap(binary, false, stdout.clone(), table)
+                });
+
+                let result = catch
+                    .expect(format!("Panic in {}", dir_path.display()).as_str())
+                    .expect(format!("Panic in {}", dir_path.display()).as_str());
 
                 let expected = dir_path.join("result.test").display().to_string();
                 if std::path::Path::new(&expected).exists() {
