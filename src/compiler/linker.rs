@@ -1,4 +1,8 @@
-use std::collections::HashMap;
+use std::{
+    collections::HashMap,
+    io::{stderr, BufWriter, Write},
+    sync::{Arc, Mutex},
+};
 
 use anyhow::Result;
 use thiserror::Error;
@@ -15,11 +19,17 @@ pub enum LinkerError {
 }
 
 #[derive(Debug)]
-pub struct Linker {}
+pub struct Linker {
+    pub(crate) trap_stderr: Option<Arc<Mutex<BufWriter<Vec<u8>>>>>,
+}
 
 impl Linker {
     pub fn new() -> Self {
-        Linker {}
+        Linker { trap_stderr: None }
+    }
+
+    pub fn trap_stdout(&mut self, trap_stderr: Arc<Mutex<BufWriter<Vec<u8>>>>) {
+        self.trap_stderr = Some(trap_stderr);
     }
 
     pub fn link(&mut self, vm: VmProgram) -> Result<Vec<Instruction>, LinkerError> {
@@ -77,7 +87,13 @@ impl Linker {
         code.push(Instruction::JumpTo("main".to_string()));
 
         for module in vm.modules {
-            eprintln!("Linking module: {}", module.name);
+            let data = format!("Linking module: {}\n", module.name);
+            match self.trap_stderr.clone() {
+                Some(buf) => buf.lock().unwrap().write(data.as_bytes()),
+                None => stderr().write(data.as_bytes()),
+            }
+            .unwrap();
+
             for inst in module.instructions {
                 match inst {
                     Instruction::PushHeapPtrOffset => {

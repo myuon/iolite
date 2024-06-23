@@ -596,6 +596,15 @@ impl Compiler {
         linker.link(vm).map_err(CompilerError::LinkerError)
     }
 
+    pub fn link_with(
+        vm: VmProgram,
+        stderr: Arc<Mutex<BufWriter<Vec<u8>>>>,
+    ) -> Result<Vec<Instruction>, CompilerError> {
+        let mut linker = Linker::new();
+        linker.trap_stdout(stderr);
+        linker.link(vm).map_err(CompilerError::LinkerError)
+    }
+
     pub fn create_input(input: String) -> String {
         format!("{}\n{}", include_str!("./std.io"), input)
     }
@@ -1146,13 +1155,14 @@ mod tests {
                 compiler.parse(main.clone())?;
                 compiler.typecheck(main.clone())?;
 
+                let stdout = Arc::new(Mutex::new(BufWriter::new(vec![])));
+
                 let ir = compiler.ir_code_gen(main.clone())?;
                 let program = Compiler::vm_code_gen(ir)?;
                 let table = program.extcall_table.clone();
                 let linked = Compiler::link(program)?;
                 let binary = Compiler::byte_code_gen(linked)?;
 
-                let stdout = Arc::new(Mutex::new(BufWriter::new(vec![])));
                 let result = Compiler::run_vm_with_io_trap(binary, false, stdout.clone(), table)?;
 
                 let expected = dir_path.join("result.test").display().to_string();
