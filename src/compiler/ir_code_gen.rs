@@ -684,6 +684,45 @@ impl IrCodeGenerator {
                 Statement::Block(block) => {
                     terms.push(self.block(block)?);
                 }
+                Statement::For { var, expr, body } => match expr.data {
+                    Expr::Range { start, end } => {
+                        terms.push(IrTerm::Let {
+                            name: var.data.clone(),
+                            value: Box::new(self.expr(*start)?),
+                        });
+
+                        let end = self.expr(*end)?;
+                        let mut body = vec![self.block(body)?];
+                        body.push(IrTerm::Store {
+                            size: Value::size() as usize,
+                            address: Box::new(IrTerm::Ident(var.data.clone())),
+                            value: Box::new(IrTerm::Op {
+                                op: IrOp::AddInt,
+                                args: vec![
+                                    IrTerm::Load {
+                                        size: Value::size() as usize,
+                                        address: Box::new(IrTerm::Ident(var.data.clone())),
+                                    },
+                                    IrTerm::Int(1),
+                                ],
+                            }),
+                        });
+                        terms.push(IrTerm::While {
+                            cond: Box::new(IrTerm::Op {
+                                op: IrOp::Lt,
+                                args: vec![
+                                    IrTerm::Load {
+                                        size: Value::size() as usize,
+                                        address: Box::new(IrTerm::Ident(var.data.clone())),
+                                    },
+                                    end,
+                                ],
+                            }),
+                            body: Box::new(IrTerm::Items(body)),
+                        });
+                    }
+                    _ => todo!(),
+                },
             }
         }
 

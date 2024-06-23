@@ -180,6 +180,10 @@ pub enum Expr {
         name: Source<String>,
     },
     Unwrap(Box<Source<Expr>>),
+    Range {
+        start: Box<Source<Expr>>,
+        end: Box<Source<Expr>>,
+    },
 }
 
 #[derive(Debug, PartialEq, Clone)]
@@ -190,6 +194,11 @@ pub enum Statement {
     Assign(Type, Source<Expr>, Source<Expr>),
     While {
         cond: Source<Expr>,
+        body: Source<Block>,
+    },
+    For {
+        var: Source<String>,
+        expr: Source<Expr>,
         body: Source<Block>,
     },
     If {
@@ -264,6 +273,7 @@ pub enum Type {
         name: String,
         ty: Box<Type>,
     },
+    Range(Box<Type>),
 }
 
 impl Type {
@@ -350,6 +360,7 @@ impl Type {
             Type::Unknown => "<unknown>".to_string(),
             Type::Self_ => "self".to_string(),
             Type::Newtype { name, ty: _ } => name.clone(),
+            Type::Range(ty) => format!("range[{}]", ty.to_string()),
         }
     }
 
@@ -541,6 +552,10 @@ impl AstWalker {
                 }
             }
             Statement::Block(block) => self.block(block),
+            Statement::For { expr, body, .. } => {
+                self.expr(expr, false);
+                self.block(body);
+            }
         }
     }
 
@@ -650,6 +665,10 @@ impl AstWalker {
             }
             Expr::Unwrap(expr) => {
                 self.expr(expr, false);
+            }
+            Expr::Range { start, end } => {
+                self.expr(start, false);
+                self.expr(end, false);
             }
         }
     }

@@ -253,7 +253,7 @@
       "patterns": [
         {
           "name": "keyword.control.iolite",
-          "match": "\\b(if|else|while|for|return|break|continue|import)\\b"
+          "match": "\\b(if|else|while|for|in|return|break|continue|import)\\b"
         },
         {
           "name": "keyword.other.iolite",

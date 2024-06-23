@@ -622,6 +622,15 @@ impl Typechecker {
                     _ => todo!(),
                 }
             }
+            Expr::Range { start, end } => {
+                let start_ty = self.expr(start)?;
+                let ty = self.expr_infer(end, start_ty)?;
+
+                match ty {
+                    Type::Int => Ok(Type::Range(Box::new(Type::Int))),
+                    _ => todo!(),
+                }
+            }
         }
     }
 
@@ -658,6 +667,17 @@ impl Typechecker {
             }
             Statement::Block(block) => {
                 self.block(block)?;
+            }
+            Statement::For { var, expr, body } => {
+                let ty = self.expr(expr)?;
+                match ty {
+                    Type::Range(ty) => {
+                        self.types
+                            .insert_ident(var.data.clone(), Source::span(*ty, var.span.clone()));
+                        self.block(body)?;
+                    }
+                    _ => todo!("{:?}", ty),
+                }
             }
         }
 

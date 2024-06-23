@@ -23,6 +23,8 @@ pub enum Lexeme {
     Import,
     Declare,
     Module,
+    In,
+    For,
     DoubleEqual,
     NotEqual,
     Le,
@@ -30,6 +32,7 @@ pub enum Lexeme {
     DoubleColon,
     DoubleAnd,
     DoubleOr,
+    DoubleDot,
     Arrow,
     LAngle,
     GAngle,
@@ -185,6 +188,8 @@ impl Lexer {
             ("import", Lexeme::Import),
             ("declare", Lexeme::Declare),
             ("module", Lexeme::Module),
+            ("in", Lexeme::In),
+            ("for", Lexeme::For),
         ];
 
         for (keyword, lexeme) in keywords.iter() {
@@ -206,6 +211,7 @@ impl Lexer {
             ("&&", Lexeme::DoubleAnd),
             ("||", Lexeme::DoubleOr),
             ("::", Lexeme::DoubleColon),
+            ("..", Lexeme::DoubleDot),
             ("<", Lexeme::LAngle),
             (">", Lexeme::GAngle),
             ("=", Lexeme::Equal),

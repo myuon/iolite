@@ -417,7 +417,10 @@ impl Parser {
             span.end = statement.span.end;
 
             match statement.data {
-                Statement::While { .. } | Statement::If { .. } | Statement::Block(_) => {
+                Statement::While { .. }
+                | Statement::If { .. }
+                | Statement::Block(_)
+                | Statement::For { .. } => {
                     if self.is_next_token(Lexeme::Semicolon) {
                         self.expect(Lexeme::Semicolon)?;
                     }
@@ -499,6 +502,29 @@ impl Parser {
                 Ok(Source::new_span(
                     Statement::While {
                         cond: expr,
+                        body: block,
+                    },
+                    self.module_name.clone(),
+                    token.span.start,
+                    end_token.span.end,
+                ))
+            }
+            Lexeme::For => {
+                self.consume()?;
+
+                let var = self.ident()?;
+                self.expect(Lexeme::In)?;
+
+                let expr = self.expr(false)?;
+
+                self.expect(Lexeme::LBrace)?;
+                let block = self.block(Some(Lexeme::RBrace))?;
+                let end_token = self.expect(Lexeme::RBrace)?;
+
+                Ok(Source::new_span(
+                    Statement::For {
+                        var,
+                        expr,
                         body: block,
                     },
                     self.module_name.clone(),
@@ -707,7 +733,28 @@ impl Parser {
                     end_token.span.end,
                 ))
             }
-            _ => Ok(self.expr_5(with_struct)?),
+            _ => {
+                let expr = self.expr_5(with_struct)?;
+                if self.is_next_token(Lexeme::DoubleDot) {
+                    self.consume()?;
+                    let expr_end = self.expr_5(with_struct)?;
+
+                    let start = expr.span.start;
+                    let end = expr_end.span.end;
+
+                    return Ok(Source::new_span(
+                        Expr::Range {
+                            start: Box::new(expr),
+                            end: Box::new(expr_end),
+                        },
+                        self.module_name.clone(),
+                        start,
+                        end,
+                    ));
+                }
+
+                Ok(expr)
+            }
         }
     }
 
