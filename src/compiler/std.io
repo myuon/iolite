@@ -159,6 +159,19 @@ fun concat_str(a: array[byte], b: array[byte]): array[byte] {
   return text;
 }
 
+fun eq_str(a: array[byte], b: array[byte]): bool {
+  if (a.length != b.length) {
+    return false;
+  }
+
+  for i in 0..a.length {
+    if (a.(i) as int != b.(i) as int) {
+      return false;
+    }
+  }
+
+  return true;
+}
 
 // SDL2 bindings
 

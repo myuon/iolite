@@ -433,6 +433,9 @@ impl Typechecker {
                     (Type::Int, Type::Byte) => {
                         *conversion = Some(Conversion::Cast(TypeTag::Byte));
                     }
+                    (Type::Byte, Type::Int) => {
+                        *conversion = Some(Conversion::Cast(TypeTag::Int));
+                    }
                     (Type::Ptr(_), Type::RawPtr) => {
                         *conversion = Some(Conversion::Cast(TypeTag::None));
                     }
