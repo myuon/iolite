@@ -5,7 +5,7 @@ use thiserror::Error;
 use super::{
     ast::{
         BinOp, Block, Conversion, Declaration, Expr, ForMode, Literal, Module, Source, Span,
-        Statement, Type, TypeMap, TypeMapKey,
+        Statement, Type, TypeMap, TypeMapKey, UniOp,
     },
     ir::TypeTag,
 };
@@ -452,17 +452,28 @@ impl Typechecker {
 
                 Ok(ty.data.clone())
             }
-            Expr::Negate { expr, ty: expr_ty } => {
+            Expr::UniOp {
+                expr,
+                op,
+                ty: expr_ty,
+            } => {
                 let ty = self.expr(expr)?;
 
-                match ty {
-                    Type::Int | Type::Float => {}
-                    _ => {
-                        return Err(TypecheckerError::NumericTypeExpected(ty));
+                match op.data {
+                    UniOp::Negate => {
+                        match ty {
+                            Type::Int | Type::Float => {}
+                            _ => {
+                                return Err(TypecheckerError::NumericTypeExpected(ty));
+                            }
+                        }
+
+                        *expr_ty = ty.clone();
+                    }
+                    UniOp::Not => {
+                        *expr_ty = Self::unify(Type::Bool, ty.clone(), op.span.clone())?;
                     }
                 }
-
-                *expr_ty = ty.clone();
 
                 Ok(ty)
             }

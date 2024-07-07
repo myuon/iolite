@@ -92,6 +92,12 @@ pub enum Literal {
 }
 
 #[derive(Debug, PartialEq, Clone)]
+pub enum UniOp {
+    Negate,
+    Not,
+}
+
+#[derive(Debug, PartialEq, Clone)]
 pub enum BinOp {
     Add,
     Sub,
@@ -119,8 +125,9 @@ pub enum Conversion {
 pub enum Expr {
     Ident(Source<String>),
     Lit(Source<Literal>),
-    Negate {
+    UniOp {
         ty: Type,
+        op: Source<UniOp>,
         expr: Box<Source<Expr>>,
     },
     BinOp {
@@ -584,7 +591,7 @@ impl AstWalker {
                 }
             }
             Expr::Lit(_) => {}
-            Expr::Negate { expr, .. } => self.expr(expr, false),
+            Expr::UniOp { expr, .. } => self.expr(expr, false),
             Expr::BinOp { left, right, .. } => {
                 self.expr(left, false);
                 self.expr(right, false);

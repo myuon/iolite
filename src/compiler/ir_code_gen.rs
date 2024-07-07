@@ -6,7 +6,7 @@ use thiserror::Error;
 use super::{
     ast::{
         BinOp, Block, Conversion, Declaration, Expr, ForMode, Literal, Module, Source, Statement,
-        Type, TypeMap, TypeMapKey,
+        Type, TypeMap, TypeMapKey, UniOp,
     },
     escape_resolver::EscapeResolver,
     ir::{IrDecl, IrModule, IrOp, IrTerm, TypeTag, Value},
@@ -426,19 +426,28 @@ impl IrCodeGenerator {
                     args: vec![expr],
                 })
             }
-            Expr::Negate { expr, ty } => {
+            Expr::UniOp { expr, op, ty } => {
                 let expr = self.expr(*expr)?;
 
-                match ty {
-                    Type::Int => Ok(IrTerm::Op {
-                        op: IrOp::NegateInt,
-                        args: vec![expr],
-                    }),
-                    Type::Float => Ok(IrTerm::Op {
-                        op: IrOp::NegateFloat,
-                        args: vec![expr],
-                    }),
-                    _ => todo!(),
+                match op.data {
+                    UniOp::Negate => match ty {
+                        Type::Int => Ok(IrTerm::Op {
+                            op: IrOp::NegateInt,
+                            args: vec![expr],
+                        }),
+                        Type::Float => Ok(IrTerm::Op {
+                            op: IrOp::NegateFloat,
+                            args: vec![expr],
+                        }),
+                        _ => todo!(),
+                    },
+                    UniOp::Not => match ty {
+                        Type::Bool => Ok(IrTerm::Op {
+                            op: IrOp::NotEq,
+                            args: vec![expr, IrTerm::Bool(true)],
+                        }),
+                        _ => todo!(),
+                    },
                 }
             }
             Expr::MethodCall {

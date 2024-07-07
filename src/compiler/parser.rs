@@ -3,7 +3,7 @@ use thiserror::Error;
 use super::{
     ast::{
         BinOp, Block, Declaration, Expr, ForMode, Literal, MetaTag, Module, Source, Span,
-        Statement, Type,
+        Statement, Type, UniOp,
     },
     lexer::{Lexeme, Token},
 };
@@ -1420,8 +1420,27 @@ impl Parser {
                 let end = expr.span.end;
 
                 Ok(Source::new_span(
-                    Expr::Negate {
+                    Expr::UniOp {
                         ty: Type::Unknown,
+                        op: Source::span(UniOp::Negate, token.span),
+                        expr: Box::new(expr),
+                    },
+                    self.module_name.clone(),
+                    start,
+                    end,
+                ))
+            }
+            Lexeme::Exclamation => {
+                self.expect(Lexeme::Exclamation)?;
+
+                let expr = self.expr(false)?;
+                let start = token.span.start;
+                let end = expr.span.end;
+
+                Ok(Source::new_span(
+                    Expr::UniOp {
+                        ty: Type::Unknown,
+                        op: Source::span(UniOp::Not, token.span),
                         expr: Box::new(expr),
                     },
                     self.module_name.clone(),
