@@ -168,6 +168,7 @@ impl IrCodeGenerator {
                 params,
                 result: _,
                 body,
+                meta_tags,
             } => {
                 self.escaped = vec![];
                 let body = {

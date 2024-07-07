@@ -2,7 +2,8 @@ use thiserror::Error;
 
 use super::{
     ast::{
-        BinOp, Block, Declaration, Expr, ForMode, Literal, Module, Source, Span, Statement, Type,
+        BinOp, Block, Declaration, Expr, ForMode, Literal, MetaTag, Module, Source, Span,
+        Statement, Type,
     },
     lexer::{Lexeme, Token},
 };
@@ -13,6 +14,7 @@ pub struct Parser {
     tokens: Vec<Token>,
     pub(crate) position: usize,
     pub(crate) imports: Vec<String>,
+    current_meta_tags: Vec<MetaTag>,
 }
 
 #[derive(Debug, PartialEq, Clone, Error)]
@@ -26,6 +28,8 @@ pub enum ParseError {
     },
     #[error("todo: {0:?}")]
     TodoForExpr(Source<Expr>),
+    #[error("meta tag not supported: {0:?}")]
+    MetaTagNotSupported(Source<String>),
 }
 
 impl Parser {
@@ -38,6 +42,7 @@ impl Parser {
                 .collect(),
             position: 0,
             imports: vec![],
+            current_meta_tags: vec![],
         }
     }
 
@@ -100,6 +105,10 @@ impl Parser {
         let mut decls = vec![];
 
         while self.peek().is_ok() && end_token.clone().map_or(true, |t| !self.is_next_token(t)) {
+            if self.is_next_token(Lexeme::At) {
+                self.current_meta_tags = self.meta_tags()?;
+            }
+
             let decl = self.decl()?;
 
             decls.push(decl);
@@ -210,6 +219,31 @@ impl Parser {
         Ok(args)
     }
 
+    fn meta_tags(&mut self) -> Result<Vec<MetaTag>, ParseError> {
+        self.expect(Lexeme::At)?;
+        self.expect(Lexeme::LBracket)?;
+
+        let mut tags = vec![];
+
+        while !self.is_next_token(Lexeme::RBracket) {
+            let tag = self.ident()?;
+            tags.push(match tag.data.as_str() {
+                "test" => MetaTag::Test,
+                _ => return Err(ParseError::MetaTagNotSupported(tag)),
+            });
+
+            if self.is_next_token(Lexeme::Comma) {
+                self.consume()?;
+            } else {
+                break;
+            }
+        }
+
+        self.expect(Lexeme::RBracket)?;
+
+        Ok(tags)
+    }
+
     pub fn decl(&mut self) -> Result<Source<Declaration>, ParseError> {
         let token = self.peek()?.clone();
         match token.lexeme {
@@ -238,12 +272,16 @@ impl Parser {
                 let block = self.block(Some(Lexeme::RBrace))?;
                 let end_token = self.expect(Lexeme::RBrace)?;
 
+                let tags = self.current_meta_tags.clone();
+                self.current_meta_tags.clear();
+
                 Ok(Source::new_span(
                     Declaration::Function {
                         name,
                         params,
                         result: result_ty,
                         body: block,
+                        meta_tags: tags,
                     },
                     self.module_name.clone(),
                     start_token.span.start,

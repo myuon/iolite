@@ -173,6 +173,22 @@ fun eq_str(a: array[byte], b: array[byte]): bool {
   return true;
 }
 
+fun assert(b: bool) {
+  if (!b) {
+    panic("assertion failed");
+  }
+
+  return nil;
+}
+
+@[test]
+fun test_eq_str() {
+  assert(eq_str("abc", "abc"));
+  // assert(!eq_str("abc", "def"));
+  // assert(!eq_str("abc", "abcd"));
+  // assert(!eq_str("abc", "ab"));
+}
+
 // SDL2 bindings
 
 struct Scancode(int);

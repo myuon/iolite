@@ -223,12 +223,18 @@ pub struct Block {
 }
 
 #[derive(Debug, PartialEq, Clone)]
+pub enum MetaTag {
+    Test,
+}
+
+#[derive(Debug, PartialEq, Clone)]
 pub enum Declaration {
     Function {
         name: Source<String>,
         params: Vec<(Source<String>, Source<Type>)>,
         result: Source<Type>,
         body: Source<Block>,
+        meta_tags: Vec<MetaTag>,
     },
     Let {
         name: Source<String>,
@@ -481,6 +487,7 @@ impl AstWalker {
                 params,
                 result: _,
                 body,
+                ..
             } => {
                 if matches!(self.mode, AstWalkerMode::SemanticTokens) {
                     self.tokens

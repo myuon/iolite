@@ -242,6 +242,7 @@ async fn lsp_handler(
                             ParseError::UnexpectedEos => Span::unknown(),
                             ParseError::UnexpectedToken { got, .. } => got.span,
                             ParseError::TodoForExpr(expr) => expr.span,
+                            ParseError::MetaTagNotSupported(tag) => tag.span,
                         },
                         Ok(CompilerError::TypecheckError(err)) => match err {
                             TypecheckerError::IdentNotFound(ident) => ident.span,

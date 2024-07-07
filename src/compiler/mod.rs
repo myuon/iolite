@@ -261,6 +261,7 @@ impl Compiler {
                     ParseError::UnexpectedToken { got, .. } => got.position,
                     ParseError::TodoForExpr(source) => source.span.start.unwrap_or(0),
                     ParseError::UnexpectedEos => 0,
+                    ParseError::MetaTagNotSupported(tag) => tag.span.start.unwrap_or(0),
                 };
                 let (line, col) =
                     Self::find_position_with_input(&self.modules[&path].source, position);
