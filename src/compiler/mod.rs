@@ -807,6 +807,8 @@ mod tests {
             ("1 == 2", false),
             ("2 == 2", true),
             ("1 != 10", true),
+            ("!true", false),
+            ("!false", true),
         ];
 
         cases
