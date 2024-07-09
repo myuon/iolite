@@ -19,3 +19,5 @@ jobs:
         run: cargo build --verbose --no-default-features
       - name: Run tests
         run: cargo test --verbose --no-default-features
+      - name: Run tests in iolite
+        run: cargo run test ./src/compiler/std.io
