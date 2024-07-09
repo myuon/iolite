@@ -377,13 +377,16 @@ impl Compiler {
         Ok(vec![])
     }
 
-    pub fn ir_code_gen(&mut self, path: String) -> Result<IrProgram> {
+    pub fn ir_code_gen(&mut self, path: String, testing_mode: bool) -> Result<IrProgram> {
         let paths = self.pathes_in_imported_order();
         let mut modules = vec![];
         let mut declared = vec![];
 
         for path in paths {
             let mut ir_code_gen = ir_code_gen::IrCodeGenerator::new();
+            if testing_mode {
+                ir_code_gen.enable_testing_mode();
+            }
             ir_code_gen.set_types(self.types.clone());
             ir_code_gen.set_declared(declared.clone());
 
@@ -1124,7 +1127,7 @@ mod tests {
                 let path = "main".to_string();
                 compiler.parse_with_code(path.clone(), input.to_string())?;
                 compiler.typecheck(path.clone())?;
-                let ir = compiler.ir_code_gen(path.clone())?;
+                let ir = compiler.ir_code_gen(path.clone(), false)?;
                 let code = Compiler::vm_code_gen(ir)?;
                 let linked = Compiler::link(code)?;
                 let binary = Compiler::byte_code_gen(linked)?;
@@ -1162,7 +1165,7 @@ mod tests {
 
                 let stdout = Arc::new(Mutex::new(BufWriter::new(vec![])));
 
-                let ir = compiler.ir_code_gen(main.clone())?;
+                let ir = compiler.ir_code_gen(main.clone(), false)?;
                 let program = Compiler::vm_code_gen(ir)?;
                 let table = program.extcall_table.clone();
                 let linked = Compiler::link(program)?;

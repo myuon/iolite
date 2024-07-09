@@ -46,6 +46,9 @@ enum CliCommands {
         #[clap(long = "emit-asm")]
         emit_asm: Option<String>,
     },
+    Test {
+        file: Option<String>,
+    },
     Lsp {},
     Dap {},
 }
@@ -105,7 +108,7 @@ async fn main() -> Result<()> {
             compiler.typecheck(main.clone())?;
             eprintln!("Typechecked");
 
-            let ir = compiler.ir_code_gen(main.clone())?;
+            let ir = compiler.ir_code_gen(main.clone(), false)?;
             if let Some(file) = emit_ir {
                 std::fs::write(file, format!("{:#?}", ir))?;
             }
@@ -191,6 +194,42 @@ async fn main() -> Result<()> {
 
             let result =
                 compiler::Compiler::run_vm(binary, print_stacks, print_memory_store, table)?;
+            println!("result: {:?}", Value::from_u64(result as u64));
+        }
+        CliCommands::Test { file } => {
+            let cwd = match file.clone() {
+                Some(file) => std::path::Path::new(&file)
+                    .parent()
+                    .unwrap()
+                    .to_str()
+                    .unwrap()
+                    .to_string(),
+                None => std::env::current_dir()
+                    .map_err(|err| anyhow!("Failed to get current directory: {}", err))?
+                    .to_str()
+                    .unwrap()
+                    .to_string(),
+            };
+            compiler.set_cwd(cwd);
+
+            let source_code = match file {
+                Some(file) => std::fs::read_to_string(&file)
+                    .map_err(|err| anyhow!("Failed to read file {}: {}", file, err))?,
+                None => todo!(),
+            };
+
+            let main = "std".to_string();
+
+            compiler.parse_with_code(main.clone(), source_code)?;
+            compiler.typecheck(main.clone())?;
+            let ir = compiler.ir_code_gen(main.clone(), true)?;
+            let vm = compiler::Compiler::vm_code_gen(ir)?;
+            let table = vm.extcall_table.clone();
+            let linked = compiler::Compiler::link(vm)?;
+            let emitter = compiler::Compiler::emit_byte_code(linked)?;
+            let binary = emitter.buffer;
+
+            let result = compiler::Compiler::run_vm(binary, false, false, table)?;
             println!("result: {:?}", Value::from_u64(result as u64));
         }
         CliCommands::Lsp {} => {

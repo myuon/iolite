@@ -182,11 +182,19 @@ fun assert(b: bool) {
 }
 
 @[test]
+fun test_concat_str() {
+  assert(eq_str(concat_str("abc", "abc"), "abcabc"));
+  assert(eq_str(concat_str("", "abc"), "abc"));
+  assert(eq_str(concat_str("abc", ""), "abc"));
+  assert(eq_str(concat_str("", ""), ""));
+}
+
+@[test]
 fun test_eq_str() {
   assert(eq_str("abc", "abc"));
-  // assert(!eq_str("abc", "def"));
-  // assert(!eq_str("abc", "abcd"));
-  // assert(!eq_str("abc", "ab"));
+  assert(!eq_str("abc", "def"));
+  assert(!eq_str("abc", "abcd"));
+  assert(!eq_str("abc", "ab"));
 }
 
 // SDL2 bindings

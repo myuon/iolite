@@ -5,8 +5,8 @@ use thiserror::Error;
 
 use super::{
     ast::{
-        BinOp, Block, Conversion, Declaration, Expr, ForMode, Literal, Module, Source, Statement,
-        Type, TypeMap, TypeMapKey, UniOp,
+        BinOp, Block, Conversion, Declaration, Expr, ForMode, Literal, MetaTag, Module, Source,
+        Statement, Type, TypeMap, TypeMapKey, UniOp,
     },
     escape_resolver::EscapeResolver,
     ir::{IrDecl, IrModule, IrOp, IrTerm, TypeTag, Value},
@@ -27,6 +27,8 @@ pub struct IrCodeGenerator {
     escaped: Vec<String>,
     current_module: String,
     pub(crate) declared: Vec<String>,
+    is_testing_mode: bool,
+    testing_functions: Vec<String>,
 }
 
 impl IrCodeGenerator {
@@ -42,6 +44,8 @@ impl IrCodeGenerator {
             escaped: vec![],
             current_module: "".to_string(),
             declared: vec![],
+            is_testing_mode: false,
+            testing_functions: vec![],
         }
     }
 
@@ -51,6 +55,10 @@ impl IrCodeGenerator {
 
     pub fn set_declared(&mut self, declared: Vec<String>) {
         self.declared = declared;
+    }
+
+    pub fn enable_testing_mode(&mut self) {
+        self.is_testing_mode = true;
     }
 
     fn allocate(&self, term: IrTerm) -> IrTerm {
@@ -148,6 +156,25 @@ impl IrCodeGenerator {
             decls.push(closure);
         }
 
+        if self.is_testing_mode {
+            let mut body = vec![];
+
+            for name in self.testing_functions.clone() {
+                body.push(IrTerm::StaticCall {
+                    callee: name,
+                    args: vec![],
+                });
+            }
+            body.push(IrTerm::Return(Box::new(IrTerm::Nil)));
+
+            decls.push(IrDecl::Fun {
+                name: "main".to_string(),
+                args: vec![],
+                body: Box::new(IrTerm::Items(body)),
+                escaped: vec![],
+            });
+        }
+
         let mut ir_module = IrModule {
             name: module.name,
             init_function: Some(init_function_name),
@@ -171,6 +198,11 @@ impl IrCodeGenerator {
                 meta_tags,
             } => {
                 self.escaped = vec![];
+
+                if meta_tags.contains(&MetaTag::Test) {
+                    self.testing_functions.push(name.data.clone());
+                }
+
                 let body = {
                     let term = self.block(body)?;
 
