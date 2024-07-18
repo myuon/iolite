@@ -17,6 +17,18 @@ mod dap_server;
 mod lsp_server;
 mod utils;
 
+macro_rules! measure_time {
+    ($e:expr, $b:block) => {{
+        let now = std::time::Instant::now();
+
+        let result = $b;
+
+        eprintln!($e, now.elapsed().as_millis());
+
+        result
+    }};
+}
+
 #[derive(Parser, Debug)]
 #[clap(name = "iolite")]
 struct Cli {
@@ -102,19 +114,26 @@ async fn main() -> Result<()> {
 
             let main = "main".to_string();
 
-            compiler.parse_with_code(main.clone(), source_code)?;
-            eprintln!("Parsed");
+            measure_time!("Parsed: {}ms", {
+                compiler.parse_with_code(main.clone(), source_code.clone())?;
+            });
 
-            compiler.typecheck(main.clone())?;
-            eprintln!("Typechecked");
+            measure_time!("Typechecked: {}ms", {
+                compiler.typecheck(main.clone())?;
+            });
 
-            let ir = compiler.ir_code_gen(main.clone(), false)?;
-            if let Some(file) = emit_ir {
-                std::fs::write(file, format!("{:#?}", ir))?;
-            }
-            eprintln!("IR generated");
+            let ir = measure_time!("IR generated: {}ms", {
+                let ir = compiler.ir_code_gen(main.clone(), false)?;
+                if let Some(file) = emit_ir {
+                    std::fs::write(file, format!("{:#?}", ir))?;
+                }
 
-            let vm = compiler::Compiler::vm_code_gen(ir)?;
+                ir
+            });
+
+            let vm = measure_time!("VM code generated: {}ms", {
+                compiler::Compiler::vm_code_gen(ir)?
+            });
             if let Some(file_path) = emit_vm {
                 let mut file = std::fs::File::create(file_path.clone())?;
 
@@ -151,14 +170,12 @@ async fn main() -> Result<()> {
                     }
                 }
 
-                eprintln!("VM code generated: {}", file_path);
-            } else {
-                eprintln!("VM code generated");
+                eprintln!("Wrote to {}", file_path);
             }
 
             let table = vm.extcall_table.clone();
 
-            let linked = compiler::Compiler::link(vm)?;
+            let linked = measure_time!("Linked: {}ms", { compiler::Compiler::link(vm)? });
             if let Some(file_path) = emit_linked_vm {
                 let mut file = std::fs::File::create(file_path.clone())?;
 
@@ -166,12 +183,12 @@ async fn main() -> Result<()> {
                     file.write(format!("{}: {:?}\n", i, code).as_bytes())?;
                 }
 
-                eprintln!("Linked: {}", file_path);
-            } else {
-                eprintln!("Linked");
+                eprintln!("Wrote to {}", file_path);
             }
 
-            let emitter = compiler::Compiler::emit_byte_code(linked)?;
+            let emitter = measure_time!("Byte code generated: {}ms", {
+                compiler::Compiler::emit_byte_code(linked)?
+            });
             if let Some(file_path) = emit_asm_labels {
                 let mut file = std::fs::File::create(file_path.clone())?;
                 let mut labels = emitter.labels.into_iter().collect::<Vec<_>>();
@@ -187,13 +204,12 @@ async fn main() -> Result<()> {
                 let mut file = std::fs::File::create(file_path.clone())?;
                 emit_disassemble(&mut file, binary.clone())?;
 
-                eprintln!("Byte code generated: {}", file_path);
-            } else {
-                eprintln!("Byte code generated");
+                eprintln!("Wrote to {}", file_path);
             }
 
-            let result =
-                compiler::Compiler::run_vm(binary, print_stacks, print_memory_store, table)?;
+            let result = measure_time!("Executed: {}ms", {
+                compiler::Compiler::run_vm(binary, print_stacks, print_memory_store, table)?
+            });
             println!("result: {:?}", Value::from_u64(result as u64));
         }
         CliCommands::Test { file } => {
