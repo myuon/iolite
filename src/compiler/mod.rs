@@ -7,7 +7,7 @@ use std::{
 use anyhow::{anyhow, Result};
 use ast::TypeMap;
 
-use crate::compiler::lexer::Lexeme;
+use crate::{compiler::lexer::Lexeme, measure_time, utils::measure_time};
 
 use self::{
     ast::{Declaration, Module, Source, Span, Type},
@@ -238,39 +238,44 @@ impl Compiler {
         } else {
             vec![]
         };
-        tokens.extend(match lexer.run() {
-            Ok(tokens) => tokens,
-            Err(err) => {
-                let position = match err {
-                    LexerError::InvalidCharacter(_, position) => position,
-                };
-                let (line, col) =
-                    Self::find_position_with_input(&self.modules[&path].source, position);
+        eprintln!("Parsing {}...", path);
+        measure_time!("run_tokens: {}ms", {
+            tokens.extend(match lexer.run() {
+                Ok(tokens) => tokens,
+                Err(err) => {
+                    let position = match err {
+                        LexerError::InvalidCharacter(_, position) => position,
+                    };
+                    let (line, col) =
+                        Self::find_position_with_input(&self.modules[&path].source, position);
 
-                eprintln!("Error in {} at line {}, column {}", path, line, col);
+                    eprintln!("Error in {} at line {}, column {}", path, line, col);
 
-                return Err(CompilerError::LexerError(err).into());
-            }
+                    return Err(CompilerError::LexerError(err).into());
+                }
+            });
         });
 
         let mut parser = parser::Parser::new(path.clone(), tokens);
-        let decls = match parser.decls(None) {
-            Ok(decls) => decls,
-            Err(err) => {
-                let position = match &err {
-                    ParseError::UnexpectedToken { got, .. } => got.position,
-                    ParseError::TodoForExpr(source) => source.span.start.unwrap_or(0),
-                    ParseError::UnexpectedEos => 0,
-                    ParseError::MetaTagNotSupported(tag) => tag.span.start.unwrap_or(0),
-                };
-                let (line, col) =
-                    Self::find_position_with_input(&self.modules[&path].source, position);
+        let decls = measure_time!("parser.decls: {}ms", {
+            match parser.decls(None) {
+                Ok(decls) => decls,
+                Err(err) => {
+                    let position = match &err {
+                        ParseError::UnexpectedToken { got, .. } => got.position,
+                        ParseError::TodoForExpr(source) => source.span.start.unwrap_or(0),
+                        ParseError::UnexpectedEos => 0,
+                        ParseError::MetaTagNotSupported(tag) => tag.span.start.unwrap_or(0),
+                    };
+                    let (line, col) =
+                        Self::find_position_with_input(&self.modules[&path].source, position);
 
-                eprintln!("Error in {} at line {}, column {}", path, line, col);
+                    eprintln!("Error in {} at line {}, column {}", path, line, col);
 
-                return Err(CompilerError::ParseError(err).into());
+                    return Err(CompilerError::ParseError(err).into());
+                }
             }
-        };
+        });
         let module = Module {
             name: path.clone(),
             declarations: decls,

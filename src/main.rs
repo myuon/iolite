@@ -17,18 +17,6 @@ mod dap_server;
 mod lsp_server;
 mod utils;
 
-macro_rules! measure_time {
-    ($e:expr, $b:block) => {{
-        let now = std::time::Instant::now();
-
-        let result = $b;
-
-        eprintln!($e, now.elapsed().as_millis());
-
-        result
-    }};
-}
-
 #[derive(Parser, Debug)]
 #[clap(name = "iolite")]
 struct Cli {
