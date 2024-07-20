@@ -594,7 +594,7 @@ mod tests {
                     params.diagnostics[i].message,
                     *err,
                 );
-                assert_eq!(params.diagnostics[i].range, *range);
+                assert_eq!(params.diagnostics[i].range, *range, "file: {}", file);
             }
         }
 

@@ -180,14 +180,15 @@ impl Compiler {
             Err(err) => {
                 match err.clone() {
                     ParseError::UnexpectedToken { got, .. } => {
-                        let (line, col) = Self::find_position_with_input(&input, got.position);
+                        let (line, col) =
+                            Self::find_position_with_input(&input, got.span.start.unwrap_or(0));
 
                         eprintln!(
                             "Error at line {}, column {}\n\n{}\n{}^",
                             line,
                             col,
                             input.lines().collect::<Vec<_>>().join(" "),
-                            " ".repeat(got.position)
+                            " ".repeat(got.span.start.unwrap_or(0))
                         );
                     }
                     _ => {}
@@ -204,17 +205,14 @@ impl Compiler {
         vec![
             Token {
                 lexeme: Lexeme::Import,
-                position: 0,
                 span: Span::unknown(),
             },
             Token {
                 lexeme: Lexeme::Ident("std".to_string()),
-                position: 0,
                 span: Span::unknown(),
             },
             Token {
                 lexeme: Lexeme::Semicolon,
-                position: 0,
                 span: Span::unknown(),
             },
         ]
@@ -262,7 +260,7 @@ impl Compiler {
                 Ok(decls) => decls,
                 Err(err) => {
                     let position = match &err {
-                        ParseError::UnexpectedToken { got, .. } => got.position,
+                        ParseError::UnexpectedToken { got, .. } => got.span.start.unwrap_or(0),
                         ParseError::TodoForExpr(source) => source.span.start.unwrap_or(0),
                         ParseError::UnexpectedEos => 0,
                         ParseError::MetaTagNotSupported(tag) => tag.span.start.unwrap_or(0),

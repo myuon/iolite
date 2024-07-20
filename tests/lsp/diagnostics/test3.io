@@ -1,3 +1,3 @@
 fun main() {
-  let a あいうえお
+  let a 😍
 }

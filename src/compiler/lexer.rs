@@ -61,7 +61,6 @@ pub enum Lexeme {
 #[derive(Clone, Debug, PartialEq)]
 pub struct Token {
     pub lexeme: Lexeme,
-    pub position: usize,
     pub span: Span,
 }
 
@@ -94,7 +93,6 @@ impl Lexer {
     fn new_token(&self, lexeme: Lexeme, start_position: usize) -> Token {
         Token {
             lexeme,
-            position: start_position,
             span: Span::span(self.module_name.clone(), start_position, self.position),
         }
     }
@@ -241,7 +239,7 @@ impl Lexer {
             }
 
             return Err(LexerError::InvalidCharacter(
-                self.input.chars().nth(self.position).unwrap(),
+                chars[self.position],
                 self.position,
             ));
         }
@@ -394,27 +392,22 @@ mod tests {
             vec![
                 Token {
                     lexeme: Lexeme::Let,
-                    position: 0,
                     span: Span::span("".to_string(), 0, 3),
                 },
                 Token {
                     lexeme: Lexeme::Ident("hoge".to_string()),
-                    position: 4,
                     span: Span::span("".to_string(), 4, 8),
                 },
                 Token {
                     lexeme: Lexeme::Equal,
-                    position: 9,
                     span: Span::span("".to_string(), 9, 10),
                 },
                 Token {
                     lexeme: Lexeme::Integer(10),
-                    position: 11,
                     span: Span::span("".to_string(), 11, 13),
                 },
                 Token {
                     lexeme: Lexeme::Semicolon,
-                    position: 13,
                     span: Span::span("".to_string(), 13, 14),
                 },
             ],
@@ -426,7 +419,6 @@ mod tests {
 
             for (token, expected) in tokens.iter().zip(expected.iter()) {
                 assert_eq!(token.lexeme, expected.lexeme);
-                assert_eq!(token.position, expected.position);
                 assert_eq!(token.span.start, expected.span.start);
                 assert_eq!(token.span.end, expected.span.end);
             }
