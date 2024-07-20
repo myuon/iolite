@@ -40,19 +40,19 @@ pub mod vm_code_gen;
 #[derive(Debug, thiserror::Error)]
 pub enum CompilerError {
     #[error("Lexer error: {0}")]
-    LexerError(LexerError),
+    LexerError(#[from] LexerError),
     #[error("Parse error: {0}")]
-    ParseError(ParseError),
+    ParseError(#[from] ParseError),
     #[error("Typechecker error: {0}")]
-    TypecheckError(TypecheckerError),
+    TypecheckError(#[from] TypecheckerError),
     #[error("IR code generator error: {0}")]
-    IrCodeGeneratorError(IrCodeGeneratorError),
+    IrCodeGeneratorError(#[from] IrCodeGeneratorError),
     #[error("VM code generator error: {0}")]
-    VmCodeGeneratorError(VmCodeGeneratorError),
+    VmCodeGeneratorError(#[from] VmCodeGeneratorError),
     #[error("Linker error: {0}")]
-    LinkerError(LinkerError),
+    LinkerError(#[from] LinkerError),
     #[error("Byte code emitter error: {0}")]
-    ByteCodeEmitterError(ByteCodeEmitterError),
+    ByteCodeEmitterError(#[from] ByteCodeEmitterError),
 }
 
 #[derive(Debug, Clone)]
@@ -184,10 +184,7 @@ impl Compiler {
 
     pub fn parse_decls(input: String) -> Result<Vec<Source<Declaration>>, CompilerError> {
         let mut lexer = lexer::Lexer::new("".to_string(), input.clone());
-        let mut parser = parser::Parser::new(
-            "".to_string(),
-            lexer.run().map_err(CompilerError::LexerError)?,
-        );
+        let mut parser = parser::Parser::new("".to_string(), lexer.run()?);
         let expr = match parser.decls(None) {
             Ok(expr) => expr,
             Err(err) => {
@@ -496,7 +493,7 @@ impl Compiler {
                     _ => {}
                 }
 
-                return Err(CompilerError::TypecheckError(err));
+                return Err(err)?;
             }
         }
 
@@ -544,13 +541,11 @@ impl Compiler {
         Ok(None)
     }
 
-    pub fn ir_code_gen_module(
+    fn ir_code_gen_module(
         ir_code_gen: &mut IrCodeGenerator,
         block: Module,
     ) -> Result<ir::IrModule, CompilerError> {
-        let ir = ir_code_gen
-            .program(block)
-            .map_err(CompilerError::IrCodeGeneratorError)?;
+        let ir = ir_code_gen.program(block)?;
 
         Ok(ir)
     }
@@ -569,9 +564,7 @@ impl Compiler {
 
             let mut vm_code_gen = vm_code_gen::VmCodeGenerator::new(table.clone());
             vm_code_gen.functions = functions;
-            vm_code_gen
-                .program(m)
-                .map_err(CompilerError::VmCodeGeneratorError)?;
+            vm_code_gen.program(m)?;
 
             functions = vm_code_gen.functions;
 
@@ -596,9 +589,7 @@ impl Compiler {
         let mut emitter = ByteCodeEmitter::new();
 
         let code = self.result_link.take().unwrap();
-        emitter
-            .exec(code)
-            .map_err(CompilerError::ByteCodeEmitterError)?;
+        emitter.exec(code)?;
 
         self.result_codegen = Some(emitter);
 
@@ -609,7 +600,7 @@ impl Compiler {
         let mut linker = Linker::new();
 
         let vm = self.result_vm.take().unwrap();
-        let linked = linker.link(vm).map_err(CompilerError::LinkerError)?;
+        let linked = linker.link(vm)?;
 
         self.result_link = Some(linked.clone());
 
@@ -622,7 +613,8 @@ impl Compiler {
     ) -> Result<Vec<Instruction>, CompilerError> {
         let mut linker = Linker::new();
         linker.trap_stdout(stderr);
-        linker.link(vm).map_err(CompilerError::LinkerError)
+
+        Ok(linker.link(vm)?)
     }
 
     pub fn create_input(input: String) -> String {
@@ -643,21 +635,9 @@ impl Compiler {
     }
 
     pub fn compile(&mut self, path: String) -> Result<()> {
-        let module = self
-            .modules
-            .get(&path)
-            .ok_or_else(|| anyhow!("Module {} not found in the compiler", path))?
-            .clone();
-
         self.parse(path.clone())?;
         self.typecheck(path.clone())?;
-
-        let mut ir_code_gen = ir_code_gen::IrCodeGenerator::new();
-        let typemap = self.result_typecheck.take().unwrap();
-        ir_code_gen.set_types(Rc::new(typemap));
-
-        let ir = Self::ir_code_gen_module(&mut ir_code_gen, module.module.clone().unwrap())?;
-        self.result_ir = Some(IrProgram { modules: vec![ir] });
+        self.ir_code_gen(path.clone(), false)?;
         self.vm_code_gen()?;
         self.link()?;
         self.byte_code_gen()?;
@@ -689,19 +669,7 @@ impl Compiler {
         Ok(self.result_runtime.as_mut().unwrap().pop_i64())
     }
 
-    pub fn run(&mut self, path: String, print_stacks: bool) -> Result<i64> {
-        let module = self
-            .modules
-            .get(&path)
-            .ok_or_else(|| anyhow!("Module {} not found in the compiler", path))?;
-
-        self.compile_with_input(module.source.clone())?;
-        self.execute(print_stacks, false)?;
-
-        Ok(self.result_runtime.as_mut().unwrap().pop_i64())
-    }
-
-    pub fn run_vm_with_io_trap(
+    pub fn execute_with_stdout(
         &mut self,
         print_stacks: bool,
         stdout: Arc<Mutex<BufWriter<Vec<u8>>>>,
@@ -1194,7 +1162,7 @@ mod tests {
                 compiler.vm_code_gen()?;
                 compiler.link()?;
                 compiler.byte_code_gen()?;
-                compiler.run_vm_with_io_trap(false, stdout.clone())?;
+                compiler.execute_with_stdout(false, stdout.clone())?;
 
                 let result = compiler.result_runtime.as_mut().unwrap().pop_i64();
 
