@@ -469,37 +469,6 @@ impl Compiler {
         Ok(())
     }
 
-    pub fn typecheck_module(module: &mut Module, input: &str) -> Result<TypeMap, CompilerError> {
-        let mut typechecker = typechecker::Typechecker::new();
-        match typechecker.module(module) {
-            Ok(_) => {}
-            Err(err) => {
-                match err.clone() {
-                    TypecheckerError::TypeMismatch { span, .. } if span.start.is_some() => {
-                        let (line, col) =
-                            Self::find_position_with_input(input, span.start.unwrap());
-                        eprintln!(
-                            "Error at line {}, column {} ({})",
-                            line,
-                            col,
-                            span.start.unwrap()
-                        );
-                        eprintln!(
-                            "{}\n{}^",
-                            input.lines().collect::<Vec<_>>().join("\n"),
-                            " ".repeat(col - 1)
-                        );
-                    }
-                    _ => {}
-                }
-
-                return Err(err)?;
-            }
-        }
-
-        Ok(typechecker.types)
-    }
-
     pub fn search_for_definition(&mut self, path: String, position: usize) -> Result<Option<Span>> {
         let mut typechecker = typechecker::Typechecker::new();
 
@@ -634,24 +603,15 @@ impl Compiler {
         self.compile_bundled(input)
     }
 
-    pub fn compile(&mut self, path: String) -> Result<()> {
-        self.parse(path.clone())?;
-        self.typecheck(path.clone())?;
-        self.ir_code_gen(path.clone(), false)?;
-        self.vm_code_gen()?;
-        self.link()?;
-        self.byte_code_gen()?;
-
-        Ok(())
-    }
-
     pub fn compile_bundled(&mut self, input: String) -> Result<(), CompilerError> {
         let decls = Self::parse_decls(input.clone())?;
         let mut module = Self::create_module(decls);
-        let types = Self::typecheck_module(&mut module, &input)?;
+
+        let mut typechecker = typechecker::Typechecker::new();
+        Self::typecheck_method(&mut typechecker, &mut module, &input)?;
 
         let mut ir_code_gen = ir_code_gen::IrCodeGenerator::new();
-        ir_code_gen.set_types(Rc::new(types));
+        ir_code_gen.set_types(Rc::new(typechecker.types));
 
         let ir = Self::ir_code_gen_module(&mut ir_code_gen, module)?;
         self.result_ir = Some(IrProgram { modules: vec![ir] });
@@ -664,35 +624,23 @@ impl Compiler {
 
     pub fn run_input(&mut self, input: String, print_stacks: bool) -> Result<i64, CompilerError> {
         self.compile_with_input(input)?;
-        self.execute(print_stacks, false)?;
+        self.execute(print_stacks, false, None)?;
 
         Ok(self.result_runtime.as_mut().unwrap().pop_i64())
-    }
-
-    pub fn execute_with_stdout(
-        &mut self,
-        print_stacks: bool,
-        stdout: Arc<Mutex<BufWriter<Vec<u8>>>>,
-    ) -> Result<(), CompilerError> {
-        let program = self.result_codegen.take().unwrap().buffer;
-        let extcall_table = self.result_extcall_table.take().unwrap();
-        let mut runtime = Runtime::new(1024 * 1024, program, extcall_table);
-        runtime.trap_stdout = Some(stdout);
-        runtime.exec(print_stacks, false).unwrap();
-
-        self.result_runtime = Some(runtime);
-
-        Ok(())
     }
 
     pub fn execute(
         &mut self,
         print_stacks: bool,
         print_memory_store: bool,
+        stdout: Option<Arc<Mutex<BufWriter<Vec<u8>>>>>,
     ) -> Result<(), CompilerError> {
         let program = self.result_codegen.take().unwrap().buffer;
         let extcall_table = self.result_extcall_table.take().unwrap();
         let mut runtime = Runtime::new(1024 * 1024, program, extcall_table);
+        if let Some(stdout) = stdout {
+            runtime.trap_stdout = Some(stdout);
+        }
         runtime.exec(print_stacks, print_memory_store).unwrap();
 
         self.result_runtime = Some(runtime);
@@ -767,7 +715,7 @@ mod tests {
                 compiler
                     .compile_with_input(format!("fun main() {{ return {}; }}", input))
                     .unwrap();
-                compiler.execute(false, false).unwrap();
+                compiler.execute(false, false, None).unwrap();
 
                 let runtime = compiler.result_runtime.as_mut().unwrap();
                 assert_eq!(
@@ -811,7 +759,7 @@ mod tests {
                 compiler
                     .compile_with_input(format!("fun main() {{ return {}; }}", input))
                     .unwrap();
-                compiler.execute(false, false).unwrap();
+                compiler.execute(false, false, None).unwrap();
 
                 let runtime = compiler.result_runtime.as_mut().unwrap();
                 assert_eq!(
@@ -1124,7 +1072,7 @@ mod tests {
                 compiler.vm_code_gen()?;
                 compiler.link()?;
                 compiler.byte_code_gen()?;
-                compiler.execute(false, false).unwrap();
+                compiler.execute(false, false, None).unwrap();
                 let actual = compiler.result_runtime.as_mut().unwrap().pop_i64();
                 assert_eq!(actual, expected, "input: {}", input);
 
@@ -1162,7 +1110,7 @@ mod tests {
                 compiler.vm_code_gen()?;
                 compiler.link()?;
                 compiler.byte_code_gen()?;
-                compiler.execute_with_stdout(false, stdout.clone())?;
+                compiler.execute(false, false, Some(stdout.clone()))?;
 
                 let result = compiler.result_runtime.as_mut().unwrap().pop_i64();
 

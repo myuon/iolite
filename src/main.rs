@@ -191,7 +191,7 @@ async fn main() -> Result<()> {
             }
 
             measure_time!("Executed: {}ms", {
-                compiler.execute(print_stacks, print_memory_store)?
+                compiler.execute(print_stacks, print_memory_store, None)?
             });
             let result = compiler.result_runtime.as_mut().unwrap().pop_i64();
             println!("result: {:?}", Value::from_u64(result as u64));
@@ -226,7 +226,7 @@ async fn main() -> Result<()> {
             compiler.vm_code_gen()?;
             compiler.link()?;
             compiler.byte_code_gen()?;
-            compiler.execute(false, false)?;
+            compiler.execute(false, false, None)?;
             let result = compiler.result_runtime.as_mut().unwrap().pop_i64();
             println!("result: {:?}", Value::from_u64(result as u64));
         }
