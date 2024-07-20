@@ -343,7 +343,7 @@ impl Compiler {
         result
     }
 
-    pub fn typecheck(&mut self, _path: String) -> Result<()> {
+    pub fn typecheck(&mut self, _path: String) -> Result<(), CompilerError> {
         let paths = self.pathes_in_imported_order();
 
         let mut typechecker = typechecker::Typechecker::new();
@@ -401,7 +401,7 @@ impl Compiler {
             ir_code_gen.set_declared(declared.clone());
 
             let module = self.modules.get_mut(&path).unwrap();
-            let ir = Self::ir_code_gen_module(&mut ir_code_gen, module.module.clone().unwrap())?;
+            let ir = ir_code_gen.program(module.module.clone().unwrap())?;
 
             declared = ir_code_gen.declared.clone();
 
@@ -510,15 +510,6 @@ impl Compiler {
         Ok(None)
     }
 
-    fn ir_code_gen_module(
-        ir_code_gen: &mut IrCodeGenerator,
-        block: Module,
-    ) -> Result<ir::IrModule, CompilerError> {
-        let ir = ir_code_gen.program(block)?;
-
-        Ok(ir)
-    }
-
     pub fn vm_code_gen(&mut self) -> Result<(), CompilerError> {
         let ir = self.result_ir.take().unwrap();
         let mut modules = vec![];
@@ -576,16 +567,6 @@ impl Compiler {
         Ok(())
     }
 
-    pub fn link_with(
-        vm: VmProgram,
-        stderr: Arc<Mutex<BufWriter<Vec<u8>>>>,
-    ) -> Result<Vec<Instruction>, CompilerError> {
-        let mut linker = Linker::new();
-        linker.trap_stdout(stderr);
-
-        Ok(linker.link(vm)?)
-    }
-
     pub fn create_input(input: String) -> String {
         format!("{}\n{}", include_str!("./std.io"), input)
     }
@@ -603,20 +584,21 @@ impl Compiler {
     }
 
     pub fn compile_bundled(&mut self, input: String) -> Result<(), CompilerError> {
-        let decls = Self::parse_decls(input.clone())?;
-        let mut module = Self::create_module(decls);
-
-        let mut typechecker = typechecker::Typechecker::new();
-        Self::typecheck_method(&mut typechecker, &mut module, &input)?;
-
-        let mut ir_code_gen = ir_code_gen::IrCodeGenerator::new();
-        ir_code_gen.set_types(Rc::new(typechecker.types));
-
-        let ir = Self::ir_code_gen_module(&mut ir_code_gen, module)?;
-        self.result_ir = Some(IrProgram { modules: vec![ir] });
+        let path = "main".to_string();
+        self.parse_with_code(path.clone(), input.clone()).unwrap();
+        self.typecheck(path.clone())?;
+        self.ir_code_gen(path.clone(), false).unwrap();
         self.vm_code_gen()?;
         self.link()?;
         self.byte_code_gen()?;
+
+        Ok(())
+    }
+
+    pub fn compile_no_emit(&mut self, input: String) -> Result<(), CompilerError> {
+        let path = "main".to_string();
+        self.parse_with_code(path.clone(), input.clone()).unwrap();
+        self.typecheck(path.clone())?;
 
         Ok(())
     }

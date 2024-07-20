@@ -996,7 +996,7 @@ mod tests {
             .try_for_each(|(input, error)| -> Result<_> {
                 let mut compiler = Compiler::new();
 
-                let result = compiler.compile_with_input(input.to_string());
+                let result = compiler.compile_no_emit(input.to_string());
 
                 match result.err() {
                     Some(CompilerError::TypecheckError(err)) => {

@@ -217,7 +217,7 @@ async fn lsp_handler(
 
             match compiler
                 .parse(path.to_string())
-                .and_then(|_| compiler.typecheck(path.to_string()))
+                .and_then(|_| Ok(compiler.typecheck(path.to_string())?))
             {
                 Ok(_) => {
                     sender
