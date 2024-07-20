@@ -144,25 +144,23 @@ impl Lexer {
     }
 
     fn consume_string(&mut self, chars: &Vec<char>) -> Option<String> {
-        if chars[self.position] == '"' {
-            let start_position = self.position;
-            self.position += 1;
-
-            while self.position < chars.len() && chars[self.position] != '"' {
-                self.position += 1;
-            }
-
-            let end_position = self.position;
-
-            if chars[self.position] == '"' {
-                self.position += 1;
-                Some(self.input[start_position..end_position].to_string())
-            } else {
-                None
-            }
-        } else {
-            None
+        let c = Self::consumes(&chars[self.position..], Matcher::Exact("\""));
+        self.position += c;
+        if c == 0 {
+            return None;
         }
+
+        let start = self.position;
+
+        let c = Self::consumes(&chars[self.position..], Matcher::Until('"'));
+        self.position += c;
+
+        let c = Self::consumes(&chars[self.position..], Matcher::Exact("\""));
+        self.position += c;
+
+        let end = self.position;
+
+        Some(self.input[start..end].to_string())
     }
 
     fn consume_numeric(&mut self, chars: &Vec<char>) -> Option<Numeric> {
