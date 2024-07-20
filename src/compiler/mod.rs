@@ -602,19 +602,6 @@ impl Compiler {
         Ok(())
     }
 
-    pub fn emit_byte_code(&mut self) -> Result<(), CompilerError> {
-        let mut emitter = ByteCodeEmitter::new();
-
-        let code = self.result_link.take().unwrap();
-        emitter
-            .exec(code)
-            .map_err(CompilerError::ByteCodeEmitterError)?;
-
-        self.result_codegen = Some(emitter);
-
-        Ok(())
-    }
-
     pub fn link(&mut self) -> Result<(), CompilerError> {
         let mut linker = Linker::new();
 
@@ -693,7 +680,7 @@ impl Compiler {
 
     pub fn run_input(&mut self, input: String, print_stacks: bool) -> Result<i64, CompilerError> {
         self.compile_with_input(input)?;
-        self.run_vm(print_stacks, false)?;
+        self.execute(print_stacks, false)?;
 
         Ok(self.result_runtime.as_mut().unwrap().pop_i64())
     }
@@ -705,20 +692,9 @@ impl Compiler {
             .ok_or_else(|| anyhow!("Module {} not found in the compiler", path))?;
 
         self.compile_with_input(module.source.clone())?;
-
-        self.run_vm(print_stacks, false)?;
+        self.execute(print_stacks, false)?;
 
         Ok(self.result_runtime.as_mut().unwrap().pop_i64())
-    }
-
-    pub fn run_vm(
-        &mut self,
-        print_stacks: bool,
-        print_memory_store: bool,
-    ) -> Result<(), CompilerError> {
-        self.exec_vm(print_stacks, print_memory_store)?;
-
-        Ok(())
     }
 
     pub fn run_vm_with_io_trap(
@@ -737,7 +713,7 @@ impl Compiler {
         Ok(())
     }
 
-    fn exec_vm(
+    pub fn execute(
         &mut self,
         print_stacks: bool,
         print_memory_store: bool,
@@ -819,7 +795,7 @@ mod tests {
                 compiler
                     .compile_with_input(format!("fun main() {{ return {}; }}", input))
                     .unwrap();
-                compiler.exec_vm(false, false).unwrap();
+                compiler.execute(false, false).unwrap();
 
                 let runtime = compiler.result_runtime.as_mut().unwrap();
                 assert_eq!(
@@ -863,7 +839,7 @@ mod tests {
                 compiler
                     .compile_with_input(format!("fun main() {{ return {}; }}", input))
                     .unwrap();
-                compiler.exec_vm(false, false).unwrap();
+                compiler.execute(false, false).unwrap();
 
                 let runtime = compiler.result_runtime.as_mut().unwrap();
                 assert_eq!(
@@ -1176,8 +1152,7 @@ mod tests {
                 compiler.vm_code_gen()?;
                 compiler.link()?;
                 compiler.byte_code_gen()?;
-
-                compiler.run_vm(false, false).unwrap();
+                compiler.execute(false, false).unwrap();
                 let actual = compiler.result_runtime.as_mut().unwrap().pop_i64();
                 assert_eq!(actual, expected, "input: {}", input);
 

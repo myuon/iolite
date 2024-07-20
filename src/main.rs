@@ -170,7 +170,7 @@ async fn main() -> Result<()> {
                 eprintln!("Wrote to {}", file_path);
             }
 
-            measure_time!("Byte code generated: {}ms", { compiler.emit_byte_code()? });
+            measure_time!("Byte code generated: {}ms", { compiler.byte_code_gen()? });
             let emitter = compiler.result_codegen.as_ref().unwrap();
             if let Some(file_path) = emit_asm_labels {
                 let mut file = std::fs::File::create(file_path.clone())?;
@@ -191,7 +191,7 @@ async fn main() -> Result<()> {
             }
 
             measure_time!("Executed: {}ms", {
-                compiler.run_vm(print_stacks, print_memory_store)?
+                compiler.execute(print_stacks, print_memory_store)?
             });
             let result = compiler.result_runtime.as_mut().unwrap().pop_i64();
             println!("result: {:?}", Value::from_u64(result as u64));
@@ -225,9 +225,8 @@ async fn main() -> Result<()> {
             compiler.ir_code_gen(main.clone(), true)?;
             compiler.vm_code_gen()?;
             compiler.link()?;
-            compiler.emit_byte_code()?;
-
-            compiler.run_vm(false, false)?;
+            compiler.byte_code_gen()?;
+            compiler.execute(false, false)?;
             let result = compiler.result_runtime.as_mut().unwrap().pop_i64();
             println!("result: {:?}", Value::from_u64(result as u64));
         }
