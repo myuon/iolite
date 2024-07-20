@@ -71,6 +71,7 @@ pub struct Compiler {
     pub result_link: Option<Vec<Instruction>>,
     pub result_codegen: Option<ByteCodeEmitter>,
     pub result_runtime: Option<Runtime>,
+    pub result_extcall_table: Option<HashMap<String, usize>>,
 }
 
 impl Compiler {
@@ -84,6 +85,7 @@ impl Compiler {
             result_link: None,
             result_codegen: None,
             result_runtime: None,
+            result_extcall_table: None,
         }
     }
 
@@ -581,10 +583,8 @@ impl Compiler {
             })
         }
 
-        self.result_vm = Some(VmProgram {
-            modules,
-            extcall_table: table,
-        });
+        self.result_vm = Some(VmProgram { modules });
+        self.result_extcall_table = Some(table);
 
         Ok(())
     }
@@ -693,7 +693,7 @@ impl Compiler {
 
     pub fn run_input(&mut self, input: String, print_stacks: bool) -> Result<i64, CompilerError> {
         self.compile_with_input(input)?;
-        self.run_vm(print_stacks, false, HashMap::new())?;
+        self.run_vm(print_stacks, false)?;
 
         Ok(self.result_runtime.as_mut().unwrap().pop_i64())
     }
@@ -706,7 +706,7 @@ impl Compiler {
 
         self.compile_with_input(module.source.clone())?;
 
-        self.run_vm(print_stacks, false, HashMap::new())?;
+        self.run_vm(print_stacks, false)?;
 
         Ok(self.result_runtime.as_mut().unwrap().pop_i64())
     }
@@ -715,9 +715,8 @@ impl Compiler {
         &mut self,
         print_stacks: bool,
         print_memory_store: bool,
-        extcall_table: HashMap<String, usize>,
     ) -> Result<(), CompilerError> {
-        self.exec_vm(print_stacks, print_memory_store, extcall_table)?;
+        self.exec_vm(print_stacks, print_memory_store)?;
 
         Ok(())
     }
@@ -726,9 +725,9 @@ impl Compiler {
         &mut self,
         print_stacks: bool,
         stdout: Arc<Mutex<BufWriter<Vec<u8>>>>,
-        extcall_table: HashMap<String, usize>,
     ) -> Result<(), CompilerError> {
         let program = self.result_codegen.take().unwrap().buffer;
+        let extcall_table = self.result_extcall_table.take().unwrap();
         let mut runtime = Runtime::new(1024 * 1024, program, extcall_table);
         runtime.trap_stdout = Some(stdout);
         runtime.exec(print_stacks, false).unwrap();
@@ -742,9 +741,9 @@ impl Compiler {
         &mut self,
         print_stacks: bool,
         print_memory_store: bool,
-        extcall_table: HashMap<String, usize>,
     ) -> Result<(), CompilerError> {
         let program = self.result_codegen.take().unwrap().buffer;
+        let extcall_table = self.result_extcall_table.take().unwrap();
         let mut runtime = Runtime::new(1024 * 1024, program, extcall_table);
         runtime.exec(print_stacks, print_memory_store).unwrap();
 
@@ -820,7 +819,7 @@ mod tests {
                 compiler
                     .compile_with_input(format!("fun main() {{ return {}; }}", input))
                     .unwrap();
-                compiler.exec_vm(false, false, HashMap::new()).unwrap();
+                compiler.exec_vm(false, false).unwrap();
 
                 let runtime = compiler.result_runtime.as_mut().unwrap();
                 assert_eq!(
@@ -864,7 +863,7 @@ mod tests {
                 compiler
                     .compile_with_input(format!("fun main() {{ return {}; }}", input))
                     .unwrap();
-                compiler.exec_vm(false, false, HashMap::new()).unwrap();
+                compiler.exec_vm(false, false).unwrap();
 
                 let runtime = compiler.result_runtime.as_mut().unwrap();
                 assert_eq!(
@@ -1178,7 +1177,7 @@ mod tests {
                 compiler.link()?;
                 compiler.byte_code_gen()?;
 
-                compiler.run_vm(false, false, HashMap::new()).unwrap();
+                compiler.run_vm(false, false).unwrap();
                 let actual = compiler.result_runtime.as_mut().unwrap().pop_i64();
                 assert_eq!(actual, expected, "input: {}", input);
 
@@ -1214,10 +1213,9 @@ mod tests {
 
                 compiler.ir_code_gen(main.clone(), false)?;
                 compiler.vm_code_gen()?;
-                let table = compiler.result_vm.as_ref().unwrap().extcall_table.clone();
                 compiler.link()?;
                 compiler.byte_code_gen()?;
-                compiler.run_vm_with_io_trap(false, stdout.clone(), table)?;
+                compiler.run_vm_with_io_trap(false, stdout.clone())?;
 
                 let result = compiler.result_runtime.as_mut().unwrap().pop_i64();
 

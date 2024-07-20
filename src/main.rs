@@ -158,8 +158,6 @@ async fn main() -> Result<()> {
                 eprintln!("Wrote to {}", file_path);
             }
 
-            let table = vm.extcall_table.clone();
-
             measure_time!("Linked: {}ms", { compiler.link()? });
             if let Some(file_path) = emit_linked_vm {
                 let mut file = std::fs::File::create(file_path.clone())?;
@@ -193,7 +191,7 @@ async fn main() -> Result<()> {
             }
 
             measure_time!("Executed: {}ms", {
-                compiler.run_vm(print_stacks, print_memory_store, table)?
+                compiler.run_vm(print_stacks, print_memory_store)?
             });
             let result = compiler.result_runtime.as_mut().unwrap().pop_i64();
             println!("result: {:?}", Value::from_u64(result as u64));
@@ -226,11 +224,10 @@ async fn main() -> Result<()> {
             compiler.typecheck(main.clone())?;
             compiler.ir_code_gen(main.clone(), true)?;
             compiler.vm_code_gen()?;
-            let table = compiler.result_vm.as_ref().unwrap().extcall_table.clone();
             compiler.link()?;
             compiler.emit_byte_code()?;
 
-            compiler.run_vm(false, false, table)?;
+            compiler.run_vm(false, false)?;
             let result = compiler.result_runtime.as_mut().unwrap().pop_i64();
             println!("result: {:?}", Value::from_u64(result as u64));
         }
