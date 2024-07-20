@@ -84,6 +84,7 @@ enum Numeric {
 enum Matcher {
     Exact(&'static str),
     Until(char),
+    WhileDigit,
 }
 
 impl Lexer {
@@ -114,6 +115,14 @@ impl Lexer {
             Matcher::Until(c) => {
                 let mut count = 0;
                 while count < chars.len() && chars[count] != c {
+                    count += 1;
+                }
+
+                count
+            }
+            Matcher::WhileDigit => {
+                let mut count = 0;
+                while count < chars.len() && chars[count].is_ascii_digit() {
                     count += 1;
                 }
 
@@ -164,37 +173,35 @@ impl Lexer {
     }
 
     fn consume_numeric(&mut self, chars: &Vec<char>) -> Option<Numeric> {
-        let mut s = String::new();
-        while self.position < chars.len() && chars[self.position].is_ascii_digit() {
-            s.push(chars[self.position]);
-            self.position += 1;
-        }
+        let start = self.position;
 
-        if s.is_empty() {
+        let c = Self::consumes(&chars[self.position..], Matcher::WhileDigit);
+        self.position += c;
+        if c == 0 {
             return None;
         }
 
-        if self.position < chars.len() && chars[self.position] == '.' {
-            s.push(chars[self.position]);
-            self.position += 1;
-
-            while self.position < chars.len() && chars[self.position].is_ascii_digit() {
-                s.push(chars[self.position]);
-                self.position += 1;
-            }
-
+        let dot = Self::consumes(&chars[self.position..], Matcher::Exact("."));
+        self.position += dot;
+        if dot == 0 {
+            Some(Numeric::Integer(
+                self.input[start..self.position].parse().unwrap(),
+            ))
+        } else {
+            let c = Self::consumes(&chars[self.position..], Matcher::WhileDigit);
+            self.position += c;
             // If the number ends with a dot, it's not a valid float
             // e.g. 0..n should be parsed as 0, .., n
-            if s.ends_with('.') {
+            if c == 0 {
                 self.position -= 1;
-                s.pop();
 
-                return Some(Numeric::Integer(s.parse().unwrap()));
+                return Some(Numeric::Integer(
+                    self.input[start..self.position].parse().unwrap(),
+                ));
             }
 
-            Some(Numeric::Float(s.parse().unwrap()))
-        } else {
-            Some(Numeric::Integer(s.parse().unwrap()))
+            let end = self.position;
+            Some(Numeric::Float(self.input[start..end].parse().unwrap()))
         }
     }
 
@@ -400,6 +407,14 @@ mod tests {
             ),
             ("3.14", vec![Lexeme::Float(3.14)]),
             ("128", vec![Lexeme::Integer(128)]),
+            (
+                "0..n",
+                vec![
+                    Lexeme::Integer(0),
+                    Lexeme::DoubleDot,
+                    Lexeme::Ident("n".to_string()),
+                ],
+            ),
         ];
 
         for (input, expected) in cases {
