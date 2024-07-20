@@ -108,18 +108,57 @@ impl Lexer {
         }
     }
 
+    fn consume_line_comment(&mut self, chars: &Vec<char>) -> Option<String> {
+        if chars[self.position..].starts_with(&"//".chars().collect::<Vec<_>>()) {
+            let start_position = self.position;
+            self.position += 2;
+
+            while self.position < chars.len() && chars[self.position] != '\n' {
+                self.position += 1;
+            }
+
+            let end_position = self.position;
+
+            Some(self.input[start_position..end_position].to_string())
+        } else {
+            None
+        }
+    }
+
+    fn consume_string(&mut self, chars: &Vec<char>) -> Option<String> {
+        if chars[self.position] == '"' {
+            let start_position = self.position;
+            self.position += 1;
+
+            while self.position < chars.len() && chars[self.position] != '"' {
+                self.position += 1;
+            }
+
+            let end_position = self.position;
+
+            if chars[self.position] == '"' {
+                self.position += 1;
+                Some(self.input[start_position..end_position].to_string())
+            } else {
+                None
+            }
+        } else {
+            None
+        }
+    }
+
     pub fn run(&mut self) -> Result<Vec<Token>, LexerError> {
         let mut tokens = vec![];
+        let chars = self.input.chars().collect::<Vec<char>>();
 
-        while self.position < self.input.len() {
-            if let Some(m) = SPACES.find(&self.input[self.position..]) {
-                self.position += m.end();
+        while self.position < chars.len() {
+            if chars[self.position].is_whitespace() {
+                self.position += 1;
                 continue;
             }
 
-            if let Some(m) = COMMENT.find(&self.input[self.position..]) {
-                tokens.push(self.new_token(Lexeme::Comment(m.as_str().to_string()), m.end()));
-                self.position += m.end();
+            if let Some(comment) = self.consume_line_comment(&chars) {
+                tokens.push(self.new_token(Lexeme::Comment(comment.clone()), comment.len()));
                 continue;
             }
 
@@ -129,15 +168,10 @@ impl Lexer {
                 continue;
             }
 
-            if let Some(m) = STRING.find(&self.input[self.position..]) {
-                let lexeme = Lexeme::String(
-                    m.as_str()
-                        .trim_matches('"')
-                        .replace("\\n", "\n")
-                        .to_string(),
-                );
-                tokens.push(self.new_token(lexeme, m.end()));
-                self.position += m.end();
+            if let Some(string) = self.consume_string(&chars) {
+                let lexeme =
+                    Lexeme::String(string.trim_matches('"').replace("\\n", "\n").to_string());
+                tokens.push(self.new_token(lexeme, self.position));
                 continue;
             }
 
@@ -280,6 +314,14 @@ mod tests {
                     Lexeme::Semicolon,
                     Lexeme::RBrace,
                 ],
+            ),
+            (
+                r#""A string""#,
+                vec![Lexeme::String("A string".to_string())],
+            ),
+            (
+                "\"A string\\nnewline\"",
+                vec![Lexeme::String("A string\nnewline".to_string())],
             ),
         ];
 
