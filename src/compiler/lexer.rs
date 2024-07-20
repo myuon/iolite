@@ -87,6 +87,11 @@ const FLOAT: Lazy<Regex> = Lazy::new(|| Regex::new(r"^[0-9]+\.[0-9]+").unwrap())
 const INTEGER: Lazy<Regex> = Lazy::new(|| Regex::new(r"^[0-9]+").unwrap());
 const COMMENT: Lazy<Regex> = Lazy::new(|| Regex::new(r"^//.*").unwrap());
 
+enum Numeric {
+    Integer(i32),
+    Float(f32),
+}
+
 impl Lexer {
     pub fn new(module_name: String, input: String) -> Self {
         Self {
@@ -147,6 +152,41 @@ impl Lexer {
         }
     }
 
+    fn consume_numeric(&mut self, chars: &Vec<char>) -> Option<Numeric> {
+        let mut s = String::new();
+        while self.position < chars.len() && chars[self.position].is_ascii_digit() {
+            s.push(chars[self.position]);
+            self.position += 1;
+        }
+
+        if s.is_empty() {
+            return None;
+        }
+
+        if self.position < chars.len() && chars[self.position] == '.' {
+            s.push(chars[self.position]);
+            self.position += 1;
+
+            while self.position < chars.len() && chars[self.position].is_ascii_digit() {
+                s.push(chars[self.position]);
+                self.position += 1;
+            }
+
+            // If the number ends with a dot, it's not a valid float
+            // e.g. 0..n should be parsed as 0, .., n
+            if s.ends_with('.') {
+                self.position -= 1;
+                s.pop();
+
+                return Some(Numeric::Integer(s.parse().unwrap()));
+            }
+
+            Some(Numeric::Float(s.parse().unwrap()))
+        } else {
+            Some(Numeric::Integer(s.parse().unwrap()))
+        }
+    }
+
     pub fn run(&mut self) -> Result<Vec<Token>, LexerError> {
         let mut tokens = vec![];
         let chars = self.input.chars().collect::<Vec<char>>();
@@ -171,22 +211,23 @@ impl Lexer {
             if let Some(string) = self.consume_string(&chars) {
                 let lexeme =
                     Lexeme::String(string.trim_matches('"').replace("\\n", "\n").to_string());
-                tokens.push(self.new_token(lexeme, self.position));
+                tokens.push(self.new_token(lexeme, 1));
                 continue;
             }
 
-            if let Some(m) = FLOAT.find(&self.input[self.position..]) {
-                let lexeme = Lexeme::Float(m.as_str().parse().unwrap());
-                tokens.push(self.new_token(lexeme, m.end()));
-                self.position += m.end();
-                continue;
-            }
-
-            if let Some(m) = INTEGER.find(&self.input[self.position..]) {
-                let lexeme = Lexeme::Integer(m.as_str().parse().unwrap());
-                tokens.push(self.new_token(lexeme, m.end()));
-                self.position += m.end();
-                continue;
+            if let Some(num) = self.consume_numeric(&chars) {
+                match num {
+                    Numeric::Integer(val) => {
+                        let lexeme = Lexeme::Integer(val);
+                        tokens.push(self.new_token(lexeme, 1));
+                        continue;
+                    }
+                    Numeric::Float(val) => {
+                        let lexeme = Lexeme::Float(val);
+                        tokens.push(self.new_token(lexeme, 1));
+                        continue;
+                    }
+                }
             }
 
             if let Some(m) = IDENT.find(&self.input[self.position..]) {
@@ -323,6 +364,8 @@ mod tests {
                 "\"A string\\nnewline\"",
                 vec![Lexeme::String("A string\nnewline".to_string())],
             ),
+            ("3.14", vec![Lexeme::Float(3.14)]),
+            ("128", vec![Lexeme::Integer(128)]),
         ];
 
         for (input, expected) in cases {
