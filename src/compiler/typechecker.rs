@@ -790,7 +790,7 @@ impl Typechecker {
                 params,
                 result,
                 body,
-                meta_tags,
+                meta_tags: _,
             } => {
                 let types_cloned = self.types.clone();
                 let mut param_types = vec![];

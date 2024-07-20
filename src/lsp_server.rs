@@ -21,13 +21,9 @@ use crate::{
     compiler::{
         self,
         ast::{
-            AstWalker, AstWalkerMode, Span, AST_WALKER_FIELD, AST_WALKER_FUNCTION,
-            AST_WALKER_KEYWORD, AST_WALKER_METHOD, AST_WALKER_NAMESPACE, AST_WALKER_TYPE,
+            AstWalker, AstWalkerMode, AST_WALKER_FIELD, AST_WALKER_FUNCTION, AST_WALKER_KEYWORD,
+            AST_WALKER_METHOD, AST_WALKER_NAMESPACE, AST_WALKER_TYPE,
         },
-        lexer::LexerError,
-        parser::ParseError,
-        typechecker::TypecheckerError,
-        CompilerError,
     },
     utils::{
         lsp::{server::LspServer, NotificationMessage, RpcMessageRequest, RpcMessageResponse},

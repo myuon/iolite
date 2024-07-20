@@ -1,5 +1,3 @@
-use std::collections::HashMap;
-
 use proptest::prelude::*;
 
 use super::ast::Span;
