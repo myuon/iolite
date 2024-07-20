@@ -63,6 +63,12 @@ pub struct LoadedModule {
     pub parsed_order: usize,
 }
 
+#[derive(Default)]
+pub struct CompileOptions {
+    pub no_emit: bool,
+    pub testing_mode: bool,
+}
+
 pub struct Compiler {
     pub cwd: String,
     pub modules: HashMap<String, LoadedModule>,
@@ -582,16 +588,17 @@ impl Compiler {
         &mut self,
         path: Option<String>,
         input: String,
-        no_emit: bool,
+        options: CompileOptions,
     ) -> Result<(), CompilerError> {
         let path = path.unwrap_or("main".to_string());
 
         self.parse_with_code(path.clone(), input.clone()).unwrap();
         self.typecheck(path.clone())?;
-        if no_emit {
+        if options.no_emit {
             return Ok(());
         }
-        self.ir_code_gen(path.clone(), false).unwrap();
+        self.ir_code_gen(path.clone(), options.testing_mode)
+            .unwrap();
         self.vm_code_gen()?;
         self.link()?;
         self.byte_code_gen()?;
@@ -659,7 +666,13 @@ mod tests {
             .try_for_each(|(input, expected)| -> Result<_> {
                 let mut compiler = Compiler::new();
 
-                compiler.compile(None, format!("fun main() {{ return {}; }}", input), false)?;
+                compiler.compile(
+                    None,
+                    format!("fun main() {{ return {}; }}", input),
+                    CompileOptions {
+                        ..Default::default()
+                    },
+                )?;
                 compiler.execute(false, false, None)?;
 
                 let actual = compiler.pop_executed_result()?;
@@ -689,7 +702,13 @@ mod tests {
                 let mut compiler = Compiler::new();
 
                 compiler
-                    .compile(None, format!("fun main() {{ return {}; }}", input), false)
+                    .compile(
+                        None,
+                        format!("fun main() {{ return {}; }}", input),
+                        CompileOptions {
+                            ..Default::default()
+                        },
+                    )
                     .unwrap();
                 compiler.execute(false, false, None).unwrap();
 
@@ -732,9 +751,13 @@ mod tests {
             .try_for_each(|(input, expected)| -> Result<_> {
                 let mut compiler = Compiler::new();
 
-                compiler
-                    .compile(None, format!("fun main() {{ return {}; }}", input), false)
-                    .unwrap();
+                compiler.compile(
+                    None,
+                    format!("fun main() {{ return {}; }}", input),
+                    CompileOptions {
+                        ..Default::default()
+                    },
+                )?;
                 compiler.execute(false, false, None).unwrap();
 
                 let runtime = compiler.result_runtime.as_mut().unwrap();

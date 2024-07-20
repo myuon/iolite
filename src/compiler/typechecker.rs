@@ -950,7 +950,7 @@ impl Typechecker {
 
 #[cfg(test)]
 mod tests {
-    use crate::compiler::{Compiler, CompilerError};
+    use crate::compiler::{CompileOptions, Compiler, CompilerError};
 
     use anyhow::Result;
     use rayon::prelude::*;
@@ -996,7 +996,14 @@ mod tests {
             .try_for_each(|(input, error)| -> Result<_> {
                 let mut compiler = Compiler::new();
 
-                let result = compiler.compile(None, input.to_string(), true);
+                let result = compiler.compile(
+                    None,
+                    input.to_string(),
+                    CompileOptions {
+                        no_emit: true,
+                        ..Default::default()
+                    },
+                );
 
                 match result.err() {
                     Some(CompilerError::TypecheckError(err)) => {

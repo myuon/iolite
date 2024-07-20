@@ -5,7 +5,7 @@ use std::{
 
 use anyhow::{anyhow, bail, Result};
 use clap::{Parser, Subcommand};
-use compiler::runtime::Runtime;
+use compiler::{runtime::Runtime, CompileOptions};
 use dap_server::{DapContext, DapImpl};
 use lsp_server::LspImpl;
 use utils::{dap::server::Dap, lsp::server::Lsp, server_process::ServerProcess};
@@ -220,12 +220,14 @@ async fn main() -> Result<()> {
 
             let main = "std".to_string();
 
-            compiler.parse_with_code(main.clone(), source_code)?;
-            compiler.typecheck(main.clone())?;
-            compiler.ir_code_gen(main.clone(), true)?;
-            compiler.vm_code_gen()?;
-            compiler.link()?;
-            compiler.byte_code_gen()?;
+            compiler.compile(
+                Some(main),
+                source_code,
+                CompileOptions {
+                    testing_mode: true,
+                    ..Default::default()
+                },
+            )?;
             compiler.execute(false, false, None)?;
             let result = compiler.result_runtime.as_mut().unwrap().pop_i64();
             println!("result: {:?}", Value::from_u64(result as u64));
