@@ -70,6 +70,17 @@ impl PartialEq for TypecheckerError {
     }
 }
 
+impl TypecheckerError {
+    pub fn as_span(&self) -> Span {
+        match self {
+            TypecheckerError::IdentNotFound(source) => source.span.clone(),
+            TypecheckerError::TypeMismatch { span, .. }
+            | TypecheckerError::ArgumentCountMismatch(span, ..) => span.clone(),
+            _ => Span::unknown(),
+        }
+    }
+}
+
 #[derive(Debug, Clone)]
 struct SearchDefinition {
     position: usize,

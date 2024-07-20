@@ -1,6 +1,6 @@
 use thiserror::Error;
 
-use super::ast::Span;
+use super::ast::{Source, Span};
 
 enum Matcher {
     Exact(&'static str),
@@ -119,8 +119,16 @@ pub struct Token {
 
 #[derive(Debug, PartialEq, Clone, Error)]
 pub enum LexerError {
-    #[error("invalid character: {0}")]
-    InvalidCharacter(char, usize),
+    #[error("invalid character: {0:?}")]
+    InvalidCharacter(Source<char>),
+}
+
+impl LexerError {
+    pub fn as_span(&self) -> Span {
+        match self {
+            LexerError::InvalidCharacter(source) => source.span.clone(),
+        }
+    }
 }
 
 pub struct Lexer {
@@ -295,10 +303,12 @@ impl Lexer {
                 continue;
             }
 
-            return Err(LexerError::InvalidCharacter(
+            return Err(LexerError::InvalidCharacter(Source::new_span(
                 chars[self.position],
-                self.position,
-            ));
+                self.module_name.clone(),
+                Some(self.position),
+                Some(self.position + 1),
+            )));
         }
 
         Ok(tokens)

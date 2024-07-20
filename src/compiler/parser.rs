@@ -32,6 +32,17 @@ pub enum ParseError {
     MetaTagNotSupported(Source<String>),
 }
 
+impl ParseError {
+    pub fn as_span(&self) -> Span {
+        match self {
+            ParseError::UnexpectedEos => Span::unknown(),
+            ParseError::UnexpectedToken { got, .. } => got.span.clone(),
+            ParseError::TodoForExpr(expr) => expr.span.clone(),
+            ParseError::MetaTagNotSupported(tag) => tag.span.clone(),
+        }
+    }
+}
+
 impl Parser {
     pub fn new(module_name: String, tokens: Vec<Token>) -> Self {
         Self {

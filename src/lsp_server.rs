@@ -231,31 +231,8 @@ async fn lsp_handler(
                         .await?;
                 }
                 Err(err) => {
-                    let message = format!("{:?}", err);
-                    let span = match err.downcast::<CompilerError>() {
-                        Ok(CompilerError::LexerError(err)) => match err {
-                            LexerError::InvalidCharacter(_, pos) => {
-                                Span::span(path.clone(), pos, pos + 1)
-                            }
-                        },
-                        Ok(CompilerError::ParseError(err)) => match err {
-                            ParseError::UnexpectedEos => Span::unknown(),
-                            ParseError::UnexpectedToken { got, .. } => got.span,
-                            ParseError::TodoForExpr(expr) => expr.span,
-                            ParseError::MetaTagNotSupported(tag) => tag.span,
-                        },
-                        Ok(CompilerError::TypecheckError(err)) => match err {
-                            TypecheckerError::IdentNotFound(ident) => ident.span,
-                            TypecheckerError::TypeMismatch { span, .. } => span,
-                            TypecheckerError::NumericTypeExpected(_) => Span::unknown(),
-                            TypecheckerError::ArgumentCountMismatch(span, _, _) => span,
-                            TypecheckerError::FunctionTypeExpected(_) => Span::unknown(),
-                            TypecheckerError::IndexNotSupported(_) => Span::unknown(),
-                            TypecheckerError::ConversionNotSupported(_, ty) => ty.span,
-                            TypecheckerError::ReturnExpected => Span::unknown(),
-                        },
-                        err => todo!("{:?}", err),
-                    };
+                    let message = format!("{}", err);
+                    let span = err.as_span();
                     let range = compiler.find_span(&span)?;
                     let (start, end) = range.unwrap();
 

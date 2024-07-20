@@ -366,7 +366,7 @@ async fn dap_handler(
             }))
         }
         Command::SetBreakpoints(arg) => {
-            let std_content = compiler::Compiler::create_input(String::new());
+            let std_content = format!("{}\n{}", include_str!("./compiler/std.io"), String::new());
             let std_content_len = std_content.len();
 
             let mut runtime = ctx.0.lock().unwrap();

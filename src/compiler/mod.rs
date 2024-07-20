@@ -53,6 +53,19 @@ pub enum CompilerError {
     LinkerError(#[from] LinkerError),
     #[error("Byte code emitter error: {0}")]
     ByteCodeEmitterError(#[from] ByteCodeEmitterError),
+    #[error("IO error: {0}")]
+    IoError(#[from] std::io::Error),
+}
+
+impl CompilerError {
+    pub fn as_span(&self) -> Span {
+        match self {
+            CompilerError::LexerError(err) => err.as_span(),
+            CompilerError::ParseError(err) => err.as_span(),
+            CompilerError::TypecheckError(err) => err.as_span(),
+            _ => Span::unknown(),
+        }
+    }
 }
 
 #[derive(Debug, Clone)]
@@ -185,34 +198,18 @@ impl Compiler {
     pub fn parse_module(input: String) -> Result<Module, CompilerError> {
         let decls = Self::parse_decls(input.clone())?;
 
-        Ok(Self::create_module(decls))
+        Ok(Module {
+            name: "main".to_string(),
+            declarations: decls,
+        })
     }
 
     pub fn parse_decls(input: String) -> Result<Vec<Source<Declaration>>, CompilerError> {
         let mut lexer = lexer::Lexer::new("".to_string(), input.clone());
         let mut parser = parser::Parser::new("".to_string(), lexer.run()?);
-        let expr = match parser.decls(None) {
-            Ok(expr) => expr,
-            Err(err) => {
-                match err.clone() {
-                    ParseError::UnexpectedToken { got, .. } => {
-                        let (line, col) =
-                            Self::find_position_with_input(&input, got.span.start.unwrap_or(0));
-
-                        eprintln!(
-                            "Error at line {}, column {}\n\n{}\n{}^",
-                            line,
-                            col,
-                            input.lines().collect::<Vec<_>>().join(" "),
-                            " ".repeat(got.span.start.unwrap_or(0))
-                        );
-                    }
-                    _ => {}
-                }
-
-                return Err(CompilerError::ParseError(err));
-            }
-        };
+        let expr = parser.decls(None).inspect_err(|err| {
+            Self::report_error_span(&input, &err.as_span());
+        })?;
 
         Ok(expr)
     }
@@ -234,7 +231,7 @@ impl Compiler {
         ]
     }
 
-    pub fn parse_with_code(&mut self, path: String, source: String) -> Result<()> {
+    pub fn parse_with_code(&mut self, path: String, source: String) -> Result<(), CompilerError> {
         self.modules.insert(
             path.clone(),
             LoadedModule {
@@ -252,39 +249,14 @@ impl Compiler {
         } else {
             vec![]
         };
-        tokens.extend(match lexer.run() {
-            Ok(tokens) => tokens,
-            Err(err) => {
-                let position = match err {
-                    LexerError::InvalidCharacter(_, position) => position,
-                };
-                let (line, col) =
-                    Self::find_position_with_input(&self.modules[&path].source, position);
-
-                eprintln!("Error in {} at line {}, column {}", path, line, col);
-
-                return Err(CompilerError::LexerError(err).into());
-            }
-        });
+        tokens.extend(lexer.run().inspect_err(|err| {
+            Self::report_error_span(&self.modules[&path].source, &err.as_span());
+        })?);
 
         let mut parser = parser::Parser::new(path.clone(), tokens);
-        let decls = match parser.decls(None) {
-            Ok(decls) => decls,
-            Err(err) => {
-                let position = match &err {
-                    ParseError::UnexpectedToken { got, .. } => got.span.start.unwrap_or(0),
-                    ParseError::TodoForExpr(source) => source.span.start.unwrap_or(0),
-                    ParseError::UnexpectedEos => 0,
-                    ParseError::MetaTagNotSupported(tag) => tag.span.start.unwrap_or(0),
-                };
-                let (line, col) =
-                    Self::find_position_with_input(&self.modules[&path].source, position);
-
-                eprintln!("Error in {} at line {}, column {}", path, line, col);
-
-                return Err(CompilerError::ParseError(err).into());
-            }
-        };
+        let decls = parser.decls(None).inspect_err(|err| {
+            Self::report_error_span(&self.modules[&path].source, &err.as_span());
+        })?;
         let module = Module {
             name: path.clone(),
             declarations: decls,
@@ -305,13 +277,12 @@ impl Compiler {
         Ok(())
     }
 
-    pub fn parse(&mut self, path: String) -> Result<()> {
+    pub fn parse(&mut self, path: String) -> Result<(), CompilerError> {
         let source = if path == "std" {
             include_str!("./std.io").to_string()
         } else {
             let file_path = format!("{}/{}.io", self.cwd, path);
-            std::fs::read_to_string(&file_path)
-                .map_err(|err| anyhow!("Failed to read file {}.io: {}", file_path, err))?
+            std::fs::read_to_string(&file_path)?
         };
 
         self.parse_with_code(path, source)?;
@@ -355,12 +326,7 @@ impl Compiler {
         let mut typechecker = typechecker::Typechecker::new();
         for path in paths {
             let module = self.modules.get_mut(&path).unwrap();
-
-            Self::typecheck_method(
-                &mut typechecker,
-                &mut module.module.as_mut().unwrap(),
-                &module.source,
-            )?;
+            Self::typecheck_method(&mut typechecker, module)?;
         }
 
         self.result_typecheck = Some(typechecker.types);
@@ -380,11 +346,7 @@ impl Compiler {
                     .inlay_hints(&mut module.module.as_mut().unwrap())
                     .unwrap_or(vec![]));
             } else {
-                Self::typecheck_method(
-                    &mut typechecker,
-                    &mut module.module.as_mut().unwrap(),
-                    &module.source,
-                )?;
+                Self::typecheck_method(&mut typechecker, module)?;
             }
         }
 
@@ -432,47 +394,29 @@ impl Compiler {
 
     fn typecheck_method(
         typechecker: &mut typechecker::Typechecker,
-        module: &mut Module,
-        input: &str,
+        module: &mut LoadedModule,
     ) -> Result<(), CompilerError> {
-        match typechecker.module(module) {
-            Ok(_) => {}
-            Err(err) => {
-                match err.clone() {
-                    TypecheckerError::TypeMismatch { span, .. } if span.start.is_some() => {
-                        let (line, col) =
-                            Self::find_position_with_input(input, span.start.unwrap());
-                        eprintln!(
-                            "Error at line {}, column {} ({})",
-                            line,
-                            col,
-                            span.start.unwrap()
-                        );
-                        eprintln!(
-                            "{}\n{}^",
-                            input.lines().collect::<Vec<_>>().join("\n"),
-                            " ".repeat(col - 1)
-                        );
-                    }
-                    TypecheckerError::ArgumentCountMismatch(span, _, _) => {
-                        let (line, col) =
-                            Self::find_position_with_input(input, span.start.unwrap());
-                        eprintln!(
-                            "Error at module {}, line {}, column {} ({})",
-                            span.module_name.unwrap_or("<main>".to_string()),
-                            line,
-                            col,
-                            span.start.unwrap()
-                        );
-                    }
-                    _ => {}
-                }
+        Ok(typechecker
+            .module(module.module.as_mut().unwrap())
+            .inspect_err(|err| {
+                Self::report_error_span(&module.source, &err.as_span());
+            })?)
+    }
 
-                return Err(CompilerError::TypecheckError(err));
-            }
-        }
-
-        Ok(())
+    fn report_error_span(source: &str, span: &Span) {
+        let (line, col) = Self::find_position_with_input(source, span.start.unwrap());
+        eprintln!(
+            "Error at module {}, line {}, column {} ({})",
+            span.module_name.clone().unwrap_or("<main>".to_string()),
+            line,
+            col,
+            span.start.unwrap()
+        );
+        eprintln!(
+            "{}\n{}^",
+            source.lines().collect::<Vec<_>>().join("\n"),
+            " ".repeat(col - 1)
+        );
     }
 
     pub fn search_for_definition(&mut self, path: String, position: usize) -> Result<Option<Span>> {
@@ -505,11 +449,7 @@ impl Compiler {
                     typechecker.infer_type_at(&mut module.module.as_mut().unwrap(), position)
                 );
             } else {
-                Self::typecheck_method(
-                    &mut typechecker,
-                    &mut module.module.as_mut().unwrap(),
-                    &module.source,
-                )?;
+                Self::typecheck_method(&mut typechecker, module)?;
             }
         }
 
@@ -571,17 +511,6 @@ impl Compiler {
         self.result_link = Some(linked.clone());
 
         Ok(())
-    }
-
-    pub fn create_input(input: String) -> String {
-        format!("{}\n{}", include_str!("./std.io"), input)
-    }
-
-    pub fn create_module(decls: Vec<Source<Declaration>>) -> Module {
-        Module {
-            name: "main".to_string(),
-            declarations: decls,
-        }
     }
 
     pub fn compile(
