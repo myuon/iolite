@@ -267,23 +267,6 @@ impl Compiler {
         Ok(expr)
     }
 
-    fn tokens_import_std() -> Vec<Token> {
-        vec![
-            Token {
-                lexeme: Lexeme::Import,
-                span: Span::unknown(),
-            },
-            Token {
-                lexeme: Lexeme::Ident("std".to_string()),
-                span: Span::unknown(),
-            },
-            Token {
-                lexeme: Lexeme::Semicolon,
-                span: Span::unknown(),
-            },
-        ]
-    }
-
     pub fn parse_with_code(&mut self, path: String, source: String) -> Result<(), CompilerError> {
         self.modules.insert(
             path.clone(),
@@ -298,7 +281,20 @@ impl Compiler {
         let mut lexer = lexer::Lexer::new(path.clone(), source);
 
         let mut tokens = if path != "std" {
-            Self::tokens_import_std()
+            vec![
+                Token {
+                    lexeme: Lexeme::Import,
+                    span: Span::unknown(),
+                },
+                Token {
+                    lexeme: Lexeme::Ident("std".to_string()),
+                    span: Span::unknown(),
+                },
+                Token {
+                    lexeme: Lexeme::Semicolon,
+                    span: Span::unknown(),
+                },
+            ]
         } else {
             vec![]
         };
