@@ -2,6 +2,59 @@ use thiserror::Error;
 
 use super::ast::Span;
 
+enum Matcher {
+    Exact(&'static str),
+    Until(char),
+    WhileDigit,
+    IsAlphabetic,
+    WhileAlphaNumericWithUnderscore,
+}
+
+fn consumes(chars: &[char], matcher: Matcher) -> usize {
+    match matcher {
+        Matcher::Exact(token) => {
+            if chars.starts_with(&token.chars().collect::<Vec<_>>()) {
+                token.len()
+            } else {
+                0
+            }
+        }
+        Matcher::Until(c) => {
+            let mut count = 0;
+            while count < chars.len() && chars[count] != c {
+                count += 1;
+            }
+
+            count
+        }
+        Matcher::WhileDigit => {
+            let mut count = 0;
+            while count < chars.len() && chars[count].is_ascii_digit() {
+                count += 1;
+            }
+
+            count
+        }
+        Matcher::IsAlphabetic => {
+            if 0 < chars.len() && chars[0].is_alphabetic() {
+                1
+            } else {
+                0
+            }
+        }
+        Matcher::WhileAlphaNumericWithUnderscore => {
+            let mut count = 0;
+            while count < chars.len()
+                && (chars[count].is_alphanumeric() || "_".contains(chars[count]))
+            {
+                count += 1;
+            }
+
+            count
+        }
+    }
+}
+
 #[derive(Clone, Debug, PartialEq)]
 pub enum Lexeme {
     Let,
@@ -81,14 +134,6 @@ enum Numeric {
     Float(f32),
 }
 
-enum Matcher {
-    Exact(&'static str),
-    Until(char),
-    WhileDigit,
-    IsAlphabetic,
-    WhileAlphaNumericWithUnderscore,
-}
-
 impl Lexer {
     pub fn new(module_name: String, input: String) -> Self {
         Self {
@@ -105,61 +150,16 @@ impl Lexer {
         }
     }
 
-    fn consumes(chars: &[char], matcher: Matcher) -> usize {
-        match matcher {
-            Matcher::Exact(token) => {
-                if chars.starts_with(&token.chars().collect::<Vec<_>>()) {
-                    token.len()
-                } else {
-                    0
-                }
-            }
-            Matcher::Until(c) => {
-                let mut count = 0;
-                while count < chars.len() && chars[count] != c {
-                    count += 1;
-                }
-
-                count
-            }
-            Matcher::WhileDigit => {
-                let mut count = 0;
-                while count < chars.len() && chars[count].is_ascii_digit() {
-                    count += 1;
-                }
-
-                count
-            }
-            Matcher::IsAlphabetic => {
-                if 0 < chars.len() && chars[0].is_alphabetic() {
-                    1
-                } else {
-                    0
-                }
-            }
-            Matcher::WhileAlphaNumericWithUnderscore => {
-                let mut count = 0;
-                while count < chars.len()
-                    && (chars[count].is_alphanumeric() || "_".contains(chars[count]))
-                {
-                    count += 1;
-                }
-
-                count
-            }
-        }
-    }
-
     fn consume_line_comment(&mut self, chars: &Vec<char>) -> Option<String> {
         let start = self.position;
 
-        let c = Self::consumes(&chars[self.position..], Matcher::Exact("//"));
+        let c = consumes(&chars[self.position..], Matcher::Exact("//"));
         self.position += c;
         if c == 0 {
             return None;
         }
 
-        let c = Self::consumes(&chars[self.position..], Matcher::Until('\n'));
+        let c = consumes(&chars[self.position..], Matcher::Until('\n'));
         self.position += c;
 
         let end = self.position;
@@ -172,7 +172,7 @@ impl Lexer {
     }
 
     fn consume_string(&mut self, chars: &Vec<char>) -> Option<String> {
-        let c = Self::consumes(&chars[self.position..], Matcher::Exact("\""));
+        let c = consumes(&chars[self.position..], Matcher::Exact("\""));
         self.position += c;
         if c == 0 {
             return None;
@@ -180,10 +180,10 @@ impl Lexer {
 
         let start = self.position;
 
-        let c = Self::consumes(&chars[self.position..], Matcher::Until('"'));
+        let c = consumes(&chars[self.position..], Matcher::Until('"'));
         self.position += c;
 
-        let c = Self::consumes(&chars[self.position..], Matcher::Exact("\""));
+        let c = consumes(&chars[self.position..], Matcher::Exact("\""));
         self.position += c;
 
         let end = self.position;
@@ -194,20 +194,20 @@ impl Lexer {
     fn consume_numeric(&mut self, chars: &Vec<char>) -> Option<Numeric> {
         let start = self.position;
 
-        let c = Self::consumes(&chars[self.position..], Matcher::WhileDigit);
+        let c = consumes(&chars[self.position..], Matcher::WhileDigit);
         self.position += c;
         if c == 0 {
             return None;
         }
 
-        let dot = Self::consumes(&chars[self.position..], Matcher::Exact("."));
+        let dot = consumes(&chars[self.position..], Matcher::Exact("."));
         self.position += dot;
         if dot == 0 {
             Some(Numeric::Integer(
                 self.input[start..self.position].parse().unwrap(),
             ))
         } else {
-            let c = Self::consumes(&chars[self.position..], Matcher::WhileDigit);
+            let c = consumes(&chars[self.position..], Matcher::WhileDigit);
             self.position += c;
             // If the number ends with a dot, it's not a valid float
             // e.g. 0..n should be parsed as 0, .., n
@@ -227,13 +227,13 @@ impl Lexer {
     fn consume_ident(&mut self, chars: &Vec<char>) -> Option<String> {
         let start = self.position;
 
-        let c = Self::consumes(&chars[self.position..], Matcher::IsAlphabetic);
+        let c = consumes(&chars[self.position..], Matcher::IsAlphabetic);
         self.position += c;
         if c == 0 {
             return None;
         }
 
-        let c = Self::consumes(
+        let c = consumes(
             &chars[self.position..],
             Matcher::WhileAlphaNumericWithUnderscore,
         );
