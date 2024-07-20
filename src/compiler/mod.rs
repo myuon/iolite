@@ -599,7 +599,6 @@ impl Compiler {
 
     pub fn compile_with_input(&mut self, input: String) -> Result<(), CompilerError> {
         let input = Self::create_input(input);
-
         self.compile_bundled(input)
     }
 
@@ -622,13 +621,6 @@ impl Compiler {
         Ok(())
     }
 
-    pub fn run_input(&mut self, input: String, print_stacks: bool) -> Result<i64, CompilerError> {
-        self.compile_with_input(input)?;
-        self.execute(print_stacks, false, None)?;
-
-        Ok(self.result_runtime.as_mut().unwrap().pop_i64())
-    }
-
     pub fn execute(
         &mut self,
         print_stacks: bool,
@@ -646,6 +638,10 @@ impl Compiler {
         self.result_runtime = Some(runtime);
 
         Ok(())
+    }
+
+    pub fn pop_executed_result(&mut self) -> Result<i64, CompilerError> {
+        Ok(self.result_runtime.as_mut().unwrap().pop_i64())
     }
 }
 
@@ -685,8 +681,10 @@ mod tests {
             .try_for_each(|(input, expected)| -> Result<_> {
                 let mut compiler = Compiler::new();
 
-                let actual =
-                    compiler.run_input(format!("fun main() {{ return {}; }}", input), false)?;
+                compiler.compile_with_input(format!("fun main() {{ return {}; }}", input))?;
+                compiler.execute(false, false, None)?;
+
+                let actual = compiler.pop_executed_result()?;
                 let value = Value::from_u64(actual as u64);
                 assert_eq!(value, Value::Int(expected), "input: {}", input);
 
