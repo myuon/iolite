@@ -1,6 +1,7 @@
 use std::{
     collections::HashMap,
     io::BufWriter,
+    rc::Rc,
     sync::{Arc, Mutex},
 };
 
@@ -65,7 +66,7 @@ pub struct LoadedModule {
 pub struct Compiler {
     pub cwd: String,
     pub modules: HashMap<String, LoadedModule>,
-    pub types: TypeMap,
+    pub result_typecheck: Option<TypeMap>,
     pub result_ir: Option<IrProgram>,
     pub result_vm: Option<VmProgram>,
     pub result_link: Option<Vec<Instruction>>,
@@ -79,7 +80,7 @@ impl Compiler {
         Self {
             cwd: "".to_string(),
             modules: HashMap::new(),
-            types: TypeMap::new(),
+            result_typecheck: None,
             result_ir: None,
             result_vm: None,
             result_link: None,
@@ -359,7 +360,7 @@ impl Compiler {
             )?;
         }
 
-        self.types = typechecker.types;
+        self.result_typecheck = Some(typechecker.types);
 
         Ok(())
     }
@@ -392,12 +393,14 @@ impl Compiler {
         let mut modules = vec![];
         let mut declared = vec![];
 
+        let typemap = Rc::new(self.result_typecheck.clone().unwrap());
+
         for path in paths {
             let mut ir_code_gen = ir_code_gen::IrCodeGenerator::new();
             if testing_mode {
                 ir_code_gen.enable_testing_mode();
             }
-            ir_code_gen.set_types(self.types.clone());
+            ir_code_gen.set_types(typemap.clone());
             ir_code_gen.set_declared(declared.clone());
 
             let module = self.modules.get_mut(&path).unwrap();
@@ -650,7 +653,8 @@ impl Compiler {
         self.typecheck(path.clone())?;
 
         let mut ir_code_gen = ir_code_gen::IrCodeGenerator::new();
-        ir_code_gen.set_types(self.types.clone());
+        let typemap = self.result_typecheck.take().unwrap();
+        ir_code_gen.set_types(Rc::new(typemap));
 
         let ir = Self::ir_code_gen_module(&mut ir_code_gen, module.module.clone().unwrap())?;
         self.result_ir = Some(IrProgram { modules: vec![ir] });
@@ -667,7 +671,7 @@ impl Compiler {
         let types = Self::typecheck_module(&mut module, &input)?;
 
         let mut ir_code_gen = ir_code_gen::IrCodeGenerator::new();
-        ir_code_gen.set_types(types.clone());
+        ir_code_gen.set_types(Rc::new(types));
 
         let ir = Self::ir_code_gen_module(&mut ir_code_gen, module)?;
         self.result_ir = Some(IrProgram { modules: vec![ir] });
