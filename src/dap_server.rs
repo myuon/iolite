@@ -374,7 +374,7 @@ async fn dap_handler(
             let mut breakpoints = vec![];
             if let Some(bps) = &arg.breakpoints {
                 for bp in bps {
-                    let position = compiler::Compiler::find_line_and_column_with_input(
+                    let position = compiler::reporter::find_line_and_column_with_input(
                         &runtime.source_code,
                         bp.line as usize,
                         bp.column.unwrap_or(0) as usize,

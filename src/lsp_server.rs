@@ -158,7 +158,7 @@ async fn lsp_handler(
                 match (span.start, span.end) {
                     (Some(start), Some(end)) => {
                         let (line, col) =
-                            compiler::Compiler::find_position_with_input(&content, start);
+                            compiler::reporter::find_position_with_input(&content, start);
 
                         token_data.push(SemanticToken {
                             delta_line: (line - prev.0) as u32,

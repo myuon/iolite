@@ -37,6 +37,68 @@ pub mod typechecker;
 pub mod vm;
 pub mod vm_code_gen;
 
+pub mod reporter {
+    use super::ast::Span;
+
+    pub fn find_position_with_input(input: &str, position: usize) -> (usize, usize) {
+        let mut line = 0;
+        let mut col = 0;
+        for (i, c) in input.chars().enumerate() {
+            if i == position {
+                break;
+            }
+
+            if c == '\n' {
+                line += 1;
+                col = 0;
+            } else {
+                col += 1;
+            }
+        }
+
+        (line, col)
+    }
+
+    pub fn find_line_and_column_with_input(input: &str, line: usize, col: usize) -> usize {
+        let mut current_line = 0;
+        let mut current_col = 0;
+        let mut position = 0;
+
+        for c in input.chars() {
+            if current_line == line && current_col == col {
+                break;
+            }
+
+            if c == '\n' {
+                current_line += 1;
+                current_col = 0;
+            } else {
+                current_col += 1;
+            }
+
+            position += 1;
+        }
+
+        position
+    }
+
+    pub fn report_error_span(source: &str, span: &Span) {
+        let (line, col) = find_position_with_input(source, span.start.unwrap());
+        eprintln!(
+            "Error at module {}, line {}, column {} ({})",
+            span.module_name.clone().unwrap_or("<main>".to_string()),
+            line,
+            col,
+            span.start.unwrap()
+        );
+        eprintln!(
+            "{}\n{}^",
+            source.lines().collect::<Vec<_>>().join("\n"),
+            " ".repeat(col - 1)
+        );
+    }
+}
+
 #[derive(Debug, thiserror::Error)]
 pub enum CompilerError {
     #[error("Lexer error: {0}")]
@@ -113,32 +175,13 @@ impl Compiler {
         self.cwd = cwd;
     }
 
-    pub fn find_position_with_input(input: &str, position: usize) -> (usize, usize) {
-        let mut line = 0;
-        let mut col = 0;
-        for (i, c) in input.chars().enumerate() {
-            if i == position {
-                break;
-            }
-
-            if c == '\n' {
-                line += 1;
-                col = 0;
-            } else {
-                col += 1;
-            }
-        }
-
-        (line, col)
-    }
-
     pub fn find_position(&self, path: &str, position: usize) -> Result<(usize, usize)> {
         let module = self
             .modules
             .get(path)
             .ok_or_else(|| anyhow!("Module {} not found in the compiler", path))?;
 
-        Ok(Self::find_position_with_input(&module.source, position))
+        Ok(reporter::find_position_with_input(&module.source, position))
     }
 
     pub fn find_span(&self, span: &Span) -> Result<Option<((usize, usize), (usize, usize))>> {
@@ -150,36 +193,13 @@ impl Compiler {
 
         match (span.start, span.end) {
             (Some(start), Some(end)) => {
-                let start = Self::find_position_with_input(&module.source, start);
-                let end = Self::find_position_with_input(&module.source, end);
+                let start = reporter::find_position_with_input(&module.source, start);
+                let end = reporter::find_position_with_input(&module.source, end);
 
                 Ok(Some((start, end)))
             }
             _ => Ok(None),
         }
-    }
-
-    pub fn find_line_and_column_with_input(input: &str, line: usize, col: usize) -> usize {
-        let mut current_line = 0;
-        let mut current_col = 0;
-        let mut position = 0;
-
-        for c in input.chars() {
-            if current_line == line && current_col == col {
-                break;
-            }
-
-            if c == '\n' {
-                current_line += 1;
-                current_col = 0;
-            } else {
-                current_col += 1;
-            }
-
-            position += 1;
-        }
-
-        position
     }
 
     pub fn find_line_and_column(&self, path: &str, line: usize, col: usize) -> Result<usize> {
@@ -188,11 +208,40 @@ impl Compiler {
             .get(path)
             .ok_or_else(|| anyhow!("Module {} not found in the compiler", path))?;
 
-        Ok(Self::find_line_and_column_with_input(
+        Ok(reporter::find_line_and_column_with_input(
             &module.source,
             line,
             col,
         ))
+    }
+
+    fn lexer_run_reported(
+        lexer: &mut lexer::Lexer,
+        module: &mut LoadedModule,
+    ) -> Result<Vec<Token>, CompilerError> {
+        Ok(lexer.run().inspect_err(|err| {
+            reporter::report_error_span(&module.source, &err.as_span());
+        })?)
+    }
+
+    fn parse_decls_reported(
+        parser: &mut parser::Parser,
+        input: &str,
+    ) -> Result<Vec<Source<Declaration>>, CompilerError> {
+        Ok(parser.decls(None).inspect_err(|err| {
+            reporter::report_error_span(&input, &err.as_span());
+        })?)
+    }
+
+    fn typecheck_module_reported(
+        typechecker: &mut typechecker::Typechecker,
+        module: &mut LoadedModule,
+    ) -> Result<(), CompilerError> {
+        Ok(typechecker
+            .module(module.module.as_mut().unwrap())
+            .inspect_err(|err| {
+                reporter::report_error_span(&module.source, &err.as_span());
+            })?)
     }
 
     pub fn parse_module(input: String) -> Result<Module, CompilerError> {
@@ -207,9 +256,7 @@ impl Compiler {
     pub fn parse_decls(input: String) -> Result<Vec<Source<Declaration>>, CompilerError> {
         let mut lexer = lexer::Lexer::new("".to_string(), input.clone());
         let mut parser = parser::Parser::new("".to_string(), lexer.run()?);
-        let expr = parser.decls(None).inspect_err(|err| {
-            Self::report_error_span(&input, &err.as_span());
-        })?;
+        let expr = Self::parse_decls_reported(&mut parser, &input)?;
 
         Ok(expr)
     }
@@ -249,14 +296,14 @@ impl Compiler {
         } else {
             vec![]
         };
-        tokens.extend(lexer.run().inspect_err(|err| {
-            Self::report_error_span(&self.modules[&path].source, &err.as_span());
-        })?);
+        tokens.extend(Self::lexer_run_reported(
+            &mut lexer,
+            self.modules.get_mut(&path).unwrap(),
+        )?);
 
         let mut parser = parser::Parser::new(path.clone(), tokens);
-        let decls = parser.decls(None).inspect_err(|err| {
-            Self::report_error_span(&self.modules[&path].source, &err.as_span());
-        })?;
+        let decls =
+            Self::parse_decls_reported(&mut parser, &self.modules.get_mut(&path).unwrap().source)?;
         let module = Module {
             name: path.clone(),
             declarations: decls,
@@ -326,7 +373,7 @@ impl Compiler {
         let mut typechecker = typechecker::Typechecker::new();
         for path in paths {
             let module = self.modules.get_mut(&path).unwrap();
-            Self::typecheck_method(&mut typechecker, module)?;
+            Self::typecheck_module_reported(&mut typechecker, module)?;
         }
 
         self.result_typecheck = Some(typechecker.types);
@@ -346,7 +393,7 @@ impl Compiler {
                     .inlay_hints(&mut module.module.as_mut().unwrap())
                     .unwrap_or(vec![]));
             } else {
-                Self::typecheck_method(&mut typechecker, module)?;
+                Self::typecheck_module_reported(&mut typechecker, module)?;
             }
         }
 
@@ -392,33 +439,6 @@ impl Compiler {
         Ok(())
     }
 
-    fn typecheck_method(
-        typechecker: &mut typechecker::Typechecker,
-        module: &mut LoadedModule,
-    ) -> Result<(), CompilerError> {
-        Ok(typechecker
-            .module(module.module.as_mut().unwrap())
-            .inspect_err(|err| {
-                Self::report_error_span(&module.source, &err.as_span());
-            })?)
-    }
-
-    fn report_error_span(source: &str, span: &Span) {
-        let (line, col) = Self::find_position_with_input(source, span.start.unwrap());
-        eprintln!(
-            "Error at module {}, line {}, column {} ({})",
-            span.module_name.clone().unwrap_or("<main>".to_string()),
-            line,
-            col,
-            span.start.unwrap()
-        );
-        eprintln!(
-            "{}\n{}^",
-            source.lines().collect::<Vec<_>>().join("\n"),
-            " ".repeat(col - 1)
-        );
-    }
-
     pub fn search_for_definition(&mut self, path: String, position: usize) -> Result<Option<Span>> {
         let mut typechecker = typechecker::Typechecker::new();
 
@@ -449,7 +469,7 @@ impl Compiler {
                     typechecker.infer_type_at(&mut module.module.as_mut().unwrap(), position)
                 );
             } else {
-                Self::typecheck_method(&mut typechecker, module)?;
+                Self::typecheck_module_reported(&mut typechecker, module)?;
             }
         }
 
