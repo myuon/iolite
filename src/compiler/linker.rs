@@ -21,11 +21,15 @@ pub enum LinkerError {
 #[derive(Debug)]
 pub struct Linker {
     pub(crate) trap_stderr: Option<Arc<Mutex<BufWriter<Vec<u8>>>>>,
+    pub(crate) verbose: bool,
 }
 
 impl Linker {
-    pub fn new() -> Self {
-        Linker { trap_stderr: None }
+    pub fn new(verbose: bool) -> Self {
+        Linker {
+            trap_stderr: None,
+            verbose,
+        }
     }
 
     pub fn trap_stdout(&mut self, trap_stderr: Arc<Mutex<BufWriter<Vec<u8>>>>) {
@@ -87,12 +91,14 @@ impl Linker {
         code.push(Instruction::JumpTo("main".to_string()));
 
         for module in vm.modules {
-            let data = format!("Linking module: {}\n", module.name);
-            match self.trap_stderr.clone() {
-                Some(buf) => buf.lock().unwrap().write(data.as_bytes()),
-                None => stderr().write(data.as_bytes()),
+            if self.verbose {
+                let data = format!("Linking module: {}\n", module.name);
+                match self.trap_stderr.clone() {
+                    Some(buf) => buf.lock().unwrap().write(data.as_bytes()),
+                    None => stderr().write(data.as_bytes()),
+                }
+                .unwrap();
             }
-            .unwrap();
 
             for inst in module.instructions {
                 match inst {

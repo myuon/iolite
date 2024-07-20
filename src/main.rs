@@ -45,6 +45,8 @@ enum CliCommands {
         emit_asm_labels: Option<String>,
         #[clap(long = "emit-asm")]
         emit_asm: Option<String>,
+        #[clap(long = "verbose", short = 'v')]
+        verbose: bool,
     },
     Test {
         file: Option<String>,
@@ -69,6 +71,7 @@ async fn main() -> Result<()> {
             emit_linked_vm,
             emit_asm_labels,
             emit_asm,
+            verbose,
         } => {
             let cwd = match file.clone() {
                 Some(file) => std::path::Path::new(&file)
@@ -102,22 +105,41 @@ async fn main() -> Result<()> {
 
             let main = "main".to_string();
 
-            measure_time!("Parsed: {}ms", {
-                compiler.parse_with_code(main.clone(), source_code.clone())?;
-            });
+            measure_time!(
+                "Parsed: {}ms",
+                {
+                    compiler.parse_with_code(main.clone(), source_code.clone())?;
+                },
+                verbose
+            );
 
-            measure_time!("Typechecked: {}ms", {
-                compiler.typecheck(main.clone())?;
-            });
+            measure_time!(
+                "Typechecked: {}ms",
+                {
+                    compiler.typecheck(main.clone())?;
+                },
+                verbose
+            );
 
-            measure_time!("IR generated: {}ms", {
-                compiler.ir_code_gen(main.clone(), false)?;
-                if let Some(file) = emit_ir {
-                    std::fs::write(file, format!("{:#?}", compiler.result_ir.as_ref().unwrap()))?;
-                }
-            });
+            measure_time!(
+                "IR generated: {}ms",
+                {
+                    compiler.ir_code_gen(main.clone(), false)?;
+                    if let Some(file) = emit_ir {
+                        std::fs::write(
+                            file,
+                            format!("{:#?}", compiler.result_ir.as_ref().unwrap()),
+                        )?;
+                    }
+                },
+                verbose
+            );
 
-            measure_time!("VM code generated: {}ms", { compiler.vm_code_gen()? });
+            measure_time!(
+                "VM code generated: {}ms",
+                { compiler.vm_code_gen()? },
+                verbose
+            );
             let vm = compiler.result_vm.as_ref().unwrap();
             if let Some(file_path) = emit_vm {
                 let mut file = std::fs::File::create(file_path.clone())?;
@@ -158,7 +180,7 @@ async fn main() -> Result<()> {
                 eprintln!("Wrote to {}", file_path);
             }
 
-            measure_time!("Linked: {}ms", { compiler.link()? });
+            measure_time!("Linked: {}ms", { compiler.link()? }, verbose);
             if let Some(file_path) = emit_linked_vm {
                 let mut file = std::fs::File::create(file_path.clone())?;
 
@@ -170,7 +192,11 @@ async fn main() -> Result<()> {
                 eprintln!("Wrote to {}", file_path);
             }
 
-            measure_time!("Byte code generated: {}ms", { compiler.byte_code_gen()? });
+            measure_time!(
+                "Byte code generated: {}ms",
+                { compiler.byte_code_gen()? },
+                verbose
+            );
             let emitter = compiler.result_codegen.as_ref().unwrap();
             if let Some(file_path) = emit_asm_labels {
                 let mut file = std::fs::File::create(file_path.clone())?;
@@ -190,9 +216,11 @@ async fn main() -> Result<()> {
                 eprintln!("Wrote to {}", file_path);
             }
 
-            measure_time!("Executed: {}ms", {
-                compiler.execute(print_stacks, print_memory_store, None)?
-            });
+            measure_time!(
+                "Executed: {}ms",
+                { compiler.execute(print_stacks, print_memory_store, None)? },
+                verbose
+            );
             let result = compiler.result_runtime.as_mut().unwrap().pop_i64();
             println!("result: {:?}", Value::from_u64(result as u64));
         }

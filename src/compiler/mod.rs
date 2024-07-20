@@ -154,6 +154,7 @@ pub struct Compiler {
     pub result_codegen: Option<ByteCodeEmitter>,
     pub result_runtime: Option<Runtime>,
     pub result_extcall_table: Option<HashMap<String, usize>>,
+    pub verbose: bool,
 }
 
 impl Compiler {
@@ -168,11 +169,16 @@ impl Compiler {
             result_codegen: None,
             result_runtime: None,
             result_extcall_table: None,
+            verbose: false,
         }
     }
 
     pub fn set_cwd(&mut self, cwd: String) {
         self.cwd = cwd;
+    }
+
+    pub fn verbose(&mut self, verbose: bool) {
+        self.verbose = verbose;
     }
 
     pub fn find_position(&self, path: &str, position: usize) -> Result<(usize, usize)> {
@@ -523,7 +529,7 @@ impl Compiler {
     }
 
     pub fn link(&mut self) -> Result<(), CompilerError> {
-        let mut linker = Linker::new();
+        let mut linker = Linker::new(self.verbose);
 
         let vm = self.result_vm.take().unwrap();
         let linked = linker.link(vm)?;
