@@ -202,7 +202,7 @@ impl Lexer {
                 continue;
             }
 
-            if let Some((lexeme, length)) = self.matches() {
+            if let Some((lexeme, length)) = self.consume_keywords() {
                 tokens.push(self.new_token(lexeme, length));
                 continue;
             }
@@ -247,7 +247,7 @@ impl Lexer {
         Ok(tokens)
     }
 
-    fn matches(&mut self) -> Option<(Lexeme, usize)> {
+    fn consume_keywords(&mut self) -> Option<(Lexeme, usize)> {
         let keywords = vec![
             ("let", Lexeme::Let),
             ("fun", Lexeme::Fun),
