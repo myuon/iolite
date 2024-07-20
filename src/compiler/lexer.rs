@@ -10,7 +10,7 @@ enum Matcher {
     WhileAlphaNumericWithUnderscore,
 }
 
-fn consumes(chars: &[char], matcher: Matcher) -> usize {
+fn matches(chars: &[char], matcher: Matcher) -> usize {
     match matcher {
         Matcher::Exact(token) => {
             if chars.starts_with(&token.chars().collect::<Vec<_>>()) {
@@ -153,13 +153,13 @@ impl Lexer {
     fn consume_line_comment(&mut self, chars: &Vec<char>) -> Option<String> {
         let start = self.position;
 
-        let c = consumes(&chars[self.position..], Matcher::Exact("//"));
+        let c = matches(&chars[self.position..], Matcher::Exact("//"));
         self.position += c;
         if c == 0 {
             return None;
         }
 
-        let c = consumes(&chars[self.position..], Matcher::Until('\n'));
+        let c = matches(&chars[self.position..], Matcher::Until('\n'));
         self.position += c;
 
         let end = self.position;
@@ -172,7 +172,7 @@ impl Lexer {
     }
 
     fn consume_string(&mut self, chars: &Vec<char>) -> Option<String> {
-        let c = consumes(&chars[self.position..], Matcher::Exact("\""));
+        let c = matches(&chars[self.position..], Matcher::Exact("\""));
         self.position += c;
         if c == 0 {
             return None;
@@ -180,10 +180,10 @@ impl Lexer {
 
         let start = self.position;
 
-        let c = consumes(&chars[self.position..], Matcher::Until('"'));
+        let c = matches(&chars[self.position..], Matcher::Until('"'));
         self.position += c;
 
-        let c = consumes(&chars[self.position..], Matcher::Exact("\""));
+        let c = matches(&chars[self.position..], Matcher::Exact("\""));
         self.position += c;
 
         let end = self.position;
@@ -194,20 +194,20 @@ impl Lexer {
     fn consume_numeric(&mut self, chars: &Vec<char>) -> Option<Numeric> {
         let start = self.position;
 
-        let c = consumes(&chars[self.position..], Matcher::WhileDigit);
+        let c = matches(&chars[self.position..], Matcher::WhileDigit);
         self.position += c;
         if c == 0 {
             return None;
         }
 
-        let dot = consumes(&chars[self.position..], Matcher::Exact("."));
+        let dot = matches(&chars[self.position..], Matcher::Exact("."));
         self.position += dot;
         if dot == 0 {
             Some(Numeric::Integer(
                 self.input[start..self.position].parse().unwrap(),
             ))
         } else {
-            let c = consumes(&chars[self.position..], Matcher::WhileDigit);
+            let c = matches(&chars[self.position..], Matcher::WhileDigit);
             self.position += c;
             // If the number ends with a dot, it's not a valid float
             // e.g. 0..n should be parsed as 0, .., n
@@ -227,13 +227,13 @@ impl Lexer {
     fn consume_ident(&mut self, chars: &Vec<char>) -> Option<String> {
         let start = self.position;
 
-        let c = consumes(&chars[self.position..], Matcher::IsAlphabetic);
+        let c = matches(&chars[self.position..], Matcher::IsAlphabetic);
         self.position += c;
         if c == 0 {
             return None;
         }
 
-        let c = consumes(
+        let c = matches(
             &chars[self.position..],
             Matcher::WhileAlphaNumericWithUnderscore,
         );
