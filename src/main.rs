@@ -117,7 +117,8 @@ async fn main() -> Result<()> {
                 }
             });
 
-            let vm = measure_time!("VM code generated: {}ms", { compiler.vm_code_gen()? });
+            measure_time!("VM code generated: {}ms", { compiler.vm_code_gen()? });
+            let vm = compiler.result_vm.as_ref().unwrap();
             if let Some(file_path) = emit_vm {
                 let mut file = std::fs::File::create(file_path.clone())?;
 
@@ -159,10 +160,11 @@ async fn main() -> Result<()> {
 
             let table = vm.extcall_table.clone();
 
-            let linked = measure_time!("Linked: {}ms", { compiler::Compiler::link(vm)? });
+            measure_time!("Linked: {}ms", { compiler.link()? });
             if let Some(file_path) = emit_linked_vm {
                 let mut file = std::fs::File::create(file_path.clone())?;
 
+                let linked = compiler.result_link.as_ref().unwrap();
                 for (i, code) in linked.iter().enumerate() {
                     file.write(format!("{}: {:?}\n", i, code).as_bytes())?;
                 }
@@ -170,12 +172,12 @@ async fn main() -> Result<()> {
                 eprintln!("Wrote to {}", file_path);
             }
 
-            let emitter = measure_time!("Byte code generated: {}ms", {
-                compiler::Compiler::emit_byte_code(linked)?
-            });
+            measure_time!("Byte code generated: {}ms", { compiler.emit_byte_code()? });
+            let emitter = compiler.result_codegen.as_ref().unwrap();
             if let Some(file_path) = emit_asm_labels {
                 let mut file = std::fs::File::create(file_path.clone())?;
-                let mut labels = emitter.labels.into_iter().collect::<Vec<_>>();
+
+                let mut labels = emitter.labels.iter().collect::<Vec<_>>();
                 labels.sort_by(|x, y| x.1.cmp(&y.1));
 
                 for (label, position) in labels {
@@ -183,17 +185,17 @@ async fn main() -> Result<()> {
                 }
             }
 
-            let binary = emitter.buffer;
             if let Some(file_path) = emit_asm {
                 let mut file = std::fs::File::create(file_path.clone())?;
-                emit_disassemble(&mut file, binary.clone())?;
+                emit_disassemble(&mut file, emitter.buffer.clone())?;
 
                 eprintln!("Wrote to {}", file_path);
             }
 
-            let result = measure_time!("Executed: {}ms", {
-                compiler::Compiler::run_vm(binary, print_stacks, print_memory_store, table)?
+            measure_time!("Executed: {}ms", {
+                compiler.run_vm(print_stacks, print_memory_store, table)?
             });
+            let result = compiler.result_runtime.as_mut().unwrap().pop_i64();
             println!("result: {:?}", Value::from_u64(result as u64));
         }
         CliCommands::Test { file } => {
@@ -223,13 +225,13 @@ async fn main() -> Result<()> {
             compiler.parse_with_code(main.clone(), source_code)?;
             compiler.typecheck(main.clone())?;
             compiler.ir_code_gen(main.clone(), true)?;
-            let vm = compiler.vm_code_gen()?;
-            let table = vm.extcall_table.clone();
-            let linked = compiler::Compiler::link(vm)?;
-            let emitter = compiler::Compiler::emit_byte_code(linked)?;
-            let binary = emitter.buffer;
+            compiler.vm_code_gen()?;
+            let table = compiler.result_vm.as_ref().unwrap().extcall_table.clone();
+            compiler.link()?;
+            compiler.emit_byte_code()?;
 
-            let result = compiler::Compiler::run_vm(binary, false, false, table)?;
+            compiler.run_vm(false, false, table)?;
+            let result = compiler.result_runtime.as_mut().unwrap().pop_i64();
             println!("result: {:?}", Value::from_u64(result as u64));
         }
         CliCommands::Lsp {} => {

@@ -169,9 +169,11 @@ async fn dap_handler(
             compiler.typecheck(main.clone())?;
 
             compiler.ir_code_gen(main.clone(), false)?;
-            let code = compiler.vm_code_gen()?;
-            let linked = compiler::Compiler::link(code)?;
-            let program = compiler::Compiler::byte_code_gen(linked)?;
+            compiler.vm_code_gen()?;
+            compiler.link()?;
+            compiler.byte_code_gen()?;
+
+            let program = compiler.result_codegen.as_ref().unwrap().buffer.clone();
 
             ctx.0.lock().unwrap().init(
                 1024,

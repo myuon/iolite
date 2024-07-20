@@ -67,6 +67,10 @@ pub struct Compiler {
     pub modules: HashMap<String, LoadedModule>,
     pub types: TypeMap,
     pub result_ir: Option<IrProgram>,
+    pub result_vm: Option<VmProgram>,
+    pub result_link: Option<Vec<Instruction>>,
+    pub result_codegen: Option<ByteCodeEmitter>,
+    pub result_runtime: Option<Runtime>,
 }
 
 impl Compiler {
@@ -76,6 +80,10 @@ impl Compiler {
             modules: HashMap::new(),
             types: TypeMap::new(),
             result_ir: None,
+            result_vm: None,
+            result_link: None,
+            result_codegen: None,
+            result_runtime: None,
         }
     }
 
@@ -542,7 +550,7 @@ impl Compiler {
         Ok(ir)
     }
 
-    pub fn vm_code_gen(&mut self) -> Result<VmProgram, CompilerError> {
+    pub fn vm_code_gen(&mut self) -> Result<(), CompilerError> {
         let ir = self.result_ir.take().unwrap();
         let mut modules = vec![];
         let mut functions = vec![];
@@ -573,34 +581,49 @@ impl Compiler {
             })
         }
 
-        Ok(VmProgram {
+        self.result_vm = Some(VmProgram {
             modules,
             extcall_table: table,
-        })
+        });
+
+        Ok(())
     }
 
-    pub fn byte_code_gen(code: Vec<Instruction>) -> Result<Vec<u8>, CompilerError> {
+    pub fn byte_code_gen(&mut self) -> Result<(), CompilerError> {
         let mut emitter = ByteCodeEmitter::new();
+
+        let code = self.result_link.take().unwrap();
         emitter
             .exec(code)
             .map_err(CompilerError::ByteCodeEmitterError)?;
 
-        Ok(emitter.buffer)
+        self.result_codegen = Some(emitter);
+
+        Ok(())
     }
 
-    pub fn emit_byte_code(code: Vec<Instruction>) -> Result<ByteCodeEmitter, CompilerError> {
+    pub fn emit_byte_code(&mut self) -> Result<(), CompilerError> {
         let mut emitter = ByteCodeEmitter::new();
+
+        let code = self.result_link.take().unwrap();
         emitter
             .exec(code)
             .map_err(CompilerError::ByteCodeEmitterError)?;
 
-        Ok(emitter)
+        self.result_codegen = Some(emitter);
+
+        Ok(())
     }
 
-    pub fn link(vm: VmProgram) -> Result<Vec<Instruction>, CompilerError> {
+    pub fn link(&mut self) -> Result<(), CompilerError> {
         let mut linker = Linker::new();
 
-        linker.link(vm).map_err(CompilerError::LinkerError)
+        let vm = self.result_vm.take().unwrap();
+        let linked = linker.link(vm).map_err(CompilerError::LinkerError)?;
+
+        self.result_link = Some(linked.clone());
+
+        Ok(())
     }
 
     pub fn link_with(
@@ -623,13 +646,13 @@ impl Compiler {
         }
     }
 
-    pub fn compile_with_input(&mut self, input: String) -> Result<Vec<u8>, CompilerError> {
+    pub fn compile_with_input(&mut self, input: String) -> Result<(), CompilerError> {
         let input = Self::create_input(input);
 
         self.compile_bundled(input)
     }
 
-    pub fn compile(&mut self, path: String) -> Result<Vec<u8>> {
+    pub fn compile(&mut self, path: String) -> Result<()> {
         let module = self
             .modules
             .get(&path)
@@ -644,14 +667,14 @@ impl Compiler {
 
         let ir = Self::ir_code_gen_module(&mut ir_code_gen, module.module.clone().unwrap())?;
         self.result_ir = Some(IrProgram { modules: vec![ir] });
-        let program = self.vm_code_gen()?;
-        let linked = Self::link(program)?;
-        let binary = Self::byte_code_gen(linked)?;
+        self.vm_code_gen()?;
+        self.link()?;
+        self.byte_code_gen()?;
 
-        Ok(binary)
+        Ok(())
     }
 
-    pub fn compile_bundled(&mut self, input: String) -> Result<Vec<u8>, CompilerError> {
+    pub fn compile_bundled(&mut self, input: String) -> Result<(), CompilerError> {
         let decls = Self::parse_decls(input.clone())?;
         let mut module = Self::create_module(decls);
         let types = Self::typecheck_module(&mut module, &input)?;
@@ -661,16 +684,18 @@ impl Compiler {
 
         let ir = Self::ir_code_gen_module(&mut ir_code_gen, module)?;
         self.result_ir = Some(IrProgram { modules: vec![ir] });
-        let program = self.vm_code_gen()?;
-        let linked = Self::link(program)?;
-        let binary = Self::byte_code_gen(linked)?;
+        self.vm_code_gen()?;
+        self.link()?;
+        self.byte_code_gen()?;
 
-        Ok(binary)
+        Ok(())
     }
 
     pub fn run_input(&mut self, input: String, print_stacks: bool) -> Result<i64, CompilerError> {
-        let program = self.compile_with_input(input)?;
-        Self::run_vm(program, print_stacks, false, HashMap::new())
+        self.compile_with_input(input)?;
+        self.run_vm(print_stacks, false, HashMap::new())?;
+
+        Ok(self.result_runtime.as_mut().unwrap().pop_i64())
     }
 
     pub fn run(&mut self, path: String, print_stacks: bool) -> Result<i64> {
@@ -679,52 +704,58 @@ impl Compiler {
             .get(&path)
             .ok_or_else(|| anyhow!("Module {} not found in the compiler", path))?;
 
-        let program = self.compile_with_input(module.source.clone())?;
+        self.compile_with_input(module.source.clone())?;
 
-        Ok(Self::run_vm(program, print_stacks, false, HashMap::new())?)
+        self.run_vm(print_stacks, false, HashMap::new())?;
+
+        Ok(self.result_runtime.as_mut().unwrap().pop_i64())
     }
 
     pub fn run_vm(
-        program: Vec<u8>,
+        &mut self,
         print_stacks: bool,
         print_memory_store: bool,
         extcall_table: HashMap<String, usize>,
-    ) -> Result<i64, CompilerError> {
-        let mut runtime = Self::exec_vm(program, print_stacks, print_memory_store, extcall_table)?;
+    ) -> Result<(), CompilerError> {
+        self.exec_vm(print_stacks, print_memory_store, extcall_table)?;
 
-        Ok(runtime.pop_i64())
+        Ok(())
     }
 
     pub fn run_vm_with_io_trap(
-        program: Vec<u8>,
+        &mut self,
         print_stacks: bool,
         stdout: Arc<Mutex<BufWriter<Vec<u8>>>>,
         extcall_table: HashMap<String, usize>,
-    ) -> Result<i64, CompilerError> {
+    ) -> Result<(), CompilerError> {
+        let program = self.result_codegen.take().unwrap().buffer;
         let mut runtime = Runtime::new(1024 * 1024, program, extcall_table);
         runtime.trap_stdout = Some(stdout);
         runtime.exec(print_stacks, false).unwrap();
 
-        Ok(runtime.pop_i64())
+        self.result_runtime = Some(runtime);
+
+        Ok(())
     }
 
     fn exec_vm(
-        program: Vec<u8>,
+        &mut self,
         print_stacks: bool,
         print_memory_store: bool,
         extcall_table: HashMap<String, usize>,
-    ) -> Result<Runtime, CompilerError> {
+    ) -> Result<(), CompilerError> {
+        let program = self.result_codegen.take().unwrap().buffer;
         let mut runtime = Runtime::new(1024 * 1024, program, extcall_table);
         runtime.exec(print_stacks, print_memory_store).unwrap();
 
-        Ok(runtime)
+        self.result_runtime = Some(runtime);
+
+        Ok(())
     }
 }
 
 #[cfg(test)]
 mod tests {
-    use std::panic::catch_unwind;
-
     use self::ir::Value;
 
     use super::*;
@@ -786,10 +817,12 @@ mod tests {
             .try_for_each(|(input, expected)| -> Result<_> {
                 let mut compiler = Compiler::new();
 
-                let program = compiler
+                compiler
                     .compile_with_input(format!("fun main() {{ return {}; }}", input))
                     .unwrap();
-                let mut runtime = Compiler::exec_vm(program, false, false, HashMap::new()).unwrap();
+                compiler.exec_vm(false, false, HashMap::new()).unwrap();
+
+                let runtime = compiler.result_runtime.as_mut().unwrap();
                 assert_eq!(
                     runtime.pop_value(),
                     Value::Float(expected),
@@ -828,10 +861,12 @@ mod tests {
             .try_for_each(|(input, expected)| -> Result<_> {
                 let mut compiler = Compiler::new();
 
-                let program = compiler
+                compiler
                     .compile_with_input(format!("fun main() {{ return {}; }}", input))
                     .unwrap();
-                let mut runtime = Compiler::exec_vm(program, false, false, HashMap::new()).unwrap();
+                compiler.exec_vm(false, false, HashMap::new()).unwrap();
+
+                let runtime = compiler.result_runtime.as_mut().unwrap();
                 assert_eq!(
                     runtime.pop_value(),
                     Value::Bool(expected),
@@ -1139,11 +1174,12 @@ mod tests {
                 compiler.parse_with_code(path.clone(), input.to_string())?;
                 compiler.typecheck(path.clone())?;
                 compiler.ir_code_gen(path.clone(), false)?;
-                let code = compiler.vm_code_gen()?;
-                let linked = Compiler::link(code)?;
-                let binary = Compiler::byte_code_gen(linked)?;
+                compiler.vm_code_gen()?;
+                compiler.link()?;
+                compiler.byte_code_gen()?;
 
-                let actual = Compiler::run_vm(binary, false, false, HashMap::new()).unwrap();
+                compiler.run_vm(false, false, HashMap::new()).unwrap();
+                let actual = compiler.result_runtime.as_mut().unwrap().pop_i64();
                 assert_eq!(actual, expected, "input: {}", input);
 
                 Ok(())
@@ -1177,18 +1213,13 @@ mod tests {
                 let stdout = Arc::new(Mutex::new(BufWriter::new(vec![])));
 
                 compiler.ir_code_gen(main.clone(), false)?;
-                let program = compiler.vm_code_gen()?;
-                let table = program.extcall_table.clone();
-                let linked = Compiler::link(program)?;
-                let binary = Compiler::byte_code_gen(linked)?;
+                compiler.vm_code_gen()?;
+                let table = compiler.result_vm.as_ref().unwrap().extcall_table.clone();
+                compiler.link()?;
+                compiler.byte_code_gen()?;
+                compiler.run_vm_with_io_trap(false, stdout.clone(), table)?;
 
-                let catch = catch_unwind(|| {
-                    Compiler::run_vm_with_io_trap(binary, false, stdout.clone(), table)
-                });
-
-                let result = catch
-                    .expect(format!("Panic in {}", dir_path.display()).as_str())
-                    .expect(format!("Panic in {}", dir_path.display()).as_str());
+                let result = compiler.result_runtime.as_mut().unwrap().pop_i64();
 
                 let expected = dir_path.join("result.test").display().to_string();
                 if std::path::Path::new(&expected).exists() {
