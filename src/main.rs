@@ -110,18 +110,14 @@ async fn main() -> Result<()> {
                 compiler.typecheck(main.clone())?;
             });
 
-            let ir = measure_time!("IR generated: {}ms", {
-                let ir = compiler.ir_code_gen(main.clone(), false)?;
+            measure_time!("IR generated: {}ms", {
+                compiler.ir_code_gen(main.clone(), false)?;
                 if let Some(file) = emit_ir {
-                    std::fs::write(file, format!("{:#?}", ir))?;
+                    std::fs::write(file, format!("{:#?}", compiler.result_ir.as_ref().unwrap()))?;
                 }
-
-                ir
             });
 
-            let vm = measure_time!("VM code generated: {}ms", {
-                compiler::Compiler::vm_code_gen(ir)?
-            });
+            let vm = measure_time!("VM code generated: {}ms", { compiler.vm_code_gen()? });
             if let Some(file_path) = emit_vm {
                 let mut file = std::fs::File::create(file_path.clone())?;
 
@@ -226,8 +222,8 @@ async fn main() -> Result<()> {
 
             compiler.parse_with_code(main.clone(), source_code)?;
             compiler.typecheck(main.clone())?;
-            let ir = compiler.ir_code_gen(main.clone(), true)?;
-            let vm = compiler::Compiler::vm_code_gen(ir)?;
+            compiler.ir_code_gen(main.clone(), true)?;
+            let vm = compiler.vm_code_gen()?;
             let table = vm.extcall_table.clone();
             let linked = compiler::Compiler::link(vm)?;
             let emitter = compiler::Compiler::emit_byte_code(linked)?;

@@ -66,6 +66,7 @@ pub struct Compiler {
     pub cwd: String,
     pub modules: HashMap<String, LoadedModule>,
     pub types: TypeMap,
+    pub result_ir: Option<IrProgram>,
 }
 
 impl Compiler {
@@ -74,6 +75,7 @@ impl Compiler {
             cwd: "".to_string(),
             modules: HashMap::new(),
             types: TypeMap::new(),
+            result_ir: None,
         }
     }
 
@@ -375,7 +377,7 @@ impl Compiler {
         Ok(vec![])
     }
 
-    pub fn ir_code_gen(&mut self, path: String, testing_mode: bool) -> Result<IrProgram> {
+    pub fn ir_code_gen(&mut self, _path: String, testing_mode: bool) -> Result<()> {
         let paths = self.pathes_in_imported_order();
         let mut modules = vec![];
         let mut declared = vec![];
@@ -407,7 +409,9 @@ impl Compiler {
             irs.push(module);
         }
 
-        Ok(IrProgram { modules: irs })
+        self.result_ir = Some(IrProgram { modules: irs });
+
+        Ok(())
     }
 
     fn typecheck_method(
@@ -538,7 +542,8 @@ impl Compiler {
         Ok(ir)
     }
 
-    pub fn vm_code_gen(ir: IrProgram) -> Result<VmProgram, CompilerError> {
+    pub fn vm_code_gen(&mut self) -> Result<VmProgram, CompilerError> {
+        let ir = self.result_ir.take().unwrap();
         let mut modules = vec![];
         let mut functions = vec![];
         let mut table = HashMap::new();
@@ -618,10 +623,10 @@ impl Compiler {
         }
     }
 
-    pub fn compile_with_input(input: String) -> Result<Vec<u8>, CompilerError> {
+    pub fn compile_with_input(&mut self, input: String) -> Result<Vec<u8>, CompilerError> {
         let input = Self::create_input(input);
 
-        Self::compile_bundled(input)
+        self.compile_bundled(input)
     }
 
     pub fn compile(&mut self, path: String) -> Result<Vec<u8>> {
@@ -638,14 +643,15 @@ impl Compiler {
         ir_code_gen.set_types(self.types.clone());
 
         let ir = Self::ir_code_gen_module(&mut ir_code_gen, module.module.clone().unwrap())?;
-        let program = Self::vm_code_gen(IrProgram { modules: vec![ir] })?;
+        self.result_ir = Some(IrProgram { modules: vec![ir] });
+        let program = self.vm_code_gen()?;
         let linked = Self::link(program)?;
         let binary = Self::byte_code_gen(linked)?;
 
         Ok(binary)
     }
 
-    pub fn compile_bundled(input: String) -> Result<Vec<u8>, CompilerError> {
+    pub fn compile_bundled(&mut self, input: String) -> Result<Vec<u8>, CompilerError> {
         let decls = Self::parse_decls(input.clone())?;
         let mut module = Self::create_module(decls);
         let types = Self::typecheck_module(&mut module, &input)?;
@@ -654,25 +660,26 @@ impl Compiler {
         ir_code_gen.set_types(types.clone());
 
         let ir = Self::ir_code_gen_module(&mut ir_code_gen, module)?;
-        let program = Self::vm_code_gen(IrProgram { modules: vec![ir] })?;
+        self.result_ir = Some(IrProgram { modules: vec![ir] });
+        let program = self.vm_code_gen()?;
         let linked = Self::link(program)?;
         let binary = Self::byte_code_gen(linked)?;
 
         Ok(binary)
     }
 
-    pub fn run_input(input: String, print_stacks: bool) -> Result<i64, CompilerError> {
-        let program = Self::compile_with_input(input)?;
+    pub fn run_input(&mut self, input: String, print_stacks: bool) -> Result<i64, CompilerError> {
+        let program = self.compile_with_input(input)?;
         Self::run_vm(program, print_stacks, false, HashMap::new())
     }
 
-    pub fn run(&self, path: String, print_stacks: bool) -> Result<i64> {
+    pub fn run(&mut self, path: String, print_stacks: bool) -> Result<i64> {
         let module = self
             .modules
             .get(&path)
             .ok_or_else(|| anyhow!("Module {} not found in the compiler", path))?;
 
-        let program = Self::compile_with_input(module.source.clone())?;
+        let program = self.compile_with_input(module.source.clone())?;
 
         Ok(Self::run_vm(program, print_stacks, false, HashMap::new())?)
     }
@@ -750,8 +757,10 @@ mod tests {
         cases
             .into_par_iter()
             .try_for_each(|(input, expected)| -> Result<_> {
+                let mut compiler = Compiler::new();
+
                 let actual =
-                    Compiler::run_input(format!("fun main() {{ return {}; }}", input), false)?;
+                    compiler.run_input(format!("fun main() {{ return {}; }}", input), false)?;
                 let value = Value::from_u64(actual as u64);
                 assert_eq!(value, Value::Int(expected), "input: {}", input);
 
@@ -775,9 +784,11 @@ mod tests {
         cases
             .into_par_iter()
             .try_for_each(|(input, expected)| -> Result<_> {
-                let program =
-                    Compiler::compile_with_input(format!("fun main() {{ return {}; }}", input))
-                        .unwrap();
+                let mut compiler = Compiler::new();
+
+                let program = compiler
+                    .compile_with_input(format!("fun main() {{ return {}; }}", input))
+                    .unwrap();
                 let mut runtime = Compiler::exec_vm(program, false, false, HashMap::new()).unwrap();
                 assert_eq!(
                     runtime.pop_value(),
@@ -815,9 +826,11 @@ mod tests {
         cases
             .into_par_iter()
             .try_for_each(|(input, expected)| -> Result<_> {
-                let program =
-                    Compiler::compile_with_input(format!("fun main() {{ return {}; }}", input))
-                        .unwrap();
+                let mut compiler = Compiler::new();
+
+                let program = compiler
+                    .compile_with_input(format!("fun main() {{ return {}; }}", input))
+                    .unwrap();
                 let mut runtime = Compiler::exec_vm(program, false, false, HashMap::new()).unwrap();
                 assert_eq!(
                     runtime.pop_value(),
@@ -1125,8 +1138,8 @@ mod tests {
                 let path = "main".to_string();
                 compiler.parse_with_code(path.clone(), input.to_string())?;
                 compiler.typecheck(path.clone())?;
-                let ir = compiler.ir_code_gen(path.clone(), false)?;
-                let code = Compiler::vm_code_gen(ir)?;
+                compiler.ir_code_gen(path.clone(), false)?;
+                let code = compiler.vm_code_gen()?;
                 let linked = Compiler::link(code)?;
                 let binary = Compiler::byte_code_gen(linked)?;
 
@@ -1163,8 +1176,8 @@ mod tests {
 
                 let stdout = Arc::new(Mutex::new(BufWriter::new(vec![])));
 
-                let ir = compiler.ir_code_gen(main.clone(), false)?;
-                let program = Compiler::vm_code_gen(ir)?;
+                compiler.ir_code_gen(main.clone(), false)?;
+                let program = compiler.vm_code_gen()?;
                 let table = program.extcall_table.clone();
                 let linked = Compiler::link(program)?;
                 let binary = Compiler::byte_code_gen(linked)?;
