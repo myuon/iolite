@@ -14,7 +14,7 @@ use self::{
     ast::{Declaration, Module, Source, Span, Type},
     byte_code_emitter::{ByteCodeEmitter, ByteCodeEmitterError},
     ir::IrProgram,
-    ir_code_gen::{IrCodeGenerator, IrCodeGeneratorError},
+    ir_code_gen::IrCodeGeneratorError,
     lexer::{LexerError, Token},
     linker::{Linker, LinkerError},
     parser::ParseError,
@@ -578,27 +578,23 @@ impl Compiler {
         }
     }
 
-    pub fn compile_with_input(&mut self, input: String) -> Result<(), CompilerError> {
-        let input = Self::create_input(input);
-        self.compile_bundled(input)
-    }
+    pub fn compile(
+        &mut self,
+        path: Option<String>,
+        input: String,
+        no_emit: bool,
+    ) -> Result<(), CompilerError> {
+        let path = path.unwrap_or("main".to_string());
 
-    pub fn compile_bundled(&mut self, input: String) -> Result<(), CompilerError> {
-        let path = "main".to_string();
         self.parse_with_code(path.clone(), input.clone()).unwrap();
         self.typecheck(path.clone())?;
+        if no_emit {
+            return Ok(());
+        }
         self.ir_code_gen(path.clone(), false).unwrap();
         self.vm_code_gen()?;
         self.link()?;
         self.byte_code_gen()?;
-
-        Ok(())
-    }
-
-    pub fn compile_no_emit(&mut self, input: String) -> Result<(), CompilerError> {
-        let path = "main".to_string();
-        self.parse_with_code(path.clone(), input.clone()).unwrap();
-        self.typecheck(path.clone())?;
 
         Ok(())
     }
@@ -663,7 +659,7 @@ mod tests {
             .try_for_each(|(input, expected)| -> Result<_> {
                 let mut compiler = Compiler::new();
 
-                compiler.compile_with_input(format!("fun main() {{ return {}; }}", input))?;
+                compiler.compile(None, format!("fun main() {{ return {}; }}", input), false)?;
                 compiler.execute(false, false, None)?;
 
                 let actual = compiler.pop_executed_result()?;
@@ -693,7 +689,7 @@ mod tests {
                 let mut compiler = Compiler::new();
 
                 compiler
-                    .compile_with_input(format!("fun main() {{ return {}; }}", input))
+                    .compile(None, format!("fun main() {{ return {}; }}", input), false)
                     .unwrap();
                 compiler.execute(false, false, None).unwrap();
 
@@ -737,7 +733,7 @@ mod tests {
                 let mut compiler = Compiler::new();
 
                 compiler
-                    .compile_with_input(format!("fun main() {{ return {}; }}", input))
+                    .compile(None, format!("fun main() {{ return {}; }}", input), false)
                     .unwrap();
                 compiler.execute(false, false, None).unwrap();
 
