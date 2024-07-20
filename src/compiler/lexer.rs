@@ -81,6 +81,11 @@ enum Numeric {
     Float(f32),
 }
 
+enum Matcher {
+    Exact(&'static str),
+    Until(char),
+}
+
 impl Lexer {
     pub fn new(module_name: String, input: String) -> Self {
         Self {
@@ -97,18 +102,42 @@ impl Lexer {
         }
     }
 
-    fn consume_line_comment(&mut self, chars: &Vec<char>) -> Option<String> {
-        if chars[self.position..].starts_with(&"//".chars().collect::<Vec<_>>()) {
-            let start_position = self.position;
-            self.position += 2;
-
-            while self.position < chars.len() && chars[self.position] != '\n' {
-                self.position += 1;
+    fn consumes(chars: &[char], matcher: Matcher) -> usize {
+        match matcher {
+            Matcher::Exact(token) => {
+                if chars.starts_with(&token.chars().collect::<Vec<_>>()) {
+                    token.len()
+                } else {
+                    0
+                }
             }
+            Matcher::Until(c) => {
+                let mut count = 0;
+                while count < chars.len() && chars[count] != c {
+                    count += 1;
+                }
 
-            let end_position = self.position;
+                count
+            }
+        }
+    }
 
-            Some(self.input[start_position..end_position].to_string())
+    fn consume_line_comment(&mut self, chars: &Vec<char>) -> Option<String> {
+        let start = self.position;
+
+        let c = Self::consumes(&chars[self.position..], Matcher::Exact("//"));
+        self.position += c;
+        if c == 0 {
+            return None;
+        }
+
+        let c = Self::consumes(&chars[self.position..], Matcher::Until('\n'));
+        self.position += c;
+
+        let end = self.position;
+
+        if end > start {
+            Some(self.input[start..end].to_string())
         } else {
             None
         }
