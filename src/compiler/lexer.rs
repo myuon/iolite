@@ -1,6 +1,3 @@
-use once_cell::sync::Lazy;
-
-use regex::Regex;
 use thiserror::Error;
 
 use super::ast::Span;
@@ -80,13 +77,6 @@ pub struct Lexer {
     position: usize,
 }
 
-const SPACES: Lazy<Regex> = Lazy::new(|| Regex::new(r"^\s+").unwrap());
-const IDENT: Lazy<Regex> = Lazy::new(|| Regex::new(r"^[a-zA-Z_][a-zA-Z0-9_]*").unwrap());
-const STRING: Lazy<Regex> = Lazy::new(|| Regex::new(r#"^"[^"]*""#).unwrap());
-const FLOAT: Lazy<Regex> = Lazy::new(|| Regex::new(r"^[0-9]+\.[0-9]+").unwrap());
-const INTEGER: Lazy<Regex> = Lazy::new(|| Regex::new(r"^[0-9]+").unwrap());
-const COMMENT: Lazy<Regex> = Lazy::new(|| Regex::new(r"^//.*").unwrap());
-
 enum Numeric {
     Integer(i32),
     Float(f32),
@@ -101,15 +91,11 @@ impl Lexer {
         }
     }
 
-    fn new_token(&self, lexeme: Lexeme, length: usize) -> Token {
+    fn new_token(&self, lexeme: Lexeme, start_position: usize) -> Token {
         Token {
             lexeme,
-            position: self.position,
-            span: Span::span(
-                self.module_name.clone(),
-                self.position,
-                self.position + length,
-            ),
+            position: start_position,
+            span: Span::span(self.module_name.clone(), start_position, self.position),
         }
     }
 
@@ -187,6 +173,22 @@ impl Lexer {
         }
     }
 
+    fn consume_ident(&mut self, chars: &Vec<char>) -> Option<String> {
+        let mut s = String::new();
+        if !chars[self.position].is_alphabetic() {
+            return None;
+        }
+
+        while self.position < chars.len()
+            && (chars[self.position].is_alphanumeric() || "_".contains(chars[self.position]))
+        {
+            s.push(chars[self.position]);
+            self.position += 1;
+        }
+
+        Some(s)
+    }
+
     pub fn run(&mut self) -> Result<Vec<Token>, LexerError> {
         let mut tokens = vec![];
         let chars = self.input.chars().collect::<Vec<char>>();
@@ -204,36 +206,37 @@ impl Lexer {
 
             if let Some((lexeme, length)) = self.matches() {
                 tokens.push(self.new_token(lexeme, length));
-                self.position += length;
                 continue;
             }
 
+            let position = self.position;
             if let Some(string) = self.consume_string(&chars) {
                 let lexeme =
                     Lexeme::String(string.trim_matches('"').replace("\\n", "\n").to_string());
-                tokens.push(self.new_token(lexeme, 1));
+                tokens.push(self.new_token(lexeme, position));
                 continue;
             }
 
+            let position = self.position;
             if let Some(num) = self.consume_numeric(&chars) {
                 match num {
                     Numeric::Integer(val) => {
                         let lexeme = Lexeme::Integer(val);
-                        tokens.push(self.new_token(lexeme, 1));
+                        tokens.push(self.new_token(lexeme, position));
                         continue;
                     }
                     Numeric::Float(val) => {
                         let lexeme = Lexeme::Float(val);
-                        tokens.push(self.new_token(lexeme, 1));
+                        tokens.push(self.new_token(lexeme, position));
                         continue;
                     }
                 }
             }
 
-            if let Some(m) = IDENT.find(&self.input[self.position..]) {
-                let lexeme = Lexeme::Ident(m.as_str().to_string());
-                tokens.push(self.new_token(lexeme, m.end()));
-                self.position += m.end();
+            let position = self.position;
+            if let Some(ident) = self.consume_ident(&chars) {
+                let lexeme = Lexeme::Ident(ident);
+                tokens.push(self.new_token(lexeme, position));
                 continue;
             }
 
@@ -272,7 +275,9 @@ impl Lexer {
             if self.input[self.position..].starts_with(keyword) {
                 if let Some(c) = self.input[self.position + keyword.len()..].chars().nth(0) {
                     if !c.is_alphanumeric() && c != '_' {
-                        return Some((lexeme.clone(), keyword.len()));
+                        let position = self.position;
+                        self.position += keyword.len();
+                        return Some((lexeme.clone(), position));
                     }
                 }
             }
@@ -312,7 +317,9 @@ impl Lexer {
 
         for (keyword, lexeme) in keywords.iter() {
             if self.input[self.position..].starts_with(keyword) {
-                return Some((lexeme.clone(), keyword.len()));
+                let position = self.position;
+                self.position += keyword.len();
+                return Some((lexeme.clone(), position));
             }
         }
 
@@ -322,6 +329,8 @@ impl Lexer {
 
 #[cfg(test)]
 mod tests {
+    use pretty_assertions::assert_eq;
+
     use super::*;
 
     #[test]
@@ -375,6 +384,52 @@ mod tests {
                 tokens.into_iter().map(|t| t.lexeme).collect::<Vec<_>>(),
                 expected
             );
+        }
+    }
+
+    #[test]
+    fn test_lexer_with_position() {
+        let cases = vec![(
+            "let hoge = 10;",
+            vec![
+                Token {
+                    lexeme: Lexeme::Let,
+                    position: 0,
+                    span: Span::span("".to_string(), 0, 3),
+                },
+                Token {
+                    lexeme: Lexeme::Ident("hoge".to_string()),
+                    position: 4,
+                    span: Span::span("".to_string(), 4, 8),
+                },
+                Token {
+                    lexeme: Lexeme::Equal,
+                    position: 9,
+                    span: Span::span("".to_string(), 9, 10),
+                },
+                Token {
+                    lexeme: Lexeme::Integer(10),
+                    position: 11,
+                    span: Span::span("".to_string(), 11, 13),
+                },
+                Token {
+                    lexeme: Lexeme::Semicolon,
+                    position: 13,
+                    span: Span::span("".to_string(), 13, 14),
+                },
+            ],
+        )];
+
+        for (input, expected) in cases {
+            let mut lexer = Lexer::new("".to_string(), input.to_string());
+            let tokens = lexer.run().unwrap();
+
+            for (token, expected) in tokens.iter().zip(expected.iter()) {
+                assert_eq!(token.lexeme, expected.lexeme);
+                assert_eq!(token.position, expected.position);
+                assert_eq!(token.span.start, expected.span.start);
+                assert_eq!(token.span.end, expected.span.end);
+            }
         }
     }
 }
