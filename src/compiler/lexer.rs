@@ -85,6 +85,8 @@ enum Matcher {
     Exact(&'static str),
     Until(char),
     WhileDigit,
+    IsAlphabetic,
+    WhileAlphaNumericWithUnderscore,
 }
 
 impl Lexer {
@@ -123,6 +125,23 @@ impl Lexer {
             Matcher::WhileDigit => {
                 let mut count = 0;
                 while count < chars.len() && chars[count].is_ascii_digit() {
+                    count += 1;
+                }
+
+                count
+            }
+            Matcher::IsAlphabetic => {
+                if 0 < chars.len() && chars[0].is_alphabetic() {
+                    1
+                } else {
+                    0
+                }
+            }
+            Matcher::WhileAlphaNumericWithUnderscore => {
+                let mut count = 0;
+                while count < chars.len()
+                    && (chars[count].is_alphanumeric() || "_".contains(chars[count]))
+                {
                     count += 1;
                 }
 
@@ -206,19 +225,23 @@ impl Lexer {
     }
 
     fn consume_ident(&mut self, chars: &Vec<char>) -> Option<String> {
-        let mut s = String::new();
-        if !chars[self.position].is_alphabetic() {
+        let start = self.position;
+
+        let c = Self::consumes(&chars[self.position..], Matcher::IsAlphabetic);
+        self.position += c;
+        if c == 0 {
             return None;
         }
 
-        while self.position < chars.len()
-            && (chars[self.position].is_alphanumeric() || "_".contains(chars[self.position]))
-        {
-            s.push(chars[self.position]);
-            self.position += 1;
-        }
+        let c = Self::consumes(
+            &chars[self.position..],
+            Matcher::WhileAlphaNumericWithUnderscore,
+        );
+        self.position += c;
 
-        Some(s)
+        let end = self.position;
+
+        Some(self.input[start..end].to_string())
     }
 
     pub fn run(&mut self) -> Result<Vec<Token>, LexerError> {
