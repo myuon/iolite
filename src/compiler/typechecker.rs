@@ -4,8 +4,8 @@ use thiserror::Error;
 
 use super::{
     ast::{
-        BinOp, Block, Conversion, Declaration, Expr, ForMode, Literal, Module, Source, Span,
-        Statement, Type, TypeMap, TypeMapKey, UniOp,
+        AstItemType, BinOp, Block, Conversion, Declaration, Expr, ForMode, Literal, Module, Source,
+        Span, Statement, Type, TypeMap, TypeMapKey, UniOp,
     },
     ir::TypeTag,
 };
@@ -93,16 +93,10 @@ struct InferTypeAt {
     found: Option<Type>,
 }
 
-#[derive(Debug, Clone, PartialEq, PartialOrd, Eq, Ord)]
-pub enum CompletionItemType {
-    Variable,
-    Struct,
-}
-
 #[derive(Debug, Clone)]
 struct Completion {
     position: usize,
-    found: Option<Vec<(String, CompletionItemType)>>,
+    found: Option<Vec<(String, AstItemType)>>,
 }
 
 pub struct Typechecker {
@@ -156,13 +150,15 @@ impl Typechecker {
     }
 
     fn get_type(&self, name: &str, span: &Span) -> Result<Source<Type>, TypecheckerError> {
-        self.types
+        Ok(self
+            .types
             .get_ident(name)
             .cloned()
             .ok_or(TypecheckerError::IdentNotFound(Source::span(
                 name.to_string(),
                 span.clone(),
-            )))
+            )))?
+            .0)
     }
 
     fn check_search_ident(&mut self, ident: &Source<Expr>) {
@@ -203,7 +199,7 @@ impl Typechecker {
         }
     }
 
-    fn check_completion(&mut self, span: &Span, completions: Vec<(String, CompletionItemType)>) {
+    fn check_completion(&mut self, span: &Span, completions: Vec<(String, AstItemType)>) {
         if let Some(completion) = &mut self.completion {
             if span.has(completion.position - 1) {
                 let mut found = completion.found.clone().unwrap_or(vec![]);
@@ -234,8 +230,11 @@ impl Typechecker {
                         // Search similar identifiers
                         let mut completions = vec![];
                         for key in self.types.0.keys() {
-                            if key.as_string().starts_with(&i.data) {
-                                completions.push((key.as_string(), CompletionItemType::Variable));
+                            if key.as_string().contains(&i.data) {
+                                completions.push((
+                                    key.as_string(),
+                                    self.types.get(key).unwrap().clone().1,
+                                ));
                             }
                         }
 
@@ -456,7 +455,7 @@ impl Typechecker {
                     &field.span,
                     field_types
                         .iter()
-                        .map(|(name, _)| (name.clone(), CompletionItemType::Struct))
+                        .map(|(name, _)| (name.clone(), AstItemType::Field))
                         .collect::<Vec<_>>(),
                 );
 
@@ -553,7 +552,7 @@ impl Typechecker {
                     Type::Ident(ident) => {
                         let mut methods = vec![];
 
-                        for (key, ty) in &self.types.0 {
+                        for (key, (ty, _)) in &self.types.0 {
                             if key.as_string().starts_with(format!("{}::", ident).as_str()) {
                                 if let Type::Fun(_, _) = ty.data {
                                     methods.push((
@@ -573,7 +572,7 @@ impl Typechecker {
                     } => {
                         let mut methods = vec![];
 
-                        for (key, ty) in &self.types.0 {
+                        for (key, (ty, _)) in &self.types.0 {
                             if key.as_string().starts_with(format!("{}::", ident).as_str()) {
                                 if let Type::Fun(_, _) = ty.data {
                                     methods.push((
@@ -641,6 +640,7 @@ impl Typechecker {
                     self.types.insert_ident(
                         param.0.data.clone(),
                         Source::span(param.1.data.clone(), param.0.span.clone()),
+                        AstItemType::Argument,
                     );
                 }
 
@@ -679,7 +679,8 @@ impl Typechecker {
                         format!("{}::{}", module.data, name.data),
                         name.span.clone(),
                     )))?
-                    .clone();
+                    .clone()
+                    .0;
 
                 Ok(ty.data.clone())
             }
@@ -688,7 +689,7 @@ impl Typechecker {
 
                 match ty {
                     Type::Ident(ident) => {
-                        let ty = self.types.get_ident(&ident).unwrap().data.clone();
+                        let ty = self.types.get_ident(&ident).unwrap().0.data.clone();
 
                         match ty {
                             Type::Newtype { ty, .. } => Ok(*ty),
@@ -716,8 +717,11 @@ impl Typechecker {
                 let ty = self.expr(value)?;
                 self.check_inlay_hints(&name.span, ty.clone());
                 self.check_infer_type_at(&name.span, ty.clone());
-                self.types
-                    .insert_ident(name.data.clone(), Source::span(ty, name.span.clone()));
+                self.types.insert_ident(
+                    name.data.clone(),
+                    Source::span(ty, name.span.clone()),
+                    AstItemType::Variable,
+                );
             }
             Statement::Return(expr) => {
                 self.return_ty = self.expr_infer(expr, self.return_ty.clone())?;
@@ -754,8 +758,11 @@ impl Typechecker {
                 let ty = self.expr(expr)?;
                 match ty {
                     Type::Range(ty) => {
-                        self.types
-                            .insert_ident(var.data.clone(), Source::span(*ty, var.span.clone()));
+                        self.types.insert_ident(
+                            var.data.clone(),
+                            Source::span(*ty, var.span.clone()),
+                            AstItemType::Variable,
+                        );
                         self.block(body)?;
 
                         *mode = ForMode::Range;
@@ -764,6 +771,7 @@ impl Typechecker {
                         self.types.insert_ident(
                             var.data.clone(),
                             Source::span(*ty.clone(), var.span.clone()),
+                            AstItemType::Variable,
                         );
                         self.block(body)?;
 
@@ -864,6 +872,7 @@ impl Typechecker {
                     self.types.insert_ident(
                         param.0.data.clone(),
                         Source::span(ty.clone(), param.0.span.clone()),
+                        AstItemType::Argument,
                     );
                 }
 
@@ -874,6 +883,7 @@ impl Typechecker {
                         Type::Fun(param_types.clone(), Box::new(self.return_ty.clone())),
                         name.span.clone(),
                     ),
+                    AstItemType::Function,
                 );
                 self.globals.push(path.as_string());
 
@@ -887,8 +897,11 @@ impl Typechecker {
                 let ty = Type::Fun(param_types, Box::new(self.return_ty.clone()));
 
                 self.types = types_cloned;
-                self.types
-                    .insert(path.clone(), Source::span(ty, name.span.clone()));
+                self.types.insert(
+                    path.clone(),
+                    Source::span(ty, name.span.clone()),
+                    AstItemType::Function,
+                );
             }
             Declaration::Let {
                 name,
@@ -899,8 +912,11 @@ impl Typechecker {
 
                 *let_ty = ty.clone();
 
-                self.types
-                    .insert_ident(name.data.clone(), Source::span(ty, name.span.clone()));
+                self.types.insert_ident(
+                    name.data.clone(),
+                    Source::span(ty, name.span.clone()),
+                    AstItemType::GlobalVariable,
+                );
                 self.globals.push(name.data.clone());
             }
             Declaration::Struct { name, fields } => {
@@ -919,6 +935,7 @@ impl Typechecker {
                         },
                         name.span.clone(),
                     ),
+                    AstItemType::Struct,
                 );
             }
             Declaration::Import(_) => {}
@@ -939,6 +956,7 @@ impl Typechecker {
                         Type::Fun(param_types.clone(), Box::new(result.data.clone())),
                         name.span.clone(),
                     ),
+                    AstItemType::DeclareFunction,
                 );
                 self.globals.push(name.data.clone());
             }
@@ -958,6 +976,7 @@ impl Typechecker {
                         },
                         name.span.clone(),
                     ),
+                    AstItemType::Newtype,
                 );
             }
         }
@@ -1014,7 +1033,7 @@ impl Typechecker {
         &mut self,
         module: &mut Module,
         position: usize,
-    ) -> Option<Vec<(String, CompletionItemType)>> {
+    ) -> Option<Vec<(String, AstItemType)>> {
         self.completion = Some(Completion {
             position,
             found: None,

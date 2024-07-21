@@ -410,8 +410,20 @@ impl TypeMapKey {
     }
 }
 
+#[derive(Debug, PartialEq, Clone, PartialOrd, Eq, Ord)]
+pub enum AstItemType {
+    Variable,
+    Function,
+    Struct,
+    Field,
+    Argument,
+    DeclareFunction,
+    Newtype,
+    GlobalVariable,
+}
+
 #[derive(Debug, PartialEq, Clone)]
-pub struct TypeMap(pub HashMap<TypeMapKey, Source<Type>>);
+pub struct TypeMap(pub HashMap<TypeMapKey, (Source<Type>, AstItemType)>);
 
 impl TypeMap {
     pub fn new() -> Self {
@@ -422,26 +434,28 @@ impl TypeMap {
         let mut types = TypeMap::new();
 
         for (name, ty) in Type::builtin_types() {
-            types.0.insert(TypeMapKey::Ident(name.clone()), ty);
+            types
+                .0
+                .insert(TypeMapKey::Ident(name.clone()), (ty, AstItemType::Function));
         }
 
         types
     }
 
-    pub fn get_ident(&self, name: &str) -> Option<&Source<Type>> {
+    pub fn get_ident(&self, name: &str) -> Option<&(Source<Type>, AstItemType)> {
         self.0.get(&TypeMapKey::Ident(name.to_string()))
     }
 
-    pub fn get(&self, key: &TypeMapKey) -> Option<&Source<Type>> {
+    pub fn get(&self, key: &TypeMapKey) -> Option<&(Source<Type>, AstItemType)> {
         self.0.get(key)
     }
 
-    pub fn insert_ident(&mut self, name: String, ty: Source<Type>) {
-        self.0.insert(TypeMapKey::Ident(name), ty);
+    pub fn insert_ident(&mut self, name: String, ty: Source<Type>, item_type: AstItemType) {
+        self.0.insert(TypeMapKey::Ident(name), (ty, item_type));
     }
 
-    pub fn insert(&mut self, key: TypeMapKey, ty: Source<Type>) {
-        self.0.insert(key, ty);
+    pub fn insert(&mut self, key: TypeMapKey, ty: Source<Type>, item_type: AstItemType) {
+        self.0.insert(key, (ty, item_type));
     }
 
     pub fn contains_ident_key(&self, name: &str) -> bool {

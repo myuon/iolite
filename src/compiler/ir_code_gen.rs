@@ -428,6 +428,7 @@ impl IrCodeGenerator {
                     .unwrap()
                     .get_ident(&name.data)
                     .unwrap()
+                    .0
                     .data
                     .as_struct_fields()
                     .unwrap();
@@ -647,6 +648,7 @@ impl IrCodeGenerator {
                         .unwrap()
                         .get_ident(&name)
                         .unwrap()
+                        .0
                         .data
                         .as_struct_fields()
                         .unwrap()

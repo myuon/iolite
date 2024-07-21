@@ -23,8 +23,8 @@ use crate::{
     compiler::{
         self,
         ast::{
-            AstWalker, AstWalkerMode, AST_WALKER_FIELD, AST_WALKER_FUNCTION, AST_WALKER_KEYWORD,
-            AST_WALKER_METHOD, AST_WALKER_NAMESPACE, AST_WALKER_TYPE,
+            AstItemType, AstWalker, AstWalkerMode, AST_WALKER_FIELD, AST_WALKER_FUNCTION,
+            AST_WALKER_KEYWORD, AST_WALKER_METHOD, AST_WALKER_NAMESPACE, AST_WALKER_TYPE,
         },
         LoadedModule,
     },
@@ -500,12 +500,14 @@ async fn lsp_handler(
                     label,
                     label_details: None,
                     kind: Some(match item_type {
-                        compiler::typechecker::CompletionItemType::Struct => {
-                            CompletionItemKind::FIELD
-                        }
-                        compiler::typechecker::CompletionItemType::Variable => {
-                            CompletionItemKind::VARIABLE
-                        }
+                        AstItemType::Variable => CompletionItemKind::VARIABLE,
+                        AstItemType::Function => CompletionItemKind::FUNCTION,
+                        AstItemType::Struct => CompletionItemKind::STRUCT,
+                        AstItemType::Field => CompletionItemKind::FIELD,
+                        AstItemType::Argument => CompletionItemKind::VARIABLE,
+                        AstItemType::DeclareFunction => CompletionItemKind::FUNCTION,
+                        AstItemType::Newtype => CompletionItemKind::STRUCT,
+                        AstItemType::GlobalVariable => CompletionItemKind::VARIABLE,
                     }),
                     detail: None,
                     documentation: None,
@@ -1245,6 +1247,26 @@ mod tests {
                     }),
                 },
                 vec![
+                    CompletionItem {
+                        label: "get_hoge".to_string(),
+                        label_details: None,
+                        kind: Some(CompletionItemKind::FUNCTION),
+                        detail: None,
+                        documentation: None,
+                        deprecated: None,
+                        preselect: None,
+                        sort_text: None,
+                        filter_text: None,
+                        insert_text: None,
+                        insert_text_format: None,
+                        insert_text_mode: None,
+                        text_edit: None,
+                        additional_text_edits: None,
+                        command: None,
+                        commit_characters: None,
+                        data: None,
+                        tags: None,
+                    },
                     CompletionItem {
                         label: "hoge".to_string(),
                         label_details: None,
