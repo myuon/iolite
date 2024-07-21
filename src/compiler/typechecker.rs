@@ -547,6 +547,8 @@ impl Typechecker {
                     .clone();
                 *call_symbol = Some(symbol);
 
+                self.check_infer_type_at(&name.span, method.clone());
+
                 let mut arg_types_actual = vec![];
                 for arg in args {
                     arg_types_actual.push((arg.span.clone(), self.expr(arg)?));

@@ -879,8 +879,8 @@ mod tests {
             (
                 "test1.io",
                 Position {
-                    line: 7,
-                    character: 10,
+                    line: 5,
+                    character: 6,
                 },
                 Hover {
                     contents: HoverContents::Scalar(MarkedString::String(
@@ -893,11 +893,24 @@ mod tests {
                 "test1.io",
                 Position {
                     line: 5,
-                    character: 6,
+                    character: 12,
                 },
                 Hover {
                     contents: HoverContents::Scalar(MarkedString::String(
-                        "array[byte]".to_string(),
+                        "(int, byte) => array[byte]".to_string(),
+                    )),
+                    range: None,
+                },
+            ),
+            (
+                "test1.io",
+                Position {
+                    line: 6,
+                    character: 15,
+                },
+                Hover {
+                    contents: HoverContents::Scalar(MarkedString::String(
+                        "(int) => array[byte]".to_string(),
                     )),
                     range: None,
                 },

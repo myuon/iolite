@@ -4,6 +4,7 @@ fun f(x: int, y: byte) {
 
 fun main() {
   let str = f(0, 48 as byte);
+  let k = 128.to_string();
 
   return str;
 }

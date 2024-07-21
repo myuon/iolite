@@ -83,18 +83,22 @@ pub mod reporter {
     }
 
     pub fn report_error_span(source: &str, span: &Span) {
-        let (line, col) = find_position_with_input(source, span.start.unwrap());
+        let (line, col) = find_position_with_input(source, span.start.unwrap_or(0));
         eprintln!(
             "Error at module {}, line {}, column {} ({})",
             span.module_name.clone().unwrap_or("<main>".to_string()),
             line,
             col,
-            span.start.unwrap()
+            span.start.unwrap_or(0)
         );
         eprintln!(
             "{}\n{}^",
             source.lines().collect::<Vec<_>>().join("\n"),
-            " ".repeat(col - 1)
+            if col > 0 {
+                " ".repeat(col - 1)
+            } else {
+                "".to_string()
+            }
         );
     }
 }
