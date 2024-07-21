@@ -10,4 +10,6 @@ fun get_hoge(): int {
 fun main() {
   let hoge = Hoge { x: 100 };
   let hoge_fuga = "foobar";
+
+  hog
 }

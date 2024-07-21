@@ -433,7 +433,7 @@ async fn lsp_handler(
 
             let mut compiler = compiler::Compiler::new();
             compiler.set_cwd(path.parent().unwrap().to_str().unwrap().to_string());
-            if let Err(err) = compiler.parse(module_name.clone(), false) {
+            if let Err(err) = compiler.parse(module_name.clone(), true) {
                 eprintln!("{:?}", err);
                 return Ok(None);
             }
@@ -621,6 +621,11 @@ mod tests {
         ];
 
         for (file, checks) in cases {
+            let (sender, mut receiver) = tokio::sync::mpsc::channel::<String>(100);
+            let sender =
+                SimpleSender::new(sender, Arc::new(|m| serde_json::to_string(&m).unwrap()));
+            let ctx = LspContext::new();
+
             let req = RpcMessageRequest {
                 id: None,
                 method: DidSaveTextDocument::METHOD.to_string(),
@@ -636,10 +641,32 @@ mod tests {
                 })?,
                 jsonrpc: "".to_string(),
             };
-            let (sender, mut receiver) = tokio::sync::mpsc::channel::<String>(100);
-            let sender =
-                SimpleSender::new(sender, Arc::new(|m| serde_json::to_string(&m).unwrap()));
-            let res = lsp_handler(LspContext::new(), req, sender).await?;
+            let res = lsp_handler(ctx.clone(), req, sender.clone()).await?;
+            assert!(res.is_none());
+
+            let req = RpcMessageRequest {
+                id: None,
+                method: DocumentDiagnosticRequest::METHOD.to_string(),
+                params: serde_json::to_value(&DocumentDiagnosticParams {
+                    text_document: TextDocumentIdentifier::new(Url::parse(&format!(
+                        "file://{}",
+                        std::env::current_dir()?
+                            .join(format!("tests/lsp/diagnostics/{}", file))
+                            .to_str()
+                            .unwrap()
+                    ))?),
+                    identifier: None,
+                    previous_result_id: None,
+                    work_done_progress_params: WorkDoneProgressParams {
+                        work_done_token: None,
+                    },
+                    partial_result_params: PartialResultParams {
+                        partial_result_token: None,
+                    },
+                })?,
+                jsonrpc: "".to_string(),
+            };
+            let res = lsp_handler(ctx, req, sender).await?;
             assert!(res.is_none());
 
             let r = receiver.recv().await.unwrap();

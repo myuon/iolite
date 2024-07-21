@@ -83,7 +83,7 @@ impl<C: Clone, I: LspServer + Sync + Send + Clone + 'static> ServerProcess<C> fo
 
             loop {
                 if let Err(err) = {
-                    let headers = read_headers(&mut reader).await.unwrap();
+                    let headers = read_headers(&mut reader).await?;
                     let length = headers
                         .into_iter()
                         .find(|(key, _)| key == "Content-Length")
