@@ -9,16 +9,16 @@ use lsp_types::{
         Completion, DocumentDiagnosticRequest, GotoDefinition, HoverRequest, Initialize,
         InlayHintRequest, Request, SemanticTokensFullRequest,
     },
-    CompletionItem, CompletionItemKind, CompletionOptions, CompletionParams, DeclarationCapability,
-    Diagnostic, DiagnosticOptions, DiagnosticServerCapabilities, DiagnosticSeverity,
-    DidChangeTextDocumentParams, DocumentDiagnosticParams, FullDocumentDiagnosticReport, Hover,
-    HoverContents, HoverParams, HoverProviderCapability, InitializeResult, InlayHint,
-    InlayHintLabel, InlayHintParams, Location, MarkedString, OneOf, Position,
-    PublishDiagnosticsParams, Range, RelatedFullDocumentDiagnosticReport, SemanticToken,
-    SemanticTokenType, SemanticTokens, SemanticTokensFullOptions, SemanticTokensLegend,
-    SemanticTokensOptions, SemanticTokensParams, SemanticTokensServerCapabilities,
-    ServerCapabilities, TextDocumentPositionParams, TextDocumentSyncCapability,
-    TextDocumentSyncKind, Url, WorkDoneProgressOptions,
+    CompletionItem, CompletionItemKind, CompletionItemLabelDetails, CompletionOptions,
+    CompletionParams, DeclarationCapability, Diagnostic, DiagnosticOptions,
+    DiagnosticServerCapabilities, DiagnosticSeverity, DidChangeTextDocumentParams,
+    DocumentDiagnosticParams, FullDocumentDiagnosticReport, Hover, HoverContents, HoverParams,
+    HoverProviderCapability, InitializeResult, InlayHint, InlayHintLabel, InlayHintParams,
+    Location, MarkedString, OneOf, Position, PublishDiagnosticsParams, Range,
+    RelatedFullDocumentDiagnosticReport, SemanticToken, SemanticTokenType, SemanticTokens,
+    SemanticTokensFullOptions, SemanticTokensLegend, SemanticTokensOptions, SemanticTokensParams,
+    SemanticTokensServerCapabilities, ServerCapabilities, TextDocumentPositionParams,
+    TextDocumentSyncCapability, TextDocumentSyncKind, Url, WorkDoneProgressOptions,
 };
 
 use crate::{
@@ -497,10 +497,17 @@ async fn lsp_handler(
             let items = compiler.completion(module_name.clone(), position)?;
 
             let mut result = vec![];
-            for (label, item_type) in items {
+            for (label, ty, item_type) in items {
                 result.push(CompletionItem {
-                    label,
-                    label_details: None,
+                    label: if item_type.is_function_like() {
+                        format!("{}()", label)
+                    } else {
+                        label.clone()
+                    },
+                    label_details: Some(CompletionItemLabelDetails {
+                        detail: None,
+                        description: Some(ty.to_string()),
+                    }),
                     kind: Some(match item_type {
                         AstItemType::Variable => CompletionItemKind::VARIABLE,
                         AstItemType::Function => CompletionItemKind::FUNCTION,
@@ -511,7 +518,7 @@ async fn lsp_handler(
                         AstItemType::Newtype => CompletionItemKind::STRUCT,
                         AstItemType::GlobalVariable => CompletionItemKind::VARIABLE,
                     }),
-                    detail: None,
+                    detail: Some(ty.to_string()),
                     documentation: None,
                     deprecated: None,
                     preselect: None,
@@ -1138,9 +1145,12 @@ mod tests {
                 vec![
                     CompletionItem {
                         label: "x".to_string(),
-                        label_details: None,
+                        label_details: Some(CompletionItemLabelDetails {
+                            detail: None,
+                            description: Some("int".to_string()),
+                        }),
                         kind: Some(CompletionItemKind::FIELD),
-                        detail: None,
+                        detail: Some("int".to_string()),
                         documentation: None,
                         deprecated: None,
                         preselect: None,
@@ -1158,9 +1168,12 @@ mod tests {
                     },
                     CompletionItem {
                         label: "y".to_string(),
-                        label_details: None,
+                        label_details: Some(CompletionItemLabelDetails {
+                            detail: None,
+                            description: Some("int".to_string()),
+                        }),
                         kind: Some(CompletionItemKind::FIELD),
-                        detail: None,
+                        detail: Some("int".to_string()),
                         documentation: None,
                         deprecated: None,
                         preselect: None,
@@ -1208,9 +1221,12 @@ mod tests {
                 vec![
                     CompletionItem {
                         label: "x".to_string(),
-                        label_details: None,
+                        label_details: Some(CompletionItemLabelDetails {
+                            detail: None,
+                            description: Some("int".to_string()),
+                        }),
                         kind: Some(CompletionItemKind::FIELD),
-                        detail: None,
+                        detail: Some("int".to_string()),
                         documentation: None,
                         deprecated: None,
                         preselect: None,
@@ -1228,9 +1244,12 @@ mod tests {
                     },
                     CompletionItem {
                         label: "y".to_string(),
-                        label_details: None,
+                        label_details: Some(CompletionItemLabelDetails {
+                            detail: None,
+                            description: Some("int".to_string()),
+                        }),
                         kind: Some(CompletionItemKind::FIELD),
-                        detail: None,
+                        detail: Some("int".to_string()),
                         documentation: None,
                         deprecated: None,
                         preselect: None,
@@ -1277,10 +1296,13 @@ mod tests {
                 },
                 vec![
                     CompletionItem {
-                        label: "get_hoge".to_string(),
-                        label_details: None,
+                        label: "get_hoge()".to_string(),
+                        label_details: Some(CompletionItemLabelDetails {
+                            detail: None,
+                            description: Some("() => int".to_string()),
+                        }),
                         kind: Some(CompletionItemKind::FUNCTION),
-                        detail: None,
+                        detail: Some("() => int".to_string()),
                         documentation: None,
                         deprecated: None,
                         preselect: None,
@@ -1298,9 +1320,12 @@ mod tests {
                     },
                     CompletionItem {
                         label: "hoge".to_string(),
-                        label_details: None,
+                        label_details: Some(CompletionItemLabelDetails {
+                            detail: None,
+                            description: Some("Hoge".to_string()),
+                        }),
                         kind: Some(CompletionItemKind::VARIABLE),
-                        detail: None,
+                        detail: Some("Hoge".to_string()),
                         documentation: None,
                         deprecated: None,
                         preselect: None,
@@ -1318,9 +1343,12 @@ mod tests {
                     },
                     CompletionItem {
                         label: "hoge_fuga".to_string(),
-                        label_details: None,
+                        label_details: Some(CompletionItemLabelDetails {
+                            detail: None,
+                            description: Some("array[byte]".to_string()),
+                        }),
                         kind: Some(CompletionItemKind::VARIABLE),
-                        detail: None,
+                        detail: Some("array[byte]".to_string()),
                         documentation: None,
                         deprecated: None,
                         preselect: None,

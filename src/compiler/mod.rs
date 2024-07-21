@@ -413,7 +413,7 @@ impl Compiler {
         &mut self,
         path: String,
         position: usize,
-    ) -> Result<Vec<(String, AstItemType)>> {
+    ) -> Result<Vec<(String, Type, AstItemType)>> {
         let paths = self.pathes_in_imported_order();
 
         let mut typechecker = typechecker::Typechecker::new();

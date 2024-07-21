@@ -271,7 +271,7 @@ pub struct Module {
     pub declarations: Vec<Source<Declaration>>,
 }
 
-#[derive(Debug, PartialEq, Clone)]
+#[derive(Debug, PartialEq, Clone, PartialOrd, Eq, Ord)]
 pub enum Type {
     Unknown,
     Nil,
@@ -420,6 +420,12 @@ pub enum AstItemType {
     DeclareFunction,
     Newtype,
     GlobalVariable,
+}
+
+impl AstItemType {
+    pub fn is_function_like(&self) -> bool {
+        matches!(self, AstItemType::Function | AstItemType::DeclareFunction)
+    }
 }
 
 #[derive(Debug, PartialEq, Clone)]

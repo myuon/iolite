@@ -96,7 +96,7 @@ struct InferTypeAt {
 #[derive(Debug, Clone)]
 struct Completion {
     position: usize,
-    found: Option<Vec<(String, AstItemType)>>,
+    found: Option<Vec<(String, Type, AstItemType)>>,
 }
 
 pub struct Typechecker {
@@ -199,7 +199,7 @@ impl Typechecker {
         }
     }
 
-    fn check_completion(&mut self, span: &Span, completions: Vec<(String, AstItemType)>) {
+    fn check_completion(&mut self, span: &Span, completions: Vec<(String, Type, AstItemType)>) {
         if let Some(completion) = &mut self.completion {
             if span.has(completion.position - 1) {
                 let mut found = completion.found.clone().unwrap_or(vec![]);
@@ -231,10 +231,9 @@ impl Typechecker {
                         let mut completions = vec![];
                         for key in self.types.0.keys() {
                             if key.as_string().contains(&i.data) {
-                                completions.push((
-                                    key.as_string(),
-                                    self.types.get(key).unwrap().clone().1,
-                                ));
+                                let (ty, item_type) = self.types.get(key).unwrap().clone();
+
+                                completions.push((key.as_string(), ty.data.clone(), item_type));
                             }
                         }
 
@@ -455,7 +454,7 @@ impl Typechecker {
                     &field.span,
                     field_types
                         .iter()
-                        .map(|(name, _)| (name.clone(), AstItemType::Field))
+                        .map(|(name, ty)| (name.clone(), ty.clone(), AstItemType::Field))
                         .collect::<Vec<_>>(),
                 );
 
@@ -1035,7 +1034,7 @@ impl Typechecker {
         &mut self,
         module: &mut Module,
         position: usize,
-    ) -> Option<Vec<(String, AstItemType)>> {
+    ) -> Option<Vec<(String, Type, AstItemType)>> {
         self.completion = Some(Completion {
             position,
             found: None,
