@@ -1380,6 +1380,8 @@ mod tests {
             assert_eq!(
                 res.map(|r| r.result),
                 Some(serde_json::to_value::<Vec<CompletionItem>>(result)?),
+                "{}",
+                file,
             );
 
             let r = receiver.try_recv();
