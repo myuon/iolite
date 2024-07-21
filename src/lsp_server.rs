@@ -531,7 +531,8 @@ mod tests {
     use lsp_types::{
         notification::DidSaveTextDocument, CompletionContext, CompletionTriggerKind,
         DidSaveTextDocumentParams, GotoDefinitionParams, PartialResultParams,
-        TextDocumentIdentifier, Url, VersionedTextDocumentIdentifier, WorkDoneProgressParams,
+        TextDocumentContentChangeEvent, TextDocumentIdentifier, Url,
+        VersionedTextDocumentIdentifier, WorkDoneProgressParams,
     };
     use pretty_assertions::assert_eq;
 
@@ -1144,25 +1145,28 @@ mod tests {
             let sender =
                 SimpleSender::new(sender, Arc::new(|m| serde_json::to_string(&m).unwrap()));
 
+            let ctx = LspContext::new();
+
+            let path = std::env::current_dir()?.join(format!("tests/lsp/completion/{}", file));
+            let text = std::fs::read_to_string(&path)?;
+
             let req = RpcMessageRequest {
                 id: None,
                 method: DidChangeTextDocument::METHOD.to_string(),
                 params: serde_json::to_value(&DidChangeTextDocumentParams {
                     text_document: VersionedTextDocumentIdentifier::new(
-                        Url::parse(&format!(
-                            "file://{}",
-                            std::env::current_dir()?
-                                .join(format!("tests/lsp/completion/{}", file))
-                                .to_str()
-                                .unwrap()
-                        ))?,
+                        Url::parse(&format!("file://{}", path.clone().to_str().unwrap()))?,
                         1,
                     ),
-                    content_changes: vec![],
+                    content_changes: vec![TextDocumentContentChangeEvent {
+                        range: None,
+                        range_length: None,
+                        text,
+                    }],
                 })?,
                 jsonrpc: "".to_string(),
             };
-            let res = lsp_handler(LspContext::new(), req, sender.clone()).await?;
+            let res = lsp_handler(ctx.clone(), req, sender.clone()).await?;
             assert!(matches!(res, None));
 
             let req = RpcMessageRequest {
@@ -1171,7 +1175,7 @@ mod tests {
                 params: serde_json::to_value(&params)?,
                 jsonrpc: "".to_string(),
             };
-            let res = lsp_handler(LspContext::new(), req, sender).await?;
+            let res = lsp_handler(ctx.clone(), req, sender).await?;
 
             assert_eq!(
                 res.map(|r| r.result),
