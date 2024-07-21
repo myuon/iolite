@@ -487,6 +487,10 @@ impl Parser {
                         block.push(Source::span(Statement::Expr(expr), statement.span));
                         continue;
                     }
+                    if self.allow_incomplete {
+                        block.push(Source::span(Statement::Expr(expr), statement.span));
+                        continue;
+                    }
 
                     last_expr = Some(expr);
                     break;
@@ -1626,19 +1630,58 @@ mod tests {
                     params: vec![],
                     result: Source::unknown(Type::Unknown),
                     body: Source::unknown(Block {
-                        statements: vec![Source::unknown(Statement::Let(
-                            Source::unknown("x".to_string()),
-                            Source::unknown(Expr::Lit(Source::unknown(Literal::Integer(
-                                Source::unknown(1),
+                        statements: vec![
+                            Source::unknown(Statement::Let(
+                                Source::unknown("x".to_string()),
+                                Source::unknown(Expr::Lit(Source::unknown(Literal::Integer(
+                                    Source::unknown(1),
+                                )))),
+                            )),
+                            Source::unknown(Statement::Expr(Source::unknown(Expr::Project {
+                                expr_ty: Type::Unknown,
+                                expr: Box::new(Source::unknown(Expr::Ident(Source::unknown(
+                                    "x".to_string(),
+                                )))),
+                                field: Source::unknown("<unknown>".to_string()),
+                            }))),
+                        ],
+                        expr: None,
+                    }),
+                    meta_tags: vec![],
+                })],
+            ),
+            (
+                r#"fun main() {
+    let x = 1;
+
+    x.
+
+    return x;
+                }"#,
+                vec![Source::unknown(Declaration::Function {
+                    name: Source::unknown("main".to_string()),
+                    params: vec![],
+                    result: Source::unknown(Type::Unknown),
+                    body: Source::unknown(Block {
+                        statements: vec![
+                            Source::unknown(Statement::Let(
+                                Source::unknown("x".to_string()),
+                                Source::unknown(Expr::Lit(Source::unknown(Literal::Integer(
+                                    Source::unknown(1),
+                                )))),
+                            )),
+                            Source::unknown(Statement::Expr(Source::unknown(Expr::Project {
+                                expr_ty: Type::Unknown,
+                                expr: Box::new(Source::unknown(Expr::Ident(Source::unknown(
+                                    "x".to_string(),
+                                )))),
+                                field: Source::unknown("<unknown>".to_string()),
+                            }))),
+                            Source::unknown(Statement::Return(Source::unknown(Expr::Ident(
+                                Source::unknown("x".to_string()),
                             )))),
-                        ))],
-                        expr: Some(Source::unknown(Expr::Project {
-                            expr_ty: Type::Unknown,
-                            expr: Box::new(Source::unknown(Expr::Ident(Source::unknown(
-                                "x".to_string(),
-                            )))),
-                            field: Source::unknown("<unknown>".to_string()),
-                        })),
+                        ],
+                        expr: None,
                     }),
                     meta_tags: vec![],
                 })],
@@ -1651,7 +1694,7 @@ mod tests {
             let mut parser = Parser::new("".to_string(), tokens, true);
             let actual = parser.decls(None).unwrap();
 
-            assert_eq!(actual, expected);
+            assert_eq!(actual, expected, "{}", input);
         }
     }
 }

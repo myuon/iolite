@@ -1069,76 +1069,148 @@ mod tests {
 
     #[tokio::test]
     async fn test_lsp_handler_completion() -> Result<()> {
-        let cases = vec![(
-            "test1.io",
-            CompletionParams {
-                text_document_position: TextDocumentPositionParams {
-                    text_document: TextDocumentIdentifier::new(Url::parse(&format!(
-                        "file://{}",
-                        std::env::current_dir()?
-                            .join("tests/lsp/completion/test1.io")
-                            .to_str()
-                            .unwrap()
-                    ))?),
-                    position: Position {
-                        line: 7,
-                        character: 16,
+        let cases = vec![
+            (
+                "test1.io",
+                CompletionParams {
+                    text_document_position: TextDocumentPositionParams {
+                        text_document: TextDocumentIdentifier::new(Url::parse(&format!(
+                            "file://{}",
+                            std::env::current_dir()?
+                                .join("tests/lsp/completion/test1.io")
+                                .to_str()
+                                .unwrap()
+                        ))?),
+                        position: Position {
+                            line: 7,
+                            character: 16,
+                        },
                     },
+                    work_done_progress_params: WorkDoneProgressParams {
+                        work_done_token: None,
+                    },
+                    partial_result_params: PartialResultParams {
+                        partial_result_token: None,
+                    },
+                    context: Some(CompletionContext {
+                        trigger_kind: CompletionTriggerKind::TRIGGER_CHARACTER,
+                        trigger_character: Some(".".to_string()),
+                    }),
                 },
-                work_done_progress_params: WorkDoneProgressParams {
-                    work_done_token: None,
+                vec![
+                    CompletionItem {
+                        label: "x".to_string(),
+                        label_details: None,
+                        kind: None,
+                        detail: None,
+                        documentation: None,
+                        deprecated: None,
+                        preselect: None,
+                        sort_text: None,
+                        filter_text: None,
+                        insert_text: None,
+                        insert_text_format: None,
+                        insert_text_mode: None,
+                        text_edit: None,
+                        additional_text_edits: None,
+                        command: None,
+                        commit_characters: None,
+                        data: None,
+                        tags: None,
+                    },
+                    CompletionItem {
+                        label: "y".to_string(),
+                        label_details: None,
+                        kind: None,
+                        detail: None,
+                        documentation: None,
+                        deprecated: None,
+                        preselect: None,
+                        sort_text: None,
+                        filter_text: None,
+                        insert_text: None,
+                        insert_text_format: None,
+                        insert_text_mode: None,
+                        text_edit: None,
+                        additional_text_edits: None,
+                        command: None,
+                        commit_characters: None,
+                        data: None,
+                        tags: None,
+                    },
+                ],
+            ),
+            (
+                "test2.io",
+                CompletionParams {
+                    text_document_position: TextDocumentPositionParams {
+                        text_document: TextDocumentIdentifier::new(Url::parse(&format!(
+                            "file://{}",
+                            std::env::current_dir()?
+                                .join("tests/lsp/completion/test2.io")
+                                .to_str()
+                                .unwrap()
+                        ))?),
+                        position: Position {
+                            line: 7,
+                            character: 8,
+                        },
+                    },
+                    work_done_progress_params: WorkDoneProgressParams {
+                        work_done_token: None,
+                    },
+                    partial_result_params: PartialResultParams {
+                        partial_result_token: None,
+                    },
+                    context: Some(CompletionContext {
+                        trigger_kind: CompletionTriggerKind::TRIGGER_CHARACTER,
+                        trigger_character: Some(".".to_string()),
+                    }),
                 },
-                partial_result_params: PartialResultParams {
-                    partial_result_token: None,
-                },
-                context: Some(CompletionContext {
-                    trigger_kind: CompletionTriggerKind::TRIGGER_CHARACTER,
-                    trigger_character: Some(".".to_string()),
-                }),
-            },
-            vec![
-                CompletionItem {
-                    label: "x".to_string(),
-                    label_details: None,
-                    kind: None,
-                    detail: None,
-                    documentation: None,
-                    deprecated: None,
-                    preselect: None,
-                    sort_text: None,
-                    filter_text: None,
-                    insert_text: None,
-                    insert_text_format: None,
-                    insert_text_mode: None,
-                    text_edit: None,
-                    additional_text_edits: None,
-                    command: None,
-                    commit_characters: None,
-                    data: None,
-                    tags: None,
-                },
-                CompletionItem {
-                    label: "y".to_string(),
-                    label_details: None,
-                    kind: None,
-                    detail: None,
-                    documentation: None,
-                    deprecated: None,
-                    preselect: None,
-                    sort_text: None,
-                    filter_text: None,
-                    insert_text: None,
-                    insert_text_format: None,
-                    insert_text_mode: None,
-                    text_edit: None,
-                    additional_text_edits: None,
-                    command: None,
-                    commit_characters: None,
-                    data: None,
-                    tags: None,
-                },
-            ],
-        )];
+                vec![
+                    CompletionItem {
+                        label: "x".to_string(),
+                        label_details: None,
+                        kind: None,
+                        detail: None,
+                        documentation: None,
+                        deprecated: None,
+                        preselect: None,
+                        sort_text: None,
+                        filter_text: None,
+                        insert_text: None,
+                        insert_text_format: None,
+                        insert_text_mode: None,
+                        text_edit: None,
+                        additional_text_edits: None,
+                        command: None,
+                        commit_characters: None,
+                        data: None,
+                        tags: None,
+                    },
+                    CompletionItem {
+                        label: "y".to_string(),
+                        label_details: None,
+                        kind: None,
+                        detail: None,
+                        documentation: None,
+                        deprecated: None,
+                        preselect: None,
+                        sort_text: None,
+                        filter_text: None,
+                        insert_text: None,
+                        insert_text_format: None,
+                        insert_text_mode: None,
+                        text_edit: None,
+                        additional_text_edits: None,
+                        command: None,
+                        commit_characters: None,
+                        data: None,
+                        tags: None,
+                    },
+                ],
+            ),
+        ];
 
         for (file, params, result) in cases {
             let (sender, mut receiver) = tokio::sync::mpsc::channel::<String>(100);

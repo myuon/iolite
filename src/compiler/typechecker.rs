@@ -969,7 +969,7 @@ impl Typechecker {
         });
 
         if let Err(err) = self.module(module) {
-            eprintln!("{}", err);
+            eprintln!("skipping {}", err);
 
             return None;
         }
@@ -996,7 +996,7 @@ impl Typechecker {
 
         // Ignore errors
         if let Err(err) = self.module(module) {
-            eprintln!("{}", err);
+            eprintln!("skipping {}", err);
         }
 
         self.completion.clone()?.found
