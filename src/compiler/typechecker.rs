@@ -93,8 +93,9 @@ struct InferTypeAt {
     found: Option<Type>,
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq, PartialOrd, Eq, Ord)]
 pub enum CompletionItemType {
+    Variable,
     Struct,
 }
 
@@ -227,6 +228,22 @@ impl Typechecker {
         match &mut expr.data {
             Expr::Ident(i) => {
                 self.check_search_ident(&Source::span(Expr::Ident(i.clone()), i.span.clone()));
+
+                if let Some(completion) = &self.completion {
+                    if i.span.has(completion.position - 1) {
+                        // Search similar identifiers
+                        let mut completions = vec![];
+                        for key in self.types.0.keys() {
+                            if key.as_string().starts_with(&i.data) {
+                                completions.push((key.as_string(), CompletionItemType::Variable));
+                            }
+                        }
+
+                        completions.sort();
+
+                        self.check_completion(&i.span, completions);
+                    }
+                }
 
                 let ty = self.get_type(&i.data, &i.span)?.data;
                 self.check_infer_type_at(&expr.span, ty.clone());

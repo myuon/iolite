@@ -503,6 +503,9 @@ async fn lsp_handler(
                         compiler::typechecker::CompletionItemType::Struct => {
                             CompletionItemKind::FIELD
                         }
+                        compiler::typechecker::CompletionItemType::Variable => {
+                            CompletionItemKind::VARIABLE
+                        }
                     }),
                     detail: None,
                     documentation: None,
@@ -1196,6 +1199,76 @@ mod tests {
                         label: "y".to_string(),
                         label_details: None,
                         kind: Some(CompletionItemKind::FIELD),
+                        detail: None,
+                        documentation: None,
+                        deprecated: None,
+                        preselect: None,
+                        sort_text: None,
+                        filter_text: None,
+                        insert_text: None,
+                        insert_text_format: None,
+                        insert_text_mode: None,
+                        text_edit: None,
+                        additional_text_edits: None,
+                        command: None,
+                        commit_characters: None,
+                        data: None,
+                        tags: None,
+                    },
+                ],
+            ),
+            (
+                "test3.io",
+                CompletionParams {
+                    text_document_position: TextDocumentPositionParams {
+                        text_document: TextDocumentIdentifier::new(Url::parse(&format!(
+                            "file://{}",
+                            std::env::current_dir()?
+                                .join("tests/lsp/completion/test3.io")
+                                .to_str()
+                                .unwrap()
+                        ))?),
+                        position: Position {
+                            line: 13,
+                            character: 5,
+                        },
+                    },
+                    work_done_progress_params: WorkDoneProgressParams {
+                        work_done_token: None,
+                    },
+                    partial_result_params: PartialResultParams {
+                        partial_result_token: None,
+                    },
+                    context: Some(CompletionContext {
+                        trigger_kind: CompletionTriggerKind::INVOKED,
+                        trigger_character: None,
+                    }),
+                },
+                vec![
+                    CompletionItem {
+                        label: "hoge".to_string(),
+                        label_details: None,
+                        kind: Some(CompletionItemKind::VARIABLE),
+                        detail: None,
+                        documentation: None,
+                        deprecated: None,
+                        preselect: None,
+                        sort_text: None,
+                        filter_text: None,
+                        insert_text: None,
+                        insert_text_format: None,
+                        insert_text_mode: None,
+                        text_edit: None,
+                        additional_text_edits: None,
+                        command: None,
+                        commit_characters: None,
+                        data: None,
+                        tags: None,
+                    },
+                    CompletionItem {
+                        label: "hoge_fuga".to_string(),
+                        label_details: None,
+                        kind: Some(CompletionItemKind::VARIABLE),
                         detail: None,
                         documentation: None,
                         deprecated: None,
