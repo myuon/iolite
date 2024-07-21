@@ -3,7 +3,7 @@ use std::path::Path;
 use anyhow::Result;
 use lsp_types::{
     notification::{
-        DidChangeTextDocument, DidSaveTextDocument, Initialized, Notification, PublishDiagnostics,
+        DidChangeTextDocument, Initialized, Notification, PublishDiagnostics,
     },
     request::{
         Completion, DocumentDiagnosticRequest, GotoDefinition, HoverRequest, Initialize,
@@ -11,7 +11,7 @@ use lsp_types::{
     },
     CompletionItem, CompletionOptions, CompletionParams, DeclarationCapability, Diagnostic,
     DiagnosticOptions, DiagnosticServerCapabilities, DiagnosticSeverity,
-    DidChangeTextDocumentParams, DidSaveTextDocumentParams, DocumentDiagnosticParams,
+    DidChangeTextDocumentParams, DocumentDiagnosticParams,
     FullDocumentDiagnosticReport, Hover, HoverContents, HoverParams, HoverProviderCapability,
     InitializeResult, InlayHint, InlayHintLabel, InlayHintParams, Location, MarkedString, OneOf,
     Position, PublishDiagnosticsParams, Range, RelatedFullDocumentDiagnosticReport, SemanticToken,
@@ -461,7 +461,7 @@ async fn lsp_handler(
             Ok(Some(RpcMessageResponse::new(req.id, hints)?))
         }
         Completion::METHOD => {
-            let params = serde_json::from_value::<CompletionParams>(req.params.clone())?;
+            let _params = serde_json::from_value::<CompletionParams>(req.params.clone())?;
             println!("{}", ctx.document.lock().unwrap());
 
             let result = vec![CompletionItem {
