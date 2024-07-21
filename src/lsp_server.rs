@@ -1366,6 +1366,82 @@ mod tests {
                     },
                 ],
             ),
+            (
+                "test4.io",
+                CompletionParams {
+                    text_document_position: TextDocumentPositionParams {
+                        text_document: TextDocumentIdentifier::new(Url::parse(&format!(
+                            "file://{}",
+                            std::env::current_dir()?
+                                .join("tests/lsp/completion/test4.io")
+                                .to_str()
+                                .unwrap()
+                        ))?),
+                        position: Position {
+                            line: 1,
+                            character: 5,
+                        },
+                    },
+                    work_done_progress_params: WorkDoneProgressParams {
+                        work_done_token: None,
+                    },
+                    partial_result_params: PartialResultParams {
+                        partial_result_token: None,
+                    },
+                    context: Some(CompletionContext {
+                        trigger_kind: CompletionTriggerKind::INVOKED,
+                        trigger_character: None,
+                    }),
+                },
+                vec![
+                    CompletionItem {
+                        label: "abs()".to_string(),
+                        label_details: Some(CompletionItemLabelDetails {
+                            detail: None,
+                            description: Some("(self) => int".to_string()),
+                        }),
+                        kind: Some(CompletionItemKind::FUNCTION),
+                        detail: Some("(self) => int".to_string()),
+                        documentation: None,
+                        deprecated: None,
+                        preselect: None,
+                        sort_text: None,
+                        filter_text: None,
+                        insert_text: None,
+                        insert_text_format: None,
+                        insert_text_mode: None,
+                        text_edit: None,
+                        additional_text_edits: None,
+                        command: None,
+                        commit_characters: None,
+                        data: None,
+                        tags: None,
+                    },
+                    CompletionItem {
+                        label: "to_string()".to_string(),
+                        label_details: Some(CompletionItemLabelDetails {
+                            detail: None,
+                            description: Some("(int) => array[byte]".to_string()),
+                        }),
+                        kind: Some(CompletionItemKind::FUNCTION),
+                        detail: Some("(int) => array[byte]".to_string()),
+                        documentation: None,
+                        deprecated: None,
+                        preselect: None,
+                        sort_text: None,
+                        filter_text: None,
+                        insert_text: None,
+                        insert_text_format: None,
+                        insert_text_mode: None,
+                        text_edit: None,
+                        additional_text_edits: None,
+                        command: None,
+                        commit_characters: None,
+                        data: None,
+                        tags: None,
+                    },
+                ],
+            ),
         ];
 
         for (file, params, result) in cases {
