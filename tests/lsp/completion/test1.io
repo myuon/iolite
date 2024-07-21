@@ -1,5 +1,6 @@
 struct Hoge {
   x: int,
+  y: int,
 }
 
 fun main() {

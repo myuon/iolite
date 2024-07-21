@@ -235,7 +235,7 @@ async fn lsp_handler(
                 .replace(".io", "");
 
             match compiler
-                .parse(path.to_string())
+                .parse(path.to_string(), false)
                 .and_then(|_| Ok(compiler.typecheck(path.to_string())?))
             {
                 Ok(_) => {
@@ -320,7 +320,7 @@ async fn lsp_handler(
                 .to_string()
                 .replace(".io", "");
 
-            match compiler.parse(module_name.clone()) {
+            match compiler.parse(module_name.clone(), false) {
                 Ok(_) => {}
                 Err(err) => {
                     eprintln!("{:?}", err);
@@ -398,7 +398,7 @@ async fn lsp_handler(
 
             let mut compiler = compiler::Compiler::new();
             compiler.set_cwd(path.parent().unwrap().to_str().unwrap().to_string());
-            if let Err(err) = compiler.parse(module_name.clone()) {
+            if let Err(err) = compiler.parse(module_name.clone(), false) {
                 eprintln!("{:?}", err);
                 return Ok(None);
             }
@@ -432,7 +432,7 @@ async fn lsp_handler(
 
             let mut compiler = compiler::Compiler::new();
             compiler.set_cwd(path.parent().unwrap().to_str().unwrap().to_string());
-            if let Err(err) = compiler.parse(module_name.clone()) {
+            if let Err(err) = compiler.parse(module_name.clone(), false) {
                 eprintln!("{:?}", err);
                 return Ok(None);
             }
@@ -459,29 +459,53 @@ async fn lsp_handler(
             Ok(Some(RpcMessageResponse::new(req.id, hints)?))
         }
         Completion::METHOD => {
-            let _params = serde_json::from_value::<CompletionParams>(req.params.clone())?;
-            println!("{}", ctx.document.lock().unwrap());
+            let params = serde_json::from_value::<CompletionParams>(req.params.clone())?;
+            let path = Path::new(params.text_document_position.text_document.uri.path());
+            let module_name = Path::new(path.to_str().unwrap())
+                .file_name()
+                .unwrap()
+                .to_str()
+                .unwrap()
+                .replace(".io", "");
 
-            let result = vec![CompletionItem {
-                label: "item".to_string(),
-                label_details: None,
-                kind: None,
-                detail: None,
-                documentation: None,
-                deprecated: None,
-                preselect: None,
-                sort_text: None,
-                filter_text: None,
-                insert_text: None,
-                insert_text_format: None,
-                insert_text_mode: None,
-                text_edit: None,
-                additional_text_edits: None,
-                command: None,
-                commit_characters: None,
-                data: None,
-                tags: None,
-            }];
+            let mut compiler = compiler::Compiler::new();
+            compiler.set_cwd(path.parent().unwrap().to_str().unwrap().to_string());
+            if let Err(err) = compiler.parse(module_name.clone(), true) {
+                eprintln!("{:?}", err);
+                return Ok(None);
+            }
+
+            let (line, col) = (
+                params.text_document_position.position.line as usize,
+                params.text_document_position.position.character as usize,
+            );
+            let position = compiler.find_line_and_column(&module_name, line, col)?;
+
+            let items = compiler.completion(module_name.clone(), position)?;
+
+            let mut result = vec![];
+            for item in items {
+                result.push(CompletionItem {
+                    label: item,
+                    label_details: None,
+                    kind: None,
+                    detail: None,
+                    documentation: None,
+                    deprecated: None,
+                    preselect: None,
+                    sort_text: None,
+                    filter_text: None,
+                    insert_text: None,
+                    insert_text_format: None,
+                    insert_text_mode: None,
+                    text_edit: None,
+                    additional_text_edits: None,
+                    command: None,
+                    commit_characters: None,
+                    data: None,
+                    tags: None,
+                });
+            }
 
             Ok(Some(RpcMessageResponse::new(req.id, result)?))
         }
@@ -1045,7 +1069,7 @@ mod tests {
                             .unwrap()
                     ))?),
                     position: Position {
-                        line: 6,
+                        line: 7,
                         character: 16,
                     },
                 },
@@ -1060,26 +1084,48 @@ mod tests {
                     trigger_character: Some(".".to_string()),
                 }),
             },
-            vec![CompletionItem {
-                label: "x".to_string(),
-                label_details: None,
-                kind: None,
-                detail: None,
-                documentation: None,
-                deprecated: None,
-                preselect: None,
-                sort_text: None,
-                filter_text: None,
-                insert_text: None,
-                insert_text_format: None,
-                insert_text_mode: None,
-                text_edit: None,
-                additional_text_edits: None,
-                command: None,
-                commit_characters: None,
-                data: None,
-                tags: None,
-            }],
+            vec![
+                CompletionItem {
+                    label: "x".to_string(),
+                    label_details: None,
+                    kind: None,
+                    detail: None,
+                    documentation: None,
+                    deprecated: None,
+                    preselect: None,
+                    sort_text: None,
+                    filter_text: None,
+                    insert_text: None,
+                    insert_text_format: None,
+                    insert_text_mode: None,
+                    text_edit: None,
+                    additional_text_edits: None,
+                    command: None,
+                    commit_characters: None,
+                    data: None,
+                    tags: None,
+                },
+                CompletionItem {
+                    label: "y".to_string(),
+                    label_details: None,
+                    kind: None,
+                    detail: None,
+                    documentation: None,
+                    deprecated: None,
+                    preselect: None,
+                    sort_text: None,
+                    filter_text: None,
+                    insert_text: None,
+                    insert_text_format: None,
+                    insert_text_mode: None,
+                    text_edit: None,
+                    additional_text_edits: None,
+                    command: None,
+                    commit_characters: None,
+                    data: None,
+                    tags: None,
+                },
+            ],
         )];
 
         for (file, params, result) in cases {

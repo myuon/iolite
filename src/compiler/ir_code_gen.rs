@@ -890,7 +890,7 @@ mod tests {
 
         for (input, expected) in cases {
             let mut lexer = Lexer::new("".to_string(), input.to_string());
-            let mut parser = Parser::new("".to_string(), lexer.run().unwrap());
+            let mut parser = Parser::new("".to_string(), lexer.run().unwrap(), false);
             let mut expr = parser.expr(true).unwrap();
             let mut typechecker = Typechecker::new();
             typechecker.expr(&mut expr).unwrap();
@@ -1006,7 +1006,7 @@ mod tests {
 
         for (input, expected) in cases {
             let mut lexer = Lexer::new("".to_string(), input.to_string());
-            let mut parser = Parser::new("".to_string(), lexer.run().unwrap());
+            let mut parser = Parser::new("".to_string(), lexer.run().unwrap(), false);
             let mut block = parser.block(None).unwrap();
             let mut typechecker = Typechecker::new();
             typechecker.block(&mut block).unwrap();

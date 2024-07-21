@@ -61,25 +61,21 @@ pub mod reporter {
 
     pub fn find_line_and_column_with_input(input: &str, line: usize, col: usize) -> usize {
         let mut current_line = 0;
-        let mut current_col = 0;
         let mut position = 0;
 
         for c in input.chars() {
-            if current_line == line && current_col == col {
+            if current_line == line {
                 break;
             }
 
             if c == '\n' {
                 current_line += 1;
-                current_col = 0;
-            } else {
-                current_col += 1;
             }
 
             position += 1;
         }
 
-        position
+        position + col
     }
 
     pub fn report_error_span(source: &str, span: &Span) {
@@ -265,13 +261,18 @@ impl Compiler {
 
     pub fn parse_decls(input: String) -> Result<Vec<Source<Declaration>>, CompilerError> {
         let mut lexer = lexer::Lexer::new("".to_string(), input.clone());
-        let mut parser = parser::Parser::new("".to_string(), lexer.run()?);
+        let mut parser = parser::Parser::new("".to_string(), lexer.run()?, false);
         let expr = Self::parse_decls_reported(&mut parser, &input)?;
 
         Ok(expr)
     }
 
-    pub fn parse_with_code(&mut self, path: String, source: String) -> Result<(), CompilerError> {
+    pub fn parse_with_code(
+        &mut self,
+        path: String,
+        source: String,
+        allow_incomplete: bool,
+    ) -> Result<(), CompilerError> {
         self.modules.insert(
             path.clone(),
             LoadedModule {
@@ -307,7 +308,7 @@ impl Compiler {
             self.modules.get_mut(&path).unwrap(),
         )?);
 
-        let mut parser = parser::Parser::new(path.clone(), tokens);
+        let mut parser = parser::Parser::new(path.clone(), tokens, allow_incomplete);
         let decls =
             Self::parse_decls_reported(&mut parser, &self.modules.get_mut(&path).unwrap().source)?;
         let module = Module {
@@ -324,13 +325,13 @@ impl Compiler {
                 continue;
             }
 
-            self.parse(path)?;
+            self.parse(path, allow_incomplete)?;
         }
 
         Ok(())
     }
 
-    pub fn parse(&mut self, path: String) -> Result<(), CompilerError> {
+    pub fn parse(&mut self, path: String, allow_incomplete: bool) -> Result<(), CompilerError> {
         let source = if path == "std" {
             include_str!("./std.io").to_string()
         } else {
@@ -338,7 +339,7 @@ impl Compiler {
             std::fs::read_to_string(&file_path)?
         };
 
-        self.parse_with_code(path, source)?;
+        self.parse_with_code(path, source, allow_incomplete)?;
 
         Ok(())
     }
@@ -397,6 +398,25 @@ impl Compiler {
             if path_target == path {
                 return Ok(typechecker
                     .inlay_hints(&mut module.module.as_mut().unwrap())
+                    .unwrap_or(vec![]));
+            } else {
+                Self::typecheck_module_reported(&mut typechecker, module)?;
+            }
+        }
+
+        Ok(vec![])
+    }
+
+    pub fn completion(&mut self, path: String, position: usize) -> Result<Vec<String>> {
+        let paths = self.pathes_in_imported_order();
+
+        let mut typechecker = typechecker::Typechecker::new();
+        for path_target in paths {
+            let module = self.modules.get_mut(&path_target).unwrap();
+
+            if path_target == path {
+                return Ok(typechecker
+                    .completion(&mut module.module.as_mut().unwrap(), position)
                     .unwrap_or(vec![]));
             } else {
                 Self::typecheck_module_reported(&mut typechecker, module)?;
@@ -547,7 +567,8 @@ impl Compiler {
     ) -> Result<(), CompilerError> {
         let path = path.unwrap_or("main".to_string());
 
-        self.parse_with_code(path.clone(), input.clone()).unwrap();
+        self.parse_with_code(path.clone(), input.clone(), false)
+            .unwrap();
         self.typecheck(path.clone())?;
         if options.no_emit {
             return Ok(());
@@ -1020,7 +1041,7 @@ mod tests {
 
                 println!("====== {}", input);
                 let path = "main".to_string();
-                compiler.parse_with_code(path.clone(), input.to_string())?;
+                compiler.parse_with_code(path.clone(), input.to_string(), false)?;
                 compiler.typecheck(path.clone())?;
                 compiler.ir_code_gen(path.clone(), false)?;
                 compiler.vm_code_gen()?;
@@ -1055,7 +1076,7 @@ mod tests {
 
                 let input = std::fs::read_to_string(path.clone()).unwrap();
 
-                compiler.parse(main.clone())?;
+                compiler.parse(main.clone(), false)?;
                 compiler.typecheck(main.clone())?;
 
                 let stdout = Arc::new(Mutex::new(BufWriter::new(vec![])));

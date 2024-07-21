@@ -93,6 +93,12 @@ struct InferTypeAt {
     found: Option<Type>,
 }
 
+#[derive(Debug, Clone)]
+struct Completion {
+    position: usize,
+    found: Option<Vec<String>>,
+}
+
 pub struct Typechecker {
     pub types: TypeMap,
     return_ty: Type,
@@ -102,6 +108,7 @@ pub struct Typechecker {
     ident_referred: Vec<String>,
     globals: Vec<String>,
     current_module: String,
+    completion: Option<Completion>,
 }
 
 impl Typechecker {
@@ -115,6 +122,7 @@ impl Typechecker {
             ident_referred: vec![],
             globals: Type::builtin_types().keys().cloned().collect(),
             current_module: "".to_string(),
+            completion: None,
         }
     }
 
@@ -186,6 +194,17 @@ impl Typechecker {
     fn check_inlay_hints(&mut self, span: &Span, ty: Type) {
         if let Some(inlay_hints) = &mut self.inlay_hints {
             inlay_hints.push((span.clone(), ty));
+        }
+    }
+
+    fn check_completion(&mut self, span: &Span, completions: Vec<String>) {
+        if let Some(completion) = &mut self.completion {
+            if span.has(completion.position - 1) {
+                let mut found = completion.found.clone().unwrap_or(vec![]);
+                found.extend(completions);
+
+                completion.found = Some(found);
+            }
         }
     }
 
@@ -410,6 +429,15 @@ impl Typechecker {
                         return Err(TypecheckerError::IdentNotFound(field.clone()));
                     }
                 };
+
+                eprintln!("{:?} {:?}", self.completion, field.span);
+                self.check_completion(
+                    &field.span,
+                    field_types
+                        .iter()
+                        .map(|(name, _)| name.clone())
+                        .collect::<Vec<_>>(),
+                );
 
                 let field_ty = field_types
                     .iter()
@@ -959,6 +987,20 @@ impl Typechecker {
         self.module(module)?;
 
         Ok(self.inlay_hints.clone().unwrap())
+    }
+
+    pub fn completion(&mut self, module: &mut Module, position: usize) -> Option<Vec<String>> {
+        self.completion = Some(Completion {
+            position,
+            found: None,
+        });
+
+        // Ignore errors
+        if let Err(err) = self.module(module) {
+            eprintln!("{}", err);
+        }
+
+        self.completion.clone()?.found
     }
 }
 

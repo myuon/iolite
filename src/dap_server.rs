@@ -165,7 +165,7 @@ async fn dap_handler(
             let main = "main".to_string();
             let source_code = std::fs::read_to_string(&source_file)?;
 
-            compiler.parse_with_code(main.clone(), source_code.clone())?;
+            compiler.parse_with_code(main.clone(), source_code.clone(), false)?;
             compiler.typecheck(main.clone())?;
 
             compiler.ir_code_gen(main.clone(), false)?;

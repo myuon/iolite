@@ -108,7 +108,7 @@ async fn main() -> Result<()> {
             measure_time!(
                 "Parsed: {}ms",
                 {
-                    compiler.parse_with_code(main.clone(), source_code.clone())?;
+                    compiler.parse_with_code(main.clone(), source_code.clone(), false)?;
                 },
                 verbose
             );

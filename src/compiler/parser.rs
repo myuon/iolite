@@ -15,6 +15,7 @@ pub struct Parser {
     pub(crate) position: usize,
     pub(crate) imports: Vec<String>,
     current_meta_tags: Vec<MetaTag>,
+    allow_incomplete: bool,
 }
 
 #[derive(Debug, PartialEq, Clone, Error)]
@@ -44,7 +45,7 @@ impl ParseError {
 }
 
 impl Parser {
-    pub fn new(module_name: String, tokens: Vec<Token>) -> Self {
+    pub fn new(module_name: String, tokens: Vec<Token>, allow_incomplete: bool) -> Self {
         Self {
             module_name,
             tokens: tokens
@@ -54,6 +55,7 @@ impl Parser {
             position: 0,
             imports: vec![],
             current_meta_tags: vec![],
+            allow_incomplete,
         }
     }
 
@@ -490,7 +492,11 @@ impl Parser {
                     break;
                 }
                 _ => {
-                    self.expect(Lexeme::Semicolon)?;
+                    if let Err(err) = self.expect(Lexeme::Semicolon) {
+                        if !self.allow_incomplete {
+                            return Err(err);
+                        }
+                    };
                     block.push(statement.clone());
                     continue;
                 }
@@ -1265,6 +1271,36 @@ impl Parser {
                             start,
                             end_token.span.end,
                         );
+                    } else {
+                        if self.allow_incomplete {
+                            // NOTE:
+                            // When project is incomplete like `hoge.`, it should be treated as `hoge._` (_ for 1-letter unknown field)
+                            let start = current.span.start.map(|t| t + 1);
+                            let end = current.span.end.map(|t| t + 2);
+
+                            current = Source::new_span(
+                                Expr::Project {
+                                    expr_ty: Type::Unknown,
+                                    expr: Box::new(current.clone()),
+                                    field: Source::span(
+                                        "<unknown>".to_string(),
+                                        Span::span(
+                                            self.module_name.clone(),
+                                            start.unwrap_or(0),
+                                            end.unwrap_or(0),
+                                        ),
+                                    ),
+                                },
+                                self.module_name.clone(),
+                                current.span.start,
+                                end,
+                            );
+                        } else {
+                            return Err(ParseError::UnexpectedToken {
+                                expected: Some(Lexeme::Ident("".to_string())),
+                                got: token,
+                            });
+                        }
                     }
                 }
                 _ => {
@@ -1485,7 +1521,7 @@ mod tests {
         for input in cases {
             let mut lexer = crate::compiler::lexer::Lexer::new("".to_string(), input.to_string());
             let tokens = lexer.run().unwrap();
-            let mut parser = Parser::new("".to_string(), tokens);
+            let mut parser = Parser::new("".to_string(), tokens, false);
             parser.expr(true).unwrap();
 
             assert_eq!(parser.position, parser.tokens.len(), "{}", input);
@@ -1499,7 +1535,7 @@ mod tests {
         for input in cases {
             let mut lexer = crate::compiler::lexer::Lexer::new("".to_string(), input.to_string());
             let tokens = lexer.run().unwrap();
-            let mut parser = Parser::new("".to_string(), tokens);
+            let mut parser = Parser::new("".to_string(), tokens, false);
             parser.statement().unwrap();
         }
     }
@@ -1519,7 +1555,7 @@ mod tests {
         for input in cases {
             let mut lexer = crate::compiler::lexer::Lexer::new("".to_string(), input.to_string());
             let tokens = lexer.run().unwrap();
-            let mut parser = Parser::new("".to_string(), tokens);
+            let mut parser = Parser::new("".to_string(), tokens, false);
             parser.block(None).unwrap();
         }
     }
@@ -1538,7 +1574,26 @@ mod tests {
         for input in cases {
             let mut lexer = crate::compiler::lexer::Lexer::new("".to_string(), input.to_string());
             let tokens = lexer.run().unwrap();
-            let mut parser = Parser::new("".to_string(), tokens);
+            let mut parser = Parser::new("".to_string(), tokens, false);
+            parser.decls(None).unwrap();
+        }
+    }
+
+    #[test]
+    fn test_incomplete() {
+        let cases = vec![
+            r#"fun main() {
+    let x = 1;
+    let y = 2;
+
+    return x.
+                }"#,
+        ];
+
+        for input in cases {
+            let mut lexer = crate::compiler::lexer::Lexer::new("".to_string(), input.to_string());
+            let tokens = lexer.run().unwrap();
+            let mut parser = Parser::new("".to_string(), tokens, true);
             parser.decls(None).unwrap();
         }
     }
