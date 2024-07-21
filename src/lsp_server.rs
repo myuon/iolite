@@ -2,19 +2,17 @@ use std::path::Path;
 
 use anyhow::Result;
 use lsp_types::{
-    notification::{
-        DidChangeTextDocument, Initialized, Notification, PublishDiagnostics,
-    },
+    notification::{DidChangeTextDocument, Initialized, Notification, PublishDiagnostics},
     request::{
         Completion, DocumentDiagnosticRequest, GotoDefinition, HoverRequest, Initialize,
         InlayHintRequest, Request, SemanticTokensFullRequest,
     },
     CompletionItem, CompletionOptions, CompletionParams, DeclarationCapability, Diagnostic,
     DiagnosticOptions, DiagnosticServerCapabilities, DiagnosticSeverity,
-    DidChangeTextDocumentParams, DocumentDiagnosticParams,
-    FullDocumentDiagnosticReport, Hover, HoverContents, HoverParams, HoverProviderCapability,
-    InitializeResult, InlayHint, InlayHintLabel, InlayHintParams, Location, MarkedString, OneOf,
-    Position, PublishDiagnosticsParams, Range, RelatedFullDocumentDiagnosticReport, SemanticToken,
+    DidChangeTextDocumentParams, DocumentDiagnosticParams, FullDocumentDiagnosticReport, Hover,
+    HoverContents, HoverParams, HoverProviderCapability, InitializeResult, InlayHint,
+    InlayHintLabel, InlayHintParams, Location, MarkedString, OneOf, Position,
+    PublishDiagnosticsParams, Range, RelatedFullDocumentDiagnosticReport, SemanticToken,
     SemanticTokenType, SemanticTokens, SemanticTokensFullOptions, SemanticTokensLegend,
     SemanticTokensOptions, SemanticTokensParams, SemanticTokensServerCapabilities,
     ServerCapabilities, TextDocumentPositionParams, TextDocumentSyncCapability,
@@ -496,8 +494,9 @@ mod tests {
     use std::sync::Arc;
 
     use lsp_types::{
+        notification::DidSaveTextDocument, CompletionContext, CompletionTriggerKind,
         DidSaveTextDocumentParams, GotoDefinitionParams, PartialResultParams,
-        TextDocumentIdentifier, Url, WorkDoneProgressParams,
+        TextDocumentIdentifier, Url, VersionedTextDocumentIdentifier, WorkDoneProgressParams,
     };
     use pretty_assertions::assert_eq;
 
@@ -1023,6 +1022,103 @@ mod tests {
                 "{}, {:?}",
                 file,
                 position
+            );
+
+            let r = receiver.try_recv();
+            assert!(r.is_err());
+        }
+
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn test_lsp_handler_completion() -> Result<()> {
+        let cases = vec![(
+            "test1.io",
+            CompletionParams {
+                text_document_position: TextDocumentPositionParams {
+                    text_document: TextDocumentIdentifier::new(Url::parse(&format!(
+                        "file://{}",
+                        std::env::current_dir()?
+                            .join("tests/lsp/completion/test1.io")
+                            .to_str()
+                            .unwrap()
+                    ))?),
+                    position: Position {
+                        line: 6,
+                        character: 16,
+                    },
+                },
+                work_done_progress_params: WorkDoneProgressParams {
+                    work_done_token: None,
+                },
+                partial_result_params: PartialResultParams {
+                    partial_result_token: None,
+                },
+                context: Some(CompletionContext {
+                    trigger_kind: CompletionTriggerKind::TRIGGER_CHARACTER,
+                    trigger_character: Some(".".to_string()),
+                }),
+            },
+            vec![CompletionItem {
+                label: "x".to_string(),
+                label_details: None,
+                kind: None,
+                detail: None,
+                documentation: None,
+                deprecated: None,
+                preselect: None,
+                sort_text: None,
+                filter_text: None,
+                insert_text: None,
+                insert_text_format: None,
+                insert_text_mode: None,
+                text_edit: None,
+                additional_text_edits: None,
+                command: None,
+                commit_characters: None,
+                data: None,
+                tags: None,
+            }],
+        )];
+
+        for (file, params, result) in cases {
+            let (sender, mut receiver) = tokio::sync::mpsc::channel::<String>(100);
+            let sender =
+                SimpleSender::new(sender, Arc::new(|m| serde_json::to_string(&m).unwrap()));
+
+            let req = RpcMessageRequest {
+                id: None,
+                method: DidChangeTextDocument::METHOD.to_string(),
+                params: serde_json::to_value(&DidChangeTextDocumentParams {
+                    text_document: VersionedTextDocumentIdentifier::new(
+                        Url::parse(&format!(
+                            "file://{}",
+                            std::env::current_dir()?
+                                .join(format!("tests/lsp/completion/{}", file))
+                                .to_str()
+                                .unwrap()
+                        ))?,
+                        1,
+                    ),
+                    content_changes: vec![],
+                })?,
+                jsonrpc: "".to_string(),
+            };
+            let res = lsp_handler(LspContext::new(), req, sender.clone()).await?;
+            assert!(matches!(res, None));
+
+            let req = RpcMessageRequest {
+                id: None,
+                method: Completion::METHOD.to_string(),
+                params: serde_json::to_value(&params)?,
+                jsonrpc: "".to_string(),
+            };
+            let res = lsp_handler(LspContext::new(), req, sender).await?;
+
+            assert_eq!(
+                res.map(|r| r.result),
+                Some(serde_json::to_value::<Vec<CompletionItem>>(result)?),
             );
 
             let r = receiver.try_recv();
