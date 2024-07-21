@@ -377,7 +377,7 @@ impl Type {
             Type::Ident(name) => name.clone(),
             Type::Byte => "byte".to_string(),
             Type::RawPtr => "rawptr".to_string(),
-            Type::Unknown => "<unknown>".to_string(),
+            Type::Unknown => "unknown".to_string(),
             Type::Self_ => "self".to_string(),
             Type::Newtype { name, ty: _ } => name.clone(),
             Type::Range(ty) => format!("range[{}]", ty.to_string()),
