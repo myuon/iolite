@@ -1,4 +1,4 @@
-use std::sync::Arc;
+use std::sync::{Arc, Mutex};
 
 use anyhow::anyhow;
 use tokio::{
@@ -23,8 +23,22 @@ impl<I> Lsp<I> {
     }
 }
 
+#[derive(Clone)]
+pub struct LspContext {
+    pub document: Arc<Mutex<String>>,
+}
+
+impl LspContext {
+    pub fn new() -> Self {
+        LspContext {
+            document: Arc::new(Mutex::new("".to_string())),
+        }
+    }
+}
+
 pub trait LspServer {
     fn handle_request(
+        ctx: LspContext,
         req: RpcMessageRequest,
         sender: SimpleSender<String, NotificationMessage>,
     ) -> FutureResult<Option<RpcMessageResponse>>;
@@ -65,6 +79,8 @@ impl<C: Clone, I: LspServer + Sync + Send + Clone + 'static> ServerProcess<C> fo
                 }),
             );
 
+            let ctx = LspContext::new();
+
             loop {
                 if let Err(err) = {
                     let headers = read_headers(&mut reader).await.unwrap();
@@ -88,7 +104,7 @@ impl<C: Clone, I: LspServer + Sync + Send + Clone + 'static> ServerProcess<C> fo
                         req.params.to_string().chars().take(80).collect::<String>()
                     );
 
-                    let resp = I::handle_request(req, simple_sender.clone()).await?;
+                    let resp = I::handle_request(ctx.clone(), req, simple_sender.clone()).await?;
                     if let Some(resp) = resp {
                         let resp_body = serde_json::to_string(&resp)?;
                         println!(

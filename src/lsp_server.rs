@@ -2,19 +2,23 @@ use std::path::Path;
 
 use anyhow::Result;
 use lsp_types::{
-    notification::{DidSaveTextDocument, Initialized, Notification, PublishDiagnostics},
-    request::{
-        DocumentDiagnosticRequest, GotoDefinition, HoverRequest, Initialize, InlayHintRequest,
-        Request, SemanticTokensFullRequest,
+    notification::{
+        DidChangeTextDocument, DidSaveTextDocument, Initialized, Notification, PublishDiagnostics,
     },
-    DeclarationCapability, Diagnostic, DiagnosticOptions, DiagnosticServerCapabilities,
-    DiagnosticSeverity, FullDocumentDiagnosticReport, Hover, HoverContents, HoverParams,
-    HoverProviderCapability, InitializeResult, InlayHint, InlayHintLabel, InlayHintParams,
-    Location, MarkedString, OneOf, Position, PublishDiagnosticsParams, Range,
-    RelatedFullDocumentDiagnosticReport, SemanticToken, SemanticTokenType, SemanticTokens,
-    SemanticTokensFullOptions, SemanticTokensLegend, SemanticTokensOptions, SemanticTokensParams,
-    SemanticTokensServerCapabilities, ServerCapabilities, TextDocumentPositionParams,
-    TextDocumentSyncCapability, TextDocumentSyncKind, Url, WorkDoneProgressOptions,
+    request::{
+        Completion, DocumentDiagnosticRequest, GotoDefinition, HoverRequest, Initialize,
+        InlayHintRequest, Request, SemanticTokensFullRequest,
+    },
+    CompletionItem, CompletionOptions, CompletionParams, DeclarationCapability, Diagnostic,
+    DiagnosticOptions, DiagnosticServerCapabilities, DiagnosticSeverity,
+    DidChangeTextDocumentParams, DidSaveTextDocumentParams, DocumentDiagnosticParams,
+    FullDocumentDiagnosticReport, Hover, HoverContents, HoverParams, HoverProviderCapability,
+    InitializeResult, InlayHint, InlayHintLabel, InlayHintParams, Location, MarkedString, OneOf,
+    Position, PublishDiagnosticsParams, Range, RelatedFullDocumentDiagnosticReport, SemanticToken,
+    SemanticTokenType, SemanticTokens, SemanticTokensFullOptions, SemanticTokensLegend,
+    SemanticTokensOptions, SemanticTokensParams, SemanticTokensServerCapabilities,
+    ServerCapabilities, TextDocumentPositionParams, TextDocumentSyncCapability,
+    TextDocumentSyncKind, Url, WorkDoneProgressOptions,
 };
 
 use crate::{
@@ -26,7 +30,10 @@ use crate::{
         },
     },
     utils::{
-        lsp::{server::LspServer, NotificationMessage, RpcMessageRequest, RpcMessageResponse},
+        lsp::{
+            server::{LspContext, LspServer},
+            NotificationMessage, RpcMessageRequest, RpcMessageResponse,
+        },
         sender::SimpleSender,
         server_process::FutureResult,
     },
@@ -37,14 +44,16 @@ pub struct LspImpl;
 
 impl LspServer for LspImpl {
     fn handle_request(
+        ctx: LspContext,
         req: RpcMessageRequest,
         sender: SimpleSender<String, NotificationMessage>,
     ) -> FutureResult<Option<RpcMessageResponse>> {
-        Box::pin(lsp_handler(req, sender))
+        Box::pin(lsp_handler(ctx, req, sender))
     }
 }
 
 async fn lsp_handler(
+    ctx: LspContext,
     req: RpcMessageRequest,
     sender: SimpleSender<String, NotificationMessage>,
 ) -> Result<Option<RpcMessageResponse>> {
@@ -98,7 +107,15 @@ async fn lsp_handler(
                         position_encoding: None,
                         selection_range_provider: None,
                         hover_provider: Some(HoverProviderCapability::Simple(true)),
-                        completion_provider: None,
+                        completion_provider: Some(CompletionOptions {
+                            resolve_provider: None,
+                            trigger_characters: Some(vec![".".to_string()]),
+                            all_commit_characters: None,
+                            work_done_progress_options: WorkDoneProgressOptions {
+                                work_done_progress: None,
+                            },
+                            completion_item: None,
+                        }),
                         signature_help_provider: None,
                         type_definition_provider: None,
                         implementation_provider: None,
@@ -130,6 +147,14 @@ async fn lsp_handler(
         }
         Initialized::METHOD => {
             println!("Initialized!");
+
+            Ok(None)
+        }
+        DidChangeTextDocument::METHOD => {
+            let params = serde_json::from_value::<DidChangeTextDocumentParams>(req.params.clone())?;
+            if let Some(change_event) = params.content_changes.get(0) {
+                *ctx.document.lock().unwrap() = change_event.text.clone();
+            }
 
             Ok(None)
         }
@@ -195,8 +220,8 @@ async fn lsp_handler(
                 },
             )?))
         }
-        DocumentDiagnosticRequest::METHOD | DidSaveTextDocument::METHOD => {
-            let params = serde_json::from_value::<SemanticTokensParams>(req.params.clone())?;
+        DocumentDiagnosticRequest::METHOD => {
+            let params = serde_json::from_value::<DocumentDiagnosticParams>(req.params.clone())?;
 
             let path = params.text_document.uri.path();
             let mut compiler = compiler::Compiler::new();
@@ -435,6 +460,33 @@ async fn lsp_handler(
 
             Ok(Some(RpcMessageResponse::new(req.id, hints)?))
         }
+        Completion::METHOD => {
+            let params = serde_json::from_value::<CompletionParams>(req.params.clone())?;
+            println!("{}", ctx.document.lock().unwrap());
+
+            let result = vec![CompletionItem {
+                label: "item".to_string(),
+                label_details: None,
+                kind: None,
+                detail: None,
+                documentation: None,
+                deprecated: None,
+                preselect: None,
+                sort_text: None,
+                filter_text: None,
+                insert_text: None,
+                insert_text_format: None,
+                insert_text_mode: None,
+                text_edit: None,
+                additional_text_edits: None,
+                command: None,
+                commit_characters: None,
+                data: None,
+                tags: None,
+            }];
+
+            Ok(Some(RpcMessageResponse::new(req.id, result)?))
+        }
         _ => Ok(None),
     }
 }
@@ -543,7 +595,7 @@ mod tests {
             let (sender, mut receiver) = tokio::sync::mpsc::channel::<String>(100);
             let sender =
                 SimpleSender::new(sender, Arc::new(|m| serde_json::to_string(&m).unwrap()));
-            let res = lsp_handler(req, sender).await?;
+            let res = lsp_handler(LspContext::new(), req, sender).await?;
             assert!(res.is_none());
 
             let r = receiver.recv().await.unwrap();
@@ -666,7 +718,7 @@ mod tests {
             let (sender, mut receiver) = tokio::sync::mpsc::channel::<String>(100);
             let sender =
                 SimpleSender::new(sender, Arc::new(|m| serde_json::to_string(&m).unwrap()));
-            let res = lsp_handler(req, sender).await?;
+            let res = lsp_handler(LspContext::new(), req, sender).await?;
 
             assert_eq!(
                 serde_json::from_value::<Location>(res.unwrap().result)?,
@@ -846,7 +898,7 @@ mod tests {
             let (sender, mut receiver) = tokio::sync::mpsc::channel::<String>(100);
             let sender =
                 SimpleSender::new(sender, Arc::new(|m| serde_json::to_string(&m).unwrap()));
-            let res = lsp_handler(req, sender).await?;
+            let res = lsp_handler(LspContext::new(), req, sender).await?;
 
             assert_eq!(
                 res.unwrap().result,
@@ -963,7 +1015,7 @@ mod tests {
             let (sender, mut receiver) = tokio::sync::mpsc::channel::<String>(100);
             let sender =
                 SimpleSender::new(sender, Arc::new(|m| serde_json::to_string(&m).unwrap()));
-            let res = lsp_handler(req, sender).await?;
+            let res = lsp_handler(LspContext::new(), req, sender).await?;
 
             assert_eq!(
                 res.map(|r| r.result),
