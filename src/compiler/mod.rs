@@ -89,7 +89,7 @@ pub mod reporter {
         );
         eprintln!(
             "{}\n{}^",
-            source.lines().collect::<Vec<_>>().join("\n"),
+            source.lines().nth(line).unwrap_or(""),
             if col > 0 {
                 " ".repeat(col - 1)
             } else {

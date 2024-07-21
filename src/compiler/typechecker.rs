@@ -430,7 +430,6 @@ impl Typechecker {
                     }
                 };
 
-                eprintln!("{:?} {:?}", self.completion, field.span);
                 self.check_completion(
                     &field.span,
                     field_types
