@@ -2,7 +2,9 @@ use std::path::Path;
 
 use anyhow::Result;
 use lsp_types::{
-    notification::{DidChangeTextDocument, Initialized, Notification, PublishDiagnostics},
+    notification::{
+        DidChangeTextDocument, DidSaveTextDocument, Initialized, Notification, PublishDiagnostics,
+    },
     request::{
         Completion, DocumentDiagnosticRequest, GotoDefinition, HoverRequest, Initialize,
         InlayHintRequest, Request, SemanticTokensFullRequest,
@@ -219,7 +221,7 @@ async fn lsp_handler(
                 },
             )?))
         }
-        DocumentDiagnosticRequest::METHOD => {
+        DidSaveTextDocument::METHOD | DocumentDiagnosticRequest::METHOD => {
             let params = serde_json::from_value::<DocumentDiagnosticParams>(req.params.clone())?;
 
             let path = params.text_document.uri.path();

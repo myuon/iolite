@@ -1009,10 +1009,9 @@ impl Typechecker {
             found: None,
         });
 
+        // Ignore errors
         if let Err(err) = self.module(module) {
             eprintln!("skipping {}", err);
-
-            return None;
         }
 
         self.infer_type_at.clone()?.found
@@ -1024,7 +1023,10 @@ impl Typechecker {
     ) -> Result<Vec<(Span, Type)>, TypecheckerError> {
         self.inlay_hints = Some(vec![]);
 
-        self.module(module)?;
+        // Ignore errors
+        if let Err(err) = self.module(module) {
+            eprintln!("skipping {}", err);
+        };
 
         Ok(self.inlay_hints.clone().unwrap())
     }
