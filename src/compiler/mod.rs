@@ -334,6 +334,8 @@ impl Compiler {
     pub fn parse(&mut self, path: String, allow_incomplete: bool) -> Result<(), CompilerError> {
         let source = if path == "std" {
             include_str!("./std.io").to_string()
+        } else if self.modules.contains_key(&path) {
+            self.modules.get(&path).unwrap().source.clone()
         } else {
             let file_path = format!("{}/{}.io", self.cwd, path);
             std::fs::read_to_string(&file_path)?

@@ -1505,6 +1505,8 @@ impl Parser {
 
 #[cfg(test)]
 mod tests {
+    use pretty_assertions::assert_eq;
+
     use super::*;
 
     #[test]
@@ -1581,20 +1583,45 @@ mod tests {
 
     #[test]
     fn test_incomplete() {
-        let cases = vec![
+        let cases = vec![(
             r#"fun main() {
     let x = 1;
-    let y = 2;
 
     return x.
                 }"#,
-        ];
+            vec![Source::unknown(Declaration::Function {
+                name: Source::unknown("main".to_string()),
+                params: vec![],
+                result: Source::unknown(Type::Unknown),
+                body: Source::unknown(Block {
+                    statements: vec![
+                        Source::unknown(Statement::Let(
+                            Source::unknown("x".to_string()),
+                            Source::unknown(Expr::Lit(Source::unknown(Literal::Integer(
+                                Source::unknown(1),
+                            )))),
+                        )),
+                        Source::unknown(Statement::Return(Source::unknown(Expr::Project {
+                            expr_ty: Type::Unknown,
+                            expr: Box::new(Source::unknown(Expr::Ident(Source::unknown(
+                                "x".to_string(),
+                            )))),
+                            field: Source::unknown("<unknown>".to_string()),
+                        }))),
+                    ],
+                    expr: None,
+                }),
+                meta_tags: vec![],
+            })],
+        )];
 
-        for input in cases {
+        for (input, expected) in cases {
             let mut lexer = crate::compiler::lexer::Lexer::new("".to_string(), input.to_string());
             let tokens = lexer.run().unwrap();
             let mut parser = Parser::new("".to_string(), tokens, true);
-            parser.decls(None).unwrap();
+            let actual = parser.decls(None).unwrap();
+
+            assert_eq!(actual, expected);
         }
     }
 }

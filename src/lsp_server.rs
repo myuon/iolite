@@ -26,6 +26,7 @@ use crate::{
             AstWalker, AstWalkerMode, AST_WALKER_FIELD, AST_WALKER_FUNCTION, AST_WALKER_KEYWORD,
             AST_WALKER_METHOD, AST_WALKER_NAMESPACE, AST_WALKER_TYPE,
         },
+        LoadedModule,
     },
     utils::{
         lsp::{
@@ -470,6 +471,16 @@ async fn lsp_handler(
 
             let mut compiler = compiler::Compiler::new();
             compiler.set_cwd(path.parent().unwrap().to_str().unwrap().to_string());
+            // preload the target module
+            compiler.modules.insert(
+                module_name.clone(),
+                LoadedModule {
+                    source: ctx.document.lock().unwrap().clone(),
+                    module: None,
+                    imports: vec![],
+                    parsed_order: 0,
+                },
+            );
             if let Err(err) = compiler.parse(module_name.clone(), true) {
                 eprintln!("{:?}", err);
                 return Ok(None);
