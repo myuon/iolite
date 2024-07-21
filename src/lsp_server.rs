@@ -866,7 +866,7 @@ mod tests {
             (
                 "test1.io",
                 Position {
-                    line: 1,
+                    line: 5,
                     character: 11,
                 },
                 Hover {
@@ -879,7 +879,7 @@ mod tests {
             (
                 "test1.io",
                 Position {
-                    line: 5,
+                    line: 9,
                     character: 6,
                 },
                 Hover {
@@ -892,7 +892,7 @@ mod tests {
             (
                 "test1.io",
                 Position {
-                    line: 5,
+                    line: 9,
                     character: 12,
                 },
                 Hover {
@@ -905,13 +905,35 @@ mod tests {
             (
                 "test1.io",
                 Position {
-                    line: 6,
+                    line: 10,
                     character: 15,
                 },
                 Hover {
                     contents: HoverContents::Scalar(MarkedString::String(
                         "(int) => array[byte]".to_string(),
                     )),
+                    range: None,
+                },
+            ),
+            (
+                "test1.io",
+                Position {
+                    line: 12,
+                    character: 8,
+                },
+                Hover {
+                    contents: HoverContents::Scalar(MarkedString::String("Hoge".to_string())),
+                    range: None,
+                },
+            ),
+            (
+                "test1.io",
+                Position {
+                    line: 13,
+                    character: 6,
+                },
+                Hover {
+                    contents: HoverContents::Scalar(MarkedString::String("int".to_string())),
                     range: None,
                 },
             ),
@@ -943,7 +965,13 @@ mod tests {
                 SimpleSender::new(sender, Arc::new(|m| serde_json::to_string(&m).unwrap()));
             let res = lsp_handler(req, sender).await?;
 
-            assert_eq!(res.unwrap().result, serde_json::to_value::<Hover>(result)?);
+            assert_eq!(
+                res.map(|r| r.result),
+                Some(serde_json::to_value::<Hover>(result)?),
+                "{}, {:?}",
+                file,
+                position
+            );
 
             let r = receiver.try_recv();
             assert!(r.is_err());
