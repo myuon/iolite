@@ -859,4 +859,70 @@ mod tests {
 
         Ok(())
     }
+
+    #[tokio::test]
+    async fn test_lsp_handler_hover() -> Result<()> {
+        let cases = vec![
+            (
+                "test1.io",
+                Position {
+                    line: 1,
+                    character: 11,
+                },
+                Hover {
+                    contents: HoverContents::Scalar(MarkedString::String(
+                        "array[byte]".to_string(),
+                    )),
+                    range: None,
+                },
+            ),
+            (
+                "test1.io",
+                Position {
+                    line: 7,
+                    character: 10,
+                },
+                Hover {
+                    contents: HoverContents::Scalar(MarkedString::String(
+                        "array[byte]".to_string(),
+                    )),
+                    range: None,
+                },
+            ),
+        ];
+
+        for (file, position, result) in cases {
+            let req = RpcMessageRequest {
+                id: None,
+                method: HoverRequest::METHOD.to_string(),
+                params: serde_json::to_value(&HoverParams {
+                    text_document_position_params: TextDocumentPositionParams {
+                        text_document: TextDocumentIdentifier::new(Url::parse(&format!(
+                            "file://{}",
+                            std::env::current_dir()?
+                                .join(format!("tests/lsp/hover/{}", file))
+                                .to_str()
+                                .unwrap()
+                        ))?),
+                        position,
+                    },
+                    work_done_progress_params: WorkDoneProgressParams {
+                        work_done_token: None,
+                    },
+                })?,
+                jsonrpc: "".to_string(),
+            };
+            let (sender, mut receiver) = tokio::sync::mpsc::channel::<String>(100);
+            let sender =
+                SimpleSender::new(sender, Arc::new(|m| serde_json::to_string(&m).unwrap()));
+            let res = lsp_handler(req, sender).await?;
+
+            assert_eq!(res.unwrap().result, serde_json::to_value::<Hover>(result)?);
+
+            let r = receiver.try_recv();
+            assert!(r.is_err());
+        }
+
+        Ok(())
+    }
 }
