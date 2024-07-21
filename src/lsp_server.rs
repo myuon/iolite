@@ -7,8 +7,8 @@ use lsp_types::{
         Completion, DocumentDiagnosticRequest, GotoDefinition, HoverRequest, Initialize,
         InlayHintRequest, Request, SemanticTokensFullRequest,
     },
-    CompletionItem, CompletionOptions, CompletionParams, DeclarationCapability, Diagnostic,
-    DiagnosticOptions, DiagnosticServerCapabilities, DiagnosticSeverity,
+    CompletionItem, CompletionItemKind, CompletionOptions, CompletionParams, DeclarationCapability,
+    Diagnostic, DiagnosticOptions, DiagnosticServerCapabilities, DiagnosticSeverity,
     DidChangeTextDocumentParams, DocumentDiagnosticParams, FullDocumentDiagnosticReport, Hover,
     HoverContents, HoverParams, HoverProviderCapability, InitializeResult, InlayHint,
     InlayHintLabel, InlayHintParams, Location, MarkedString, OneOf, Position,
@@ -495,11 +495,15 @@ async fn lsp_handler(
             let items = compiler.completion(module_name.clone(), position)?;
 
             let mut result = vec![];
-            for item in items {
+            for (label, item_type) in items {
                 result.push(CompletionItem {
-                    label: item,
+                    label,
                     label_details: None,
-                    kind: None,
+                    kind: Some(match item_type {
+                        compiler::typechecker::CompletionItemType::Struct => {
+                            CompletionItemKind::FIELD
+                        }
+                    }),
                     detail: None,
                     documentation: None,
                     deprecated: None,
@@ -1101,7 +1105,7 @@ mod tests {
                     CompletionItem {
                         label: "x".to_string(),
                         label_details: None,
-                        kind: None,
+                        kind: Some(CompletionItemKind::FIELD),
                         detail: None,
                         documentation: None,
                         deprecated: None,
@@ -1121,7 +1125,7 @@ mod tests {
                     CompletionItem {
                         label: "y".to_string(),
                         label_details: None,
-                        kind: None,
+                        kind: Some(CompletionItemKind::FIELD),
                         detail: None,
                         documentation: None,
                         deprecated: None,
@@ -1171,7 +1175,7 @@ mod tests {
                     CompletionItem {
                         label: "x".to_string(),
                         label_details: None,
-                        kind: None,
+                        kind: Some(CompletionItemKind::FIELD),
                         detail: None,
                         documentation: None,
                         deprecated: None,
@@ -1191,7 +1195,7 @@ mod tests {
                     CompletionItem {
                         label: "y".to_string(),
                         label_details: None,
-                        kind: None,
+                        kind: Some(CompletionItemKind::FIELD),
                         detail: None,
                         documentation: None,
                         deprecated: None,

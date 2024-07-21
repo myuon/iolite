@@ -94,9 +94,14 @@ struct InferTypeAt {
 }
 
 #[derive(Debug, Clone)]
+pub enum CompletionItemType {
+    Struct,
+}
+
+#[derive(Debug, Clone)]
 struct Completion {
     position: usize,
-    found: Option<Vec<String>>,
+    found: Option<Vec<(String, CompletionItemType)>>,
 }
 
 pub struct Typechecker {
@@ -197,7 +202,7 @@ impl Typechecker {
         }
     }
 
-    fn check_completion(&mut self, span: &Span, completions: Vec<String>) {
+    fn check_completion(&mut self, span: &Span, completions: Vec<(String, CompletionItemType)>) {
         if let Some(completion) = &mut self.completion {
             if span.has(completion.position - 1) {
                 let mut found = completion.found.clone().unwrap_or(vec![]);
@@ -434,7 +439,7 @@ impl Typechecker {
                     &field.span,
                     field_types
                         .iter()
-                        .map(|(name, _)| name.clone())
+                        .map(|(name, _)| (name.clone(), CompletionItemType::Struct))
                         .collect::<Vec<_>>(),
                 );
 
@@ -988,7 +993,11 @@ impl Typechecker {
         Ok(self.inlay_hints.clone().unwrap())
     }
 
-    pub fn completion(&mut self, module: &mut Module, position: usize) -> Option<Vec<String>> {
+    pub fn completion(
+        &mut self,
+        module: &mut Module,
+        position: usize,
+    ) -> Option<Vec<(String, CompletionItemType)>> {
         self.completion = Some(Completion {
             position,
             found: None,

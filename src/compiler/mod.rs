@@ -7,6 +7,7 @@ use std::{
 
 use anyhow::{anyhow, Result};
 use ast::TypeMap;
+use typechecker::CompletionItemType;
 
 use crate::compiler::lexer::Lexeme;
 
@@ -409,7 +410,11 @@ impl Compiler {
         Ok(vec![])
     }
 
-    pub fn completion(&mut self, path: String, position: usize) -> Result<Vec<String>> {
+    pub fn completion(
+        &mut self,
+        path: String,
+        position: usize,
+    ) -> Result<Vec<(String, CompletionItemType)>> {
         let paths = self.pathes_in_imported_order();
 
         let mut typechecker = typechecker::Typechecker::new();
