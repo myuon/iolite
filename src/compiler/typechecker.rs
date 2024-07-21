@@ -664,6 +664,7 @@ impl Typechecker {
             Statement::Let(name, value) => {
                 let ty = self.expr(value)?;
                 self.check_inlay_hints(&name.span, ty.clone());
+                self.check_infer_type_at(&name.span, ty.clone());
                 self.types
                     .insert_ident(name.data.clone(), Source::span(ty, name.span.clone()));
             }

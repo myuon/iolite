@@ -889,6 +889,19 @@ mod tests {
                     range: None,
                 },
             ),
+            (
+                "test1.io",
+                Position {
+                    line: 5,
+                    character: 6,
+                },
+                Hover {
+                    contents: HoverContents::Scalar(MarkedString::String(
+                        "array[byte]".to_string(),
+                    )),
+                    range: None,
+                },
+            ),
         ];
 
         for (file, position, result) in cases {
