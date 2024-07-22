@@ -98,7 +98,11 @@ fun main() {
   let canvas = window.get_canvas();
 
   let event_pump = sdl_context.event_pump();
+
+  let count = 0;
+  let sleep_timer = 16.67 / (1000 as float);
   while (true) {
+    count = count + 1;
     let time = SystemTime::now();
     let event = event_pump.poll();
     if (event.is_quit()) {
@@ -160,16 +164,20 @@ fun main() {
       ball_velocity.y = -ball_velocity.y;
     }
 
-    let elapsed = SystemTime::duration_since(time);
-    let elapsed_ms = elapsed.as_millis();
+    if (count % 5 == 0) {
+      let elapsed = SystemTime::duration_since(time);
+      let elapsed_ms = elapsed.as_millis();
 
-    if elapsed_ms <= 16 {
-      sleep((16.67 - elapsed_ms as float) / (1000 as float));
-      window.set_title(concat_str(concat_str(title, " - "), 60.to_string()));
-    } else {
-      let fps = 1000 / elapsed_ms;
-      window.set_title(concat_str(concat_str(title, " - "), fps.to_string()));
+      if elapsed_ms <= 16 {
+        sleep_timer = (16.67 - elapsed_ms as float) / (1000 as float);
+        window.set_title(concat_str(concat_str(title, " - "), 60.to_string()));
+      } else {
+        let fps = 1000 / elapsed_ms;
+        window.set_title(concat_str(concat_str(title, " - "), fps.to_string()));
+      }
     }
+
+    sleep(sleep_timer);
 
     canvas.present();
   }
