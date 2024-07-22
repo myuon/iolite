@@ -567,6 +567,24 @@ impl Runtime {
                         });
 
                         self.push(Value::Int(y as i32).as_u64() as i64);
+                    } else if label as usize
+                        == self.extcall_table["extcall_event_pump_is_mouse_button_down"]
+                    {
+                        let pump_id = self.pop_i64() as i32;
+                        let mouse_button = self.pop_i64() as i32;
+
+                        let y = GUI_DATA.with(|data_ref| {
+                            let data = data_ref.borrow();
+                            let event_pump = data[pump_id as usize]
+                                .downcast_ref::<sdl2::EventPump>()
+                                .unwrap();
+
+                            event_pump.mouse_state().is_mouse_button_pressed(
+                                sdl2::mouse::MouseButton::from_ll(mouse_button as u8),
+                            )
+                        });
+
+                        self.push(Value::Int(y as i32).as_u64() as i64);
                     } else if label as usize == self.extcall_table["extcall_event_is_quit"] {
                         let event_id = self.pop_i64() as i32;
 

@@ -8,6 +8,7 @@ declare fun extcall_event_pump_poll(pump: rawptr): rawptr;
 declare fun extcall_event_pump_is_scancode_pressed(pump: rawptr, scancode: int): bool;
 declare fun extcall_event_pump_mouse_x(pump: rawptr): int;
 declare fun extcall_event_pump_mouse_y(pump: rawptr): int;
+declare fun extcall_event_pump_is_mouse_button_down(pump: rawptr, mouse_button: int): bool;
 declare fun extcall_event_is_quit(event: rawptr): bool;
 declare fun extcall_video_window(video: rawptr, title_ptr: rawptr, title_len: int, width: int, height: int): rawptr;
 declare fun extcall_window_get_canvas(window: rawptr): rawptr;
@@ -231,6 +232,18 @@ module Event {
   }
 }
 
+struct MouseButton(int);
+
+module MouseButton {
+  fun LEFT(): MouseButton {
+    return MouseButton(1);
+  }
+
+  fun RIGHT(): MouseButton {
+    return MouseButton(3);
+  }
+}
+
 struct MousePosition {
   x: int,
   y: int,
@@ -252,6 +265,10 @@ module EventPump {
       x: extcall_event_pump_mouse_x(self.!),
       y: extcall_event_pump_mouse_y(self.!),
     };
+  }
+
+  fun is_mouse_button_down(self, mouse_button: MouseButton): bool {
+    return extcall_event_pump_is_mouse_button_down(self.!, mouse_button.!);
   }
 }
 
