@@ -1390,7 +1390,34 @@ impl Parser {
                 if self.is_next_token(Lexeme::DoubleColon) {
                     self.expect(Lexeme::DoubleColon)?;
 
-                    let field = self.ident()?;
+                    let field = if self.is_ident() {
+                        self.ident()?
+                    } else {
+                        if self.allow_incomplete {
+                            let start = token.span.end.map(|t| t + 1);
+                            let end = token.span.end.map(|t| t + 2);
+
+                            return Ok(Source::new_span(
+                                Expr::Qualified {
+                                    module: ident,
+                                    name: Source::new_span(
+                                        "<unknown>".to_string(),
+                                        self.module_name.clone(),
+                                        start,
+                                        end,
+                                    ),
+                                },
+                                self.module_name.clone(),
+                                token.span.start,
+                                end,
+                            ));
+                        }
+
+                        return Err(ParseError::UnexpectedToken {
+                            expected: Some(Lexeme::Ident("<ident>".to_string())),
+                            got: self.tokens[self.position].clone(),
+                        });
+                    };
                     let start = ident.span.start;
                     let end = field.span.end;
 
@@ -1679,6 +1706,31 @@ mod tests {
                             }))),
                             Source::unknown(Statement::Return(Source::unknown(Expr::Ident(
                                 Source::unknown("x".to_string()),
+                            )))),
+                        ],
+                        expr: None,
+                    }),
+                    meta_tags: vec![],
+                })],
+            ),
+            (
+                r#"fun main() {
+    Wrapper::
+
+    return nil;
+                }"#,
+                vec![Source::unknown(Declaration::Function {
+                    name: Source::unknown("main".to_string()),
+                    params: vec![],
+                    result: Source::unknown(Type::Unknown),
+                    body: Source::unknown(Block {
+                        statements: vec![
+                            Source::unknown(Statement::Expr(Source::unknown(Expr::Qualified {
+                                module: Source::unknown("Wrapper".to_string()),
+                                name: Source::unknown("<unknown>".to_string()),
+                            }))),
+                            Source::unknown(Statement::Return(Source::unknown(Expr::Lit(
+                                Source::unknown(Literal::Nil),
                             )))),
                         ],
                         expr: None,

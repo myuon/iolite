@@ -477,7 +477,6 @@ impl Typechecker {
                         .into_iter()
                         .map(|(name, ty, _)| (name, ty, AstItemType::Function))
                         .collect();
-                    println!("{:?}", methods);
 
                     self.check_completion(&field.span, methods);
                 }
@@ -685,6 +684,26 @@ impl Typechecker {
                 Ok(ty)
             }
             Expr::Qualified { module, name } => {
+                if self.completion.is_some() {
+                    let mut completions = vec![];
+                    for key in self.types.0.keys() {
+                        match key {
+                            TypeMapKey::Ident(_) => (),
+                            TypeMapKey::Qualified(ns, ident) => {
+                                if ns == &module.data {
+                                    let (ty, item_type) = self.types.get(key).unwrap().clone();
+
+                                    completions.push((ident.clone(), ty.data.clone(), item_type));
+                                }
+                            }
+                        }
+                    }
+
+                    completions.sort();
+
+                    self.check_completion(&name.span, completions);
+                }
+
                 let ty = self
                     .types
                     .get(&TypeMapKey::Qualified(
