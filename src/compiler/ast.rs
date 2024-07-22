@@ -1,4 +1,7 @@
-use std::{collections::HashMap, vec};
+use std::{
+    collections::{BTreeMap, HashMap},
+    vec,
+};
 
 use super::ir::TypeTag;
 
@@ -395,7 +398,7 @@ impl Type {
     }
 }
 
-#[derive(Debug, PartialEq, Clone, Hash, Eq)]
+#[derive(Debug, PartialEq, Clone, Hash, Eq, PartialOrd, Ord)]
 pub enum TypeMapKey {
     Ident(String),
     Qualified(String, String),
@@ -429,11 +432,11 @@ impl AstItemType {
 }
 
 #[derive(Debug, PartialEq, Clone)]
-pub struct TypeMap(pub HashMap<TypeMapKey, (Source<Type>, AstItemType)>);
+pub struct TypeMap(pub BTreeMap<TypeMapKey, (Source<Type>, AstItemType)>);
 
 impl TypeMap {
     pub fn new() -> Self {
-        Self(HashMap::new())
+        Self(BTreeMap::new())
     }
 
     pub fn builtin_types() -> Self {

@@ -249,6 +249,23 @@ impl Typechecker {
 
                 methods
             }
+            Type::Newtype { name, ty: _ } => {
+                let mut methods = vec![];
+
+                for (key, (ty, _)) in &self.types.0 {
+                    if key.as_string().starts_with(format!("{}::", name).as_str()) {
+                        if let Type::Fun(_, _) = ty.data {
+                            methods.push((
+                                key.as_string().split("::").last().unwrap().to_string(),
+                                ty.data.clone(),
+                                key.as_string().to_string(),
+                            ));
+                        }
+                    }
+                }
+
+                methods
+            }
             ty => Type::methods_builtin(&ty),
         }
     }
@@ -279,8 +296,6 @@ impl Typechecker {
                                 completions.push((key.as_string(), ty.data.clone(), item_type));
                             }
                         }
-
-                        completions.sort();
 
                         self.check_completion(&i.span, completions);
                     }
@@ -698,8 +713,6 @@ impl Typechecker {
                             }
                         }
                     }
-
-                    completions.sort();
 
                     self.check_completion(&name.span, completions);
                 }
