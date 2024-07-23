@@ -4,7 +4,9 @@ fun main() {
   let video = sdl_context.video();
   let window = video.window("SDL Text", 500, 500);
 
-  let font = ttf_context.load_font("/Users/ioijoi/Library/Fonts/NotoSans-Regular.ttf", 24);
+  let cache = FcFontCache::build();
+
+  let font = cache.load_font("Noto Sans Regular", 24);
   let surface = ttf_context.render(font, "Hello, World!", 255, 255, 255);
 
   let canvas = window.get_canvas();

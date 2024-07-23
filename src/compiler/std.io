@@ -35,6 +35,8 @@ declare fun extcall_sdl_ttf_init(): rawptr;
 declare fun extcall_sdl_ttf_load_font(path_ptr: rawptr, path_len: int, size: int): rawptr;
 declare fun extcall_sdl_font_render_solid(font: rawptr, text_ptr: rawptr, text_len: int, r: int, g: int, b: int): rawptr;
 declare fun extcall_sdl_font_render_blended(font: rawptr, text_ptr: rawptr, text_len: int, r: int, g: int, b: int): rawptr;
+declare fun extcall_fc_font_cache_build(): rawptr;
+declare fun extcall_fc_font_cache_load_font(cache: rawptr, name_ptr: rawptr, name_len: int, size: int): rawptr;
 
 struct Duration(rawptr);
 
@@ -387,6 +389,19 @@ fun sleep(sec: float) {
 }
 
 struct Font(rawptr);
+
+struct FcFontCache(rawptr);
+
+module FcFontCache {
+  fun build(): FcFontCache {
+    return FcFontCache(extcall_fc_font_cache_build());
+  }
+
+  // When cstr is supported, change this to extcall_fc_font_cache_query(cstr): cstr
+  fun load_font(self, name: array[byte], size: int): Font {
+    return Font(extcall_fc_font_cache_load_font(self.!, name.ptr as rawptr, name.length, size));
+  }
+}
 
 struct TTFContext(rawptr);
 

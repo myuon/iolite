@@ -5,6 +5,7 @@ use std::{
     sync::{Arc, Mutex},
 };
 
+use rust_fontconfig::{FcFontCache, FcPattern};
 use thiserror::Error;
 
 use crate::utils::sdl2wrapper;
@@ -1000,6 +1001,46 @@ impl Runtime {
                         let surface_id = register_gui_data(surface);
 
                         self.push(Value::Int(surface_id as i32).as_u64() as i64);
+                    } else if label as usize == self.extcall_table["extcall_fc_font_cache_build"] {
+                        let cache = FcFontCache::build();
+                        let id = register_gui_data(cache);
+
+                        self.push(Value::Int(id as i32).as_u64() as i64);
+                    } else if label as usize
+                        == self.extcall_table["extcall_fc_font_cache_load_font"]
+                    {
+                        let cache_id = self.pop_i64() as i32;
+                        let name_ptr = self.pop_i64() as u64;
+                        let name_len = self.pop_i64() as usize;
+                        let name = String::from_utf8(
+                            self.memory[name_ptr as usize..(name_ptr as usize + name_len)].to_vec(),
+                        )
+                        .unwrap();
+                        let size = self.pop_i64() as i32;
+
+                        let font = GUI_DATA.with(|data_ref| {
+                            let mut data = data_ref.borrow_mut();
+                            let cache = data[cache_id as usize]
+                                .downcast_mut::<FcFontCache>()
+                                .unwrap();
+                            let font_result = cache
+                                .query(&FcPattern {
+                                    name: Some(name),
+                                    ..Default::default()
+                                })
+                                .unwrap();
+
+                            let font = sdl2wrapper::font::ttf_open_font(
+                                font_result.path.as_str(),
+                                size as u16,
+                            )
+                            .unwrap();
+
+                            font
+                        });
+                        let font_id = register_gui_data(font);
+
+                        self.push(Value::Int(font_id as i32).as_u64() as i64);
                     } else {
                         todo!()
                     }
