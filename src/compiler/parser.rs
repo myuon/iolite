@@ -1235,7 +1235,42 @@ impl Parser {
 
                     if self.is_next_token(Lexeme::LParen) {
                         self.expect(Lexeme::LParen)?;
-                        let index = self.expr(with_struct)?;
+                        let index = match self.expr(with_struct) {
+                            Ok(i) => i,
+                            Err(err) => {
+                                if self.allow_incomplete {
+                                    // Given `hoge.()`, it should be treated as `hoge.<unknown>()`
+                                    let start = current.span.start.map(|t| t + 1);
+                                    let end = current.span.end.map(|t| t + 2);
+
+                                    self.expect(Lexeme::RParen)?;
+
+                                    current = Source::new_span(
+                                        Expr::MethodCall {
+                                            expr_ty: Type::Unknown,
+                                            expr: Box::new(current.clone()),
+                                            name: Source::span(
+                                                "<unknown>".to_string(),
+                                                Span::span(
+                                                    self.module_name.clone(),
+                                                    start.unwrap_or(0),
+                                                    end.unwrap_or(0),
+                                                ),
+                                            ),
+                                            args: vec![],
+                                            call_symbol: None,
+                                        },
+                                        self.module_name.clone(),
+                                        current.span.start,
+                                        end,
+                                    );
+
+                                    continue;
+                                } else {
+                                    return Err(err);
+                                }
+                            }
+                        };
                         let start = current.span.start;
                         let end_token = self.expect(Lexeme::RParen)?;
 
@@ -1729,6 +1764,51 @@ mod tests {
                                 module: Source::unknown("Wrapper".to_string()),
                                 name: Source::unknown("<unknown>".to_string()),
                             }))),
+                            Source::unknown(Statement::Return(Source::unknown(Expr::Lit(
+                                Source::unknown(Literal::Nil),
+                            )))),
+                        ],
+                        expr: None,
+                    }),
+                    meta_tags: vec![],
+                })],
+            ),
+            (
+                r#"fun main() {
+    let a = 1;
+    let b = 2.();
+    let c = 3;
+
+    return nil;
+                }"#,
+                vec![Source::unknown(Declaration::Function {
+                    name: Source::unknown("main".to_string()),
+                    params: vec![],
+                    result: Source::unknown(Type::Unknown),
+                    body: Source::unknown(Block {
+                        statements: vec![
+                            Source::unknown(Statement::Let(
+                                Source::unknown("a".to_string()),
+                                Source::unknown(Expr::Lit(Source::unknown(Literal::Integer(
+                                    Source::unknown(1),
+                                )))),
+                            )),
+                            Source::unknown(Statement::Let(
+                                Source::unknown("b".to_string()),
+                                Source::unknown(Expr::Project {
+                                    expr_ty: Type::Unknown,
+                                    expr: Box::new(Source::unknown(Expr::Lit(Source::unknown(
+                                        Literal::Integer(Source::unknown(2)),
+                                    )))),
+                                    field: Source::unknown("<unknown>".to_string()),
+                                }),
+                            )),
+                            Source::unknown(Statement::Let(
+                                Source::unknown("c".to_string()),
+                                Source::unknown(Expr::Lit(Source::unknown(Literal::Integer(
+                                    Source::unknown(3),
+                                )))),
+                            )),
                             Source::unknown(Statement::Return(Source::unknown(Expr::Lit(
                                 Source::unknown(Literal::Nil),
                             )))),

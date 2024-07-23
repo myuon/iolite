@@ -212,48 +212,16 @@ impl Typechecker {
 
     fn find_methods(&self, ty: &Type) -> Vec<(String, Type, String)> {
         match ty {
-            Type::Ident(ident) => {
-                let mut methods = vec![];
-
-                for (key, (ty, _)) in &self.types.0 {
-                    if key.as_string().starts_with(format!("{}::", ident).as_str()) {
-                        if let Type::Fun(_, _) = ty.data {
-                            methods.push((
-                                key.as_string().split("::").last().unwrap().to_string(),
-                                ty.data.clone(),
-                                key.as_string().to_string(),
-                            ));
-                        }
-                    }
-                }
-
-                methods
-            }
-            Type::Struct {
+            Type::Ident(ident)
+            | Type::Struct {
                 name: ident,
                 fields: _,
-            } => {
+            }
+            | Type::Newtype { name: ident, ty: _ } => {
                 let mut methods = vec![];
 
                 for (key, (ty, _)) in &self.types.0 {
                     if key.as_string().starts_with(format!("{}::", ident).as_str()) {
-                        if let Type::Fun(_, _) = ty.data {
-                            methods.push((
-                                key.as_string().split("::").last().unwrap().to_string(),
-                                ty.data.clone(),
-                                key.as_string().to_string(),
-                            ));
-                        }
-                    }
-                }
-
-                methods
-            }
-            Type::Newtype { name, ty: _ } => {
-                let mut methods = vec![];
-
-                for (key, (ty, _)) in &self.types.0 {
-                    if key.as_string().starts_with(format!("{}::", name).as_str()) {
                         if let Type::Fun(_, _) = ty.data {
                             methods.push((
                                 key.as_string().split("::").last().unwrap().to_string(),
@@ -618,6 +586,16 @@ impl Typechecker {
                 *expr_ty = ty.clone();
 
                 let methods = self.find_methods(&ty);
+                if self.completion.is_some() {
+                    // When completion is triggered by a dot, show methods as well
+                    let mut completions = vec![];
+                    for (name, ty, _) in methods.iter() {
+                        completions.push((name.clone(), ty.clone(), AstItemType::Function));
+                    }
+
+                    self.check_completion(&name.span, completions);
+                }
+
                 let (_, method, symbol) = methods
                     .iter()
                     .find(|(method_name, _, _)| method_name == &name.data)
