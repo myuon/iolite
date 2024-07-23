@@ -23,12 +23,18 @@ declare fun extcall_surface_new(width: int, height: int, format: int): rawptr;
 declare fun extcall_surface_as_texture(surface: rawptr, texture_creator: rawptr): rawptr;
 declare fun extcall_surface_blit_to_canvas_at(surface: rawptr, canvas: rawptr, dst_x: int, dst_y: int);
 declare fun extcall_surface_fill_rect(surface: rawptr, x: int, y: int, width: int, height: int, r: int, g: int, b: int);
+declare fun extcall_surface_width(surface: rawptr): int;
+declare fun extcall_surface_height(surface: rawptr): int;
 declare fun extcall_sleep(sec: float);
 declare fun extcall_time_now(): rawptr;
 declare fun extcall_time_duration_since(time: rawptr): rawptr;
 declare fun extcall_duration_as_millis(time: rawptr): int;
 declare fun extcall_sdl_image_init(): rawptr;
 declare fun extcall_sdl_image_load(path: rawptr, length: int): rawptr;
+declare fun extcall_sdl_ttf_init(): rawptr;
+declare fun extcall_sdl_ttf_load_font(path_ptr: rawptr, path_len: int, size: int): rawptr;
+declare fun extcall_sdl_font_render_solid(font: rawptr, text_ptr: rawptr, text_len: int, r: int, g: int, b: int): rawptr;
+declare fun extcall_sdl_font_render_blended(font: rawptr, text_ptr: rawptr, text_len: int, r: int, g: int, b: int): rawptr;
 
 struct Duration(rawptr);
 
@@ -330,6 +336,14 @@ module Surface {
   fun fill_rect(self, x: int, y: int, width: int, height: int, r: int, g: int, b: int) {
     return extcall_surface_fill_rect(self.!, x, y, width, height, r, g, b);
   }
+
+  fun width(self): int {
+    return extcall_surface_width(self.!);
+  }
+
+  fun height(self): int {
+    return extcall_surface_height(self.!);
+  }
 }
 
 struct VideoSubsystem(rawptr);
@@ -370,4 +384,26 @@ module SDLImage {
 
 fun sleep(sec: float) {
   return extcall_sleep(sec);
+}
+
+struct Font(rawptr);
+
+struct TTFContext(rawptr);
+
+module TTFContext {
+  fun init(): TTFContext {
+    return TTFContext(extcall_sdl_ttf_init());
+  }
+
+  fun load_font(self, path: array[byte], size: int): Font {
+    return Font(extcall_sdl_ttf_load_font(path.ptr as rawptr, path.length, size));
+  }
+
+  fun render_solid(self, font: Font, text: array[byte], r: int, g: int, b: int): Surface {
+    return Surface(extcall_sdl_font_render_solid(font.!, text.ptr as rawptr, text.length, r, g, b));
+  }
+
+  fun render(self, font: Font, text: array[byte], r: int, g: int, b: int): Surface {
+    return Surface(extcall_sdl_font_render_blended(font.!, text.ptr as rawptr, text.length, r, g, b));
+  }
 }

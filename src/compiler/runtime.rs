@@ -7,6 +7,8 @@ use std::{
 
 use thiserror::Error;
 
+use crate::utils::sdl2wrapper;
+
 use super::{ast::Span, ir::Value, vm::Instruction};
 
 #[derive(Debug, Clone, Error)]
@@ -820,6 +822,32 @@ impl Runtime {
                         });
 
                         self.push(Value::Nil.as_u64() as i64);
+                    } else if label as usize == self.extcall_table["extcall_surface_width"] {
+                        let surface_id = self.pop_i64() as i32;
+
+                        let width = GUI_DATA.with(|data_ref| {
+                            let mut data = data_ref.borrow_mut();
+                            let surface = data[surface_id as usize]
+                                .downcast_mut::<sdl2::surface::Surface>()
+                                .unwrap();
+
+                            surface.width()
+                        });
+
+                        self.push(Value::Int(width as i32).as_u64() as i64);
+                    } else if label as usize == self.extcall_table["extcall_surface_height"] {
+                        let surface_id = self.pop_i64() as i32;
+
+                        let height = GUI_DATA.with(|data_ref| {
+                            let mut data = data_ref.borrow_mut();
+                            let surface = data[surface_id as usize]
+                                .downcast_mut::<sdl2::surface::Surface>()
+                                .unwrap();
+
+                            surface.height()
+                        });
+
+                        self.push(Value::Int(height as i32).as_u64() as i64);
                     } else if label as usize == self.extcall_table["extcall_canvas_fill_rect"] {
                         let canvas_id = self.pop_i64() as i32;
                         let x = self.pop_i64() as i32;
@@ -898,6 +926,80 @@ impl Runtime {
                         let id = register_gui_data(image);
 
                         self.push(Value::Int(id as i32).as_u64() as i64);
+                    } else if label as usize == self.extcall_table["extcall_sdl_ttf_init"] {
+                        let ttf = sdl2::ttf::init().unwrap();
+                        let id = register_gui_data(ttf);
+
+                        self.push(Value::Int(id as i32).as_u64() as i64);
+                    } else if label as usize == self.extcall_table["extcall_sdl_ttf_load_font"] {
+                        let path_ptr = self.pop_i64() as u64;
+                        let path_len = self.pop_i64() as usize;
+                        let path = String::from_utf8(
+                            self.memory[path_ptr as usize..(path_ptr as usize + path_len)].to_vec(),
+                        )
+                        .unwrap();
+                        let size = self.pop_i64() as i32;
+
+                        let font = register_gui_data(
+                            sdl2wrapper::font::ttf_open_font(path, size as u16).unwrap(),
+                        );
+
+                        self.push(Value::Int(font as i32).as_u64() as i64);
+                    } else if label as usize == self.extcall_table["extcall_sdl_font_render_solid"]
+                    {
+                        let font_id = self.pop_i64() as i32;
+                        let text_ptr = self.pop_i64() as u64;
+                        let text_len = self.pop_i64() as usize;
+                        let text = String::from_utf8(
+                            self.memory[text_ptr as usize..(text_ptr as usize + text_len)].to_vec(),
+                        )
+                        .unwrap();
+                        let r = self.pop_i64() as u8;
+                        let g = self.pop_i64() as u8;
+                        let b = self.pop_i64() as u8;
+
+                        let surface = GUI_DATA.with(|data_ref| {
+                            let data = data_ref.borrow();
+                            let font = data[font_id as usize]
+                                .downcast_ref::<sdl2wrapper::font::Font>()
+                                .unwrap();
+                            let surface = font
+                                .render_solid(text.as_str(), sdl2::pixels::Color::RGB(r, g, b))
+                                .unwrap();
+
+                            surface
+                        });
+                        let surface_id = register_gui_data(surface);
+
+                        self.push(Value::Int(surface_id as i32).as_u64() as i64);
+                    } else if label as usize
+                        == self.extcall_table["extcall_sdl_font_render_blended"]
+                    {
+                        let font_id = self.pop_i64() as i32;
+                        let text_ptr = self.pop_i64() as u64;
+                        let text_len = self.pop_i64() as usize;
+                        let text = String::from_utf8(
+                            self.memory[text_ptr as usize..(text_ptr as usize + text_len)].to_vec(),
+                        )
+                        .unwrap();
+                        let r = self.pop_i64() as u8;
+                        let g = self.pop_i64() as u8;
+                        let b = self.pop_i64() as u8;
+
+                        let surface = GUI_DATA.with(|data_ref| {
+                            let data = data_ref.borrow();
+                            let font = data[font_id as usize]
+                                .downcast_ref::<sdl2wrapper::font::Font>()
+                                .unwrap();
+                            let surface = font
+                                .render_blended(text.as_str(), sdl2::pixels::Color::RGB(r, g, b))
+                                .unwrap();
+
+                            surface
+                        });
+                        let surface_id = register_gui_data(surface);
+
+                        self.push(Value::Int(surface_id as i32).as_u64() as i64);
                     } else {
                         todo!()
                     }
