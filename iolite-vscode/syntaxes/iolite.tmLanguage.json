@@ -264,6 +264,10 @@
           "match": "\\b(true|false)\\b"
         },
         {
+          "name": "keyword.new.iolite",
+          "match": "\\b(new)\\b"
+        },
+        {
           "name": "keyword.nil.iolite",
           "match": "\\b(nil)\\b"
         },
