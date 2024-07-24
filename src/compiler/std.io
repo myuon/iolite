@@ -81,6 +81,7 @@ fun alloc(size: int) {
 //   return array[T] { ptr: ptr, length: length };
 // }
 
+@[builtin_method(int, "abs")]
 fun int_abs(x: int) {
   if (x < 0) {
     return -x;
@@ -89,6 +90,7 @@ fun int_abs(x: int) {
   }
 }
 
+@[builtin_method(float, "abs")]
 fun float_abs(x: float) {
   if (x < 0.0) {
     return -x;
@@ -153,6 +155,7 @@ fun int_to_string(n: int): array[byte] {
   return text;
 }
 
+@[builtin_method(array[byte], "concat")]
 fun concat_str(a: array[byte], b: array[byte]): array[byte] {
   let text = new[array[byte]](a.length + b.length);
   let i = 0;
@@ -169,6 +172,7 @@ fun concat_str(a: array[byte], b: array[byte]): array[byte] {
   return text;
 }
 
+@[builtin_method(array[byte], "eq")]
 fun eq_str(a: array[byte], b: array[byte]): bool {
   if (a.length != b.length) {
     return false;

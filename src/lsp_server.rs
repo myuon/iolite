@@ -1398,10 +1398,10 @@ mod tests {
                         label: "abs()".to_string(),
                         label_details: Some(CompletionItemLabelDetails {
                             detail: None,
-                            description: Some("(self) => int".to_string()),
+                            description: Some("(int) => int".to_string()),
                         }),
                         kind: Some(CompletionItemKind::FUNCTION),
-                        detail: Some("(self) => int".to_string()),
+                        detail: Some("(int) => int".to_string()),
                         documentation: None,
                         deprecated: None,
                         preselect: None,

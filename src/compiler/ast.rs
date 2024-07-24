@@ -324,16 +324,6 @@ impl Type {
 
     pub fn methods_builtin(ty: &Type) -> Vec<(String, Type, String)> {
         match ty {
-            Type::Int => vec![(
-                "abs".to_string(),
-                Type::Fun(vec![Type::Self_], Box::new(Type::Int)),
-                "int_abs".to_string(),
-            )],
-            Type::Float => vec![(
-                "abs".to_string(),
-                Type::Fun(vec![Type::Self_], Box::new(Type::Int)),
-                "float_abs".to_string(),
-            )],
             Type::Ptr(item) => vec![(
                 "offset".to_string(),
                 Type::Fun(
