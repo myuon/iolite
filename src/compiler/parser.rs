@@ -242,6 +242,26 @@ impl Parser {
             let tag = self.ident()?;
             tags.push(match tag.data.as_str() {
                 "test" => MetaTag::Test,
+                "builtin_method" => {
+                    self.expect(Lexeme::LParen)?;
+                    let ty = self.ty()?;
+                    self.expect(Lexeme::Comma)?;
+                    let name = match self.consume()? {
+                        Token {
+                            lexeme: Lexeme::String(str),
+                            ..
+                        } => str,
+                        t => {
+                            return Err(ParseError::UnexpectedToken {
+                                expected: None,
+                                got: t,
+                            })
+                        }
+                    };
+                    self.expect(Lexeme::RParen)?;
+
+                    MetaTag::BuiltinMethod(ty.data, name)
+                }
                 _ => return Err(ParseError::MetaTagNotSupported(tag)),
             });
 
@@ -1795,12 +1815,14 @@ mod tests {
                             )),
                             Source::unknown(Statement::Let(
                                 Source::unknown("b".to_string()),
-                                Source::unknown(Expr::Project {
+                                Source::unknown(Expr::MethodCall {
                                     expr_ty: Type::Unknown,
                                     expr: Box::new(Source::unknown(Expr::Lit(Source::unknown(
                                         Literal::Integer(Source::unknown(2)),
                                     )))),
-                                    field: Source::unknown("<unknown>".to_string()),
+                                    name: Source::unknown("<unknown>".to_string()),
+                                    args: vec![],
+                                    call_symbol: None,
                                 }),
                             )),
                             Source::unknown(Statement::Let(

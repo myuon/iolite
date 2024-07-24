@@ -235,6 +235,7 @@ pub struct Block {
 #[derive(Debug, PartialEq, Clone)]
 pub enum MetaTag {
     Test,
+    BuiltinMethod(Type, String),
 }
 
 #[derive(Debug, PartialEq, Clone)]
@@ -323,18 +324,11 @@ impl Type {
 
     pub fn methods_builtin(ty: &Type) -> Vec<(String, Type, String)> {
         match ty {
-            Type::Int => vec![
-                (
-                    "abs".to_string(),
-                    Type::Fun(vec![Type::Self_], Box::new(Type::Int)),
-                    "int_abs".to_string(),
-                ),
-                (
-                    "to_string".to_string(),
-                    Type::Fun(vec![Type::Int], Box::new(Type::Array(Box::new(Type::Byte)))),
-                    "int_to_string".to_string(),
-                ),
-            ],
+            Type::Int => vec![(
+                "abs".to_string(),
+                Type::Fun(vec![Type::Self_], Box::new(Type::Int)),
+                "int_abs".to_string(),
+            )],
             Type::Float => vec![(
                 "abs".to_string(),
                 Type::Fun(vec![Type::Self_], Box::new(Type::Int)),

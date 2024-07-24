@@ -1,11 +1,11 @@
-use std::collections::HashSet;
+use std::collections::{BTreeMap, HashMap, HashSet};
 
 use thiserror::Error;
 
 use super::{
     ast::{
-        AstItemType, BinOp, Block, Conversion, Declaration, Expr, ForMode, Literal, Module, Source,
-        Span, Statement, Type, TypeMap, TypeMapKey, UniOp,
+        AstItemType, BinOp, Block, Conversion, Declaration, Expr, ForMode, Literal, MetaTag,
+        Module, Source, Span, Statement, Type, TypeMap, TypeMapKey, UniOp,
     },
     ir::TypeTag,
 };
@@ -101,6 +101,7 @@ struct Completion {
 
 pub struct Typechecker {
     pub types: TypeMap,
+    pub builtin_methods: BTreeMap<Type, Vec<(String, Type, String)>>,
     return_ty: Type,
     search_def: Option<SearchDefinition>,
     infer_type_at: Option<InferTypeAt>,
@@ -115,6 +116,7 @@ impl Typechecker {
     pub fn new() -> Self {
         Self {
             types: TypeMap::builtin_types(),
+            builtin_methods: BTreeMap::new(),
             return_ty: Type::Unknown,
             search_def: None,
             infer_type_at: None,
@@ -234,7 +236,12 @@ impl Typechecker {
 
                 methods
             }
-            ty => Type::methods_builtin(&ty),
+            ty => {
+                let mut methods = Type::methods_builtin(&ty);
+                methods.extend(self.builtin_methods.get(ty).cloned().unwrap_or(vec![]));
+
+                methods
+            }
         }
     }
 
@@ -876,7 +883,7 @@ impl Typechecker {
                 params,
                 result,
                 body,
-                meta_tags: _,
+                meta_tags,
             } => {
                 let types_cloned = self.types.clone();
                 let mut param_types = vec![];
@@ -925,9 +932,21 @@ impl Typechecker {
                 self.types = types_cloned;
                 self.types.insert(
                     path.clone(),
-                    Source::span(ty, name.span.clone()),
+                    Source::span(ty.clone(), name.span.clone()),
                     AstItemType::Function,
                 );
+
+                for meta_tag in meta_tags {
+                    match meta_tag {
+                        MetaTag::BuiltinMethod(module_ty, method_name) => {
+                            self.builtin_methods
+                                .entry(module_ty.clone())
+                                .or_insert(vec![])
+                                .push((method_name.clone(), ty.clone(), name.data.clone()));
+                        }
+                        _ => (),
+                    }
+                }
             }
             Declaration::Let {
                 name,

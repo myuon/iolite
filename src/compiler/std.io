@@ -128,6 +128,7 @@ fun panic(text: array[byte]) {
   abort();
 }
 
+@[builtin_method(int, "to_string")]
 fun int_to_string(n: int): array[byte] {
   if (n < 0) {
     panic("int_to_string: negative number");
