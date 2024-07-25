@@ -244,8 +244,12 @@ impl Typechecker {
                 match ty {
                     Type::Ptr(item) => {
                         methods.extend(self.builtin_methods_ptr_generics.iter().map(
-                            |(name, ty, _, param)| {
-                                (name.clone(), ty.replace(&param, item).clone(), name.clone())
+                            |(method_name, ty, function_name, param)| {
+                                (
+                                    method_name.clone(),
+                                    ty.replace(&param, item).clone(),
+                                    function_name.clone(),
+                                )
                             },
                         ));
                     }

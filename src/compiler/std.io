@@ -64,6 +64,11 @@ fun align_int(x: int, alignment: int) {
   return (x + alignment - 1) / alignment * alignment;
 }
 
+@[builtin_method_generics_ptr("offset", A)]
+fun ptr_offset(p: ptr[A], d: int) {
+  return (p as int + d) as ptr[A];
+}
+
 fun alloc(size: int) {
   let aligned_size = align_int(size, 8);
   let ptr = heap_ptr;
@@ -97,11 +102,6 @@ fun float_abs(x: float) {
   } else {
     return x;
   }
-}
-
-@[builtin_method_generics_ptr("offset", A)]
-fun ptr_offset(p: ptr[A], d: int) {
-  return (p as int + d) as ptr[A];
 }
 
 let fd_stdout = 1;
