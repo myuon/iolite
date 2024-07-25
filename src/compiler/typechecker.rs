@@ -239,7 +239,7 @@ impl Typechecker {
                 methods
             }
             ty => {
-                let mut methods = Type::methods_builtin(&ty);
+                let mut methods = vec![];
                 methods.extend(self.builtin_methods.get(ty).cloned().unwrap_or(vec![]));
                 match ty {
                     Type::Ptr(item) => {
