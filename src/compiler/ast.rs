@@ -236,6 +236,7 @@ pub struct Block {
 pub enum MetaTag {
     Test,
     BuiltinMethod(Type, String),
+    BuiltinMethodGenericsPtr(String, String),
 }
 
 #[derive(Debug, PartialEq, Clone)]
@@ -379,6 +380,43 @@ impl Type {
         );
 
         types
+    }
+
+    pub fn replace(&self, from: &str, to: &Type) -> Type {
+        match self {
+            Type::Ptr(item) => Type::Ptr(Box::new(item.replace(from, to))),
+            Type::Array(item) => Type::Array(Box::new(item.replace(from, to))),
+            Type::Fun(params, ret) => {
+                let params = params.iter().map(|p| p.replace(from, to)).collect();
+                Type::Fun(params, Box::new(ret.replace(from, to)))
+            }
+            Type::Struct { name, fields } => {
+                let fields = fields
+                    .iter()
+                    .map(|(name, ty)| (name.clone(), ty.replace(from, to)))
+                    .collect();
+                Type::Struct {
+                    name: name.clone(),
+                    fields,
+                }
+            }
+            Type::Ident(name) => {
+                if name == from {
+                    to.clone()
+                } else {
+                    self.clone()
+                }
+            }
+            Type::Newtype { name, ty } => {
+                let ty = ty.replace(from, to);
+                Type::Newtype {
+                    name: name.clone(),
+                    ty: Box::new(ty),
+                }
+            }
+            Type::Range(ty) => Type::Range(Box::new(ty.replace(from, to))),
+            _ => self.clone(),
+        }
     }
 }
 

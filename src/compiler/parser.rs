@@ -262,6 +262,26 @@ impl Parser {
 
                     MetaTag::BuiltinMethod(ty.data, name)
                 }
+                "builtin_method_generics_ptr" => {
+                    self.expect(Lexeme::LParen)?;
+                    let name = match self.consume()? {
+                        Token {
+                            lexeme: Lexeme::String(str),
+                            ..
+                        } => str,
+                        t => {
+                            return Err(ParseError::UnexpectedToken {
+                                expected: None,
+                                got: t,
+                            })
+                        }
+                    };
+                    self.expect(Lexeme::Comma)?;
+                    let param = self.ident()?;
+                    self.expect(Lexeme::RParen)?;
+
+                    MetaTag::BuiltinMethodGenericsPtr(name, param.data)
+                }
                 _ => return Err(ParseError::MetaTagNotSupported(tag)),
             });
 

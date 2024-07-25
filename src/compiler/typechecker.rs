@@ -1,4 +1,4 @@
-use std::collections::{BTreeMap, HashMap, HashSet};
+use std::collections::{BTreeMap, HashSet};
 
 use thiserror::Error;
 
@@ -101,7 +101,8 @@ struct Completion {
 
 pub struct Typechecker {
     pub types: TypeMap,
-    pub builtin_methods: BTreeMap<Type, Vec<(String, Type, String)>>,
+    builtin_methods: BTreeMap<Type, Vec<(String, Type, String)>>,
+    builtin_methods_ptr_generics: Vec<(String, Type, String, String)>,
     return_ty: Type,
     search_def: Option<SearchDefinition>,
     infer_type_at: Option<InferTypeAt>,
@@ -117,6 +118,7 @@ impl Typechecker {
         Self {
             types: TypeMap::builtin_types(),
             builtin_methods: BTreeMap::new(),
+            builtin_methods_ptr_generics: vec![],
             return_ty: Type::Unknown,
             search_def: None,
             infer_type_at: None,
@@ -239,6 +241,16 @@ impl Typechecker {
             ty => {
                 let mut methods = Type::methods_builtin(&ty);
                 methods.extend(self.builtin_methods.get(ty).cloned().unwrap_or(vec![]));
+                match ty {
+                    Type::Ptr(item) => {
+                        methods.extend(self.builtin_methods_ptr_generics.iter().map(
+                            |(name, ty, _, param)| {
+                                (name.clone(), ty.replace(&param, item).clone(), name.clone())
+                            },
+                        ));
+                    }
+                    _ => (),
+                }
 
                 methods
             }
@@ -943,6 +955,14 @@ impl Typechecker {
                                 .entry(module_ty.clone())
                                 .or_insert(vec![])
                                 .push((method_name.clone(), ty.clone(), name.data.clone()));
+                        }
+                        MetaTag::BuiltinMethodGenericsPtr(method_name, param) => {
+                            self.builtin_methods_ptr_generics.push((
+                                method_name.clone(),
+                                ty.clone(),
+                                name.data.clone(),
+                                param.clone(),
+                            ));
                         }
                         _ => (),
                     }

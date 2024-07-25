@@ -99,8 +99,9 @@ fun float_abs(x: float) {
   }
 }
 
-fun ptr_offset(p: ptr[byte], d: int) {
-  return (p as int + d) as ptr[byte];
+@[builtin_method_generics_ptr("offset", A)]
+fun ptr_offset(p: ptr[A], d: int) {
+  return (p as int + d) as ptr[A];
 }
 
 let fd_stdout = 1;
