@@ -17,6 +17,7 @@ declare fun extcall_canvas_set_draw_color(canvas: rawptr, r: int, g: int, b: int
 declare fun extcall_canvas_clear(canvas: rawptr);
 declare fun extcall_canvas_present(canvas: rawptr);
 declare fun extcall_canvas_fill_rect(canvas: rawptr, x: int, y: int, width: int, height: int);
+declare fun extcall_canvas_draw_line(canvas: rawptr, x1: int, y1: int, x2: int, y2: int);
 declare fun extcall_canvas_texture_creator(canvas: rawptr): rawptr;
 declare fun extcall_canvas_copy_texture_at(canvas: rawptr, texture_creator: rawptr, texture: rawptr, dst_x: int, dst_y: int, dst_width: int, dst_height: int): rawptr;
 declare fun extcall_surface_new(width: int, height: int, format: int): rawptr;
@@ -131,31 +132,6 @@ fun panic(text: array[byte]) {
   abort();
 }
 
-@[builtin_method(int, "to_string")]
-fun int_to_string(n: int): array[byte] {
-  if (n < 0) {
-    panic("int_to_string: negative number");
-  }
-
-  let digit = 1;
-  let m = int_abs(n);
-  while (m >= 10) {
-    m = m / 10;
-    digit = digit + 1;
-  }
-
-  let text = new[array[byte]](digit);
-  let i = digit - 1;
-  let n = int_abs(n);
-  while (i >= 0) {
-    text.(i) = (n % 10 + 48) as byte;
-    n = n / 10;
-    i = i - 1;
-  }
-
-  return text;
-}
-
 @[builtin_method(array[byte], "concat")]
 fun concat_str(a: array[byte], b: array[byte]): array[byte] {
   let text = new[array[byte]](a.length + b.length);
@@ -186,6 +162,42 @@ fun eq_str(a: array[byte], b: array[byte]): bool {
   }
 
   return true;
+}
+
+@[builtin_method(int, "to_string")]
+fun int_to_string(n: int): array[byte] {
+  if (n < 0) {
+    return "-".concat(int_to_string(-n));
+  }
+
+  let digit = 1;
+  let m = int_abs(n);
+  while (m >= 10) {
+    m = m / 10;
+    digit = digit + 1;
+  }
+
+  let text = new[array[byte]](digit);
+  let i = digit - 1;
+  let n = int_abs(n);
+  while (i >= 0) {
+    text.(i) = (n % 10 + 48) as byte;
+    n = n / 10;
+    i = i - 1;
+  }
+
+  return text;
+}
+
+@[builtin_method(int, "sign")]
+fun int_sign(n: int): int {
+  if (n < 0) {
+    return -1;
+  } else if (n > 0) {
+    return 1;
+  }
+
+  return 0;
 }
 
 fun assert(b: bool) {
@@ -309,6 +321,10 @@ module Canvas {
     return extcall_canvas_fill_rect(self.!, x, y, width, height);
   }
 
+  fun draw_line(self, x1: int, y1: int, x2: int, y2: int) {
+    return extcall_canvas_draw_line(self.!, x1, y1, x2, y2);
+  }
+
   fun texture_creator(self): TextureCreator {
     return TextureCreator(extcall_canvas_texture_creator(self.!));
   }
@@ -427,4 +443,43 @@ module TTFContext {
   fun render(self, font: Font, text: array[byte], r: int, g: int, b: int): Surface {
     return Surface(extcall_sdl_font_render_blended(font.!, text.ptr as rawptr, text.length, r, g, b));
   }
+}
+
+struct Vec2 {
+  x: int,
+  y: int,
+}
+
+struct Line {
+  start: Vec2,
+  end: Vec2,
+}
+
+module Line {
+  fun intersects(self, other: Line): bool {
+    let s = (self.start.x - self.end.x) * (other.start.y - self.start.y) - (self.start.y - self.end.y) * (other.start.x - self.start.x);
+    let t = (self.start.x - self.end.x) * (other.end.y - self.start.y) - (self.start.y - self.end.y) * (other.end.x - self.start.x);
+    if (s.sign() * t.sign() > 0) {
+      return false;
+    }
+
+    let s = (other.start.x - other.end.x) * (self.start.y - other.start.y) - (other.start.y - other.end.y) * (self.start.x - other.start.x);
+    let t = (other.start.x - other.end.x) * (self.end.y - other.start.y) - (other.start.y - other.end.y) * (self.end.y - other.start.x);
+    if (s.sign() * t.sign() > 0) {
+      return false;
+    }
+
+    return true;
+  }
+
+  fun render(self, canvas: Canvas) {
+    return canvas.draw_line(self.start.x, self.start.y, self.end.x, self.end.y);
+  }
+}
+
+struct Rectangle {
+  x: int,
+  y: int,
+  width: int,
+  height: int,
 }

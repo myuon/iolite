@@ -823,6 +823,30 @@ impl Runtime {
                         });
 
                         self.push(Value::Nil.as_u64() as i64);
+                    } else if label as usize == self.extcall_table["extcall_canvas_draw_line"] {
+                        let canvas_id = self.pop_i64() as i32;
+                        let x1 = self.pop_i64() as i32;
+                        let y1 = self.pop_i64() as i32;
+                        let x2 = self.pop_i64() as i32;
+                        let y2 = self.pop_i64() as i32;
+
+                        GUI_DATA.with(|data_ref| {
+                            let data = data_ref.borrow();
+                            let canvas = data[canvas_id as usize]
+                                .downcast_ref::<RefCell<sdl2::render::Canvas<sdl2::video::Window>>>(
+                                )
+                                .unwrap();
+
+                            canvas
+                                .borrow_mut()
+                                .draw_line(
+                                    sdl2::rect::Point::new(x1, y1),
+                                    sdl2::rect::Point::new(x2, y2),
+                                )
+                                .unwrap();
+                        });
+
+                        self.push(Value::Nil.as_u64() as i64);
                     } else if label as usize == self.extcall_table["extcall_surface_width"] {
                         let surface_id = self.pop_i64() as i32;
 
