@@ -1586,7 +1586,7 @@ impl Parser {
             Lexeme::Exclamation => {
                 self.expect(Lexeme::Exclamation)?;
 
-                let expr = self.expr(false)?;
+                let expr = self.expr_0(false)?;
                 let start = token.span.start;
                 let end = expr.span.end;
 

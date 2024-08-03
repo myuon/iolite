@@ -37,7 +37,7 @@ fun main() {
       return nil;
     }
 
-    if ((!prev_left_button) && event_pump.is_mouse_button_down(MouseButton::LEFT())) {
+    if (!prev_left_button && event_pump.is_mouse_button_down(MouseButton::LEFT())) {
       let position = event_pump.mouse_position();
       if (target / 2 == 0) {
         if (target % 2 == 0) {
