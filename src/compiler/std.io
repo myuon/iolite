@@ -464,7 +464,7 @@ module Line {
     }
 
     let s = (other.start.x - other.end.x) * (self.start.y - other.start.y) - (other.start.y - other.end.y) * (self.start.x - other.start.x);
-    let t = (other.start.x - other.end.x) * (self.end.y - other.start.y) - (other.start.y - other.end.y) * (self.end.y - other.start.x);
+    let t = (other.start.x - other.end.x) * (self.end.y - other.start.y) - (other.start.y - other.end.y) * (self.end.x - other.start.x);
     if (s.sign() * t.sign() > 0) {
       return false;
     }

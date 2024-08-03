@@ -10,22 +10,22 @@ fun main() {
   let target = 0;
   let line_a = Line {
     start: Vec2 {
-      x: 50,
-      y: 50,
+      x: 334,
+      y: 257,
     },
     end: Vec2 {
-      x: 750,
-      y: 550,
+      x: 679,
+      y: 232,
     },
   };
   let line_b = Line {
     start: Vec2 {
-      x: 50,
-      y: 550,
+      x: 534,
+      y: 173,
     },
     end: Vec2 {
-      x: 750,
-      y: 50,
+      x: 438,
+      y: 337,
     },
   };
 
@@ -66,6 +66,25 @@ fun main() {
       }
 
       target = (target + 1) % 4;
+      print_str("line_a: ");
+      print_str(line_a.start.x.to_string());
+      print_str(", ");
+      print_str(line_a.start.y.to_string());
+      print_str(" -> ");
+      print_str(line_a.end.x.to_string());
+      print_str(", ");
+      print_str(line_a.end.y.to_string());
+      print_str("\n");
+
+      print_str("line_b: ");
+      print_str(line_b.start.x.to_string());
+      print_str(", ");
+      print_str(line_b.start.y.to_string());
+      print_str(" -> ");
+      print_str(line_b.end.x.to_string());
+      print_str(", ");
+      print_str(line_b.end.y.to_string());
+      print_str("\n");
     }
     prev_left_button = event_pump.is_mouse_button_down(MouseButton::LEFT());
 
