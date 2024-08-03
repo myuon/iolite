@@ -1,8 +1,3 @@
-struct Position {
-  x: int,
-  y: int,
-}
-
 struct Rectangle {
   x: int,
   y: int,
@@ -11,7 +6,7 @@ struct Rectangle {
 }
 
 module Rectangle {
-  fun contains(self, position: Position): bool {
+  fun contains(self, position: Vec2): bool {
     return (
       position.x >= self.x &&
       position.x <= self.x + self.width &&
@@ -34,6 +29,7 @@ struct Block {
 }
 
 let title = "Breakout";
+let debug = false;
 
 fun main() {
   let sdl_context = SDL::init();
@@ -46,8 +42,9 @@ fun main() {
 
   let paddle_rect = Rectangle { x: 320, y: screen_height - 80, width: 100, height: 10 };
 
-  let ball_position = Position { x: 250, y: 250 };
-  let ball_velocity = Position { x: 6, y: -6 };
+  let ball_position = Vec2 { x: 250, y: 250 };
+  let prev_ball_position = ball_position;
+  let ball_velocity = Vec2 { x: 6, y: -6 };
 
   let margin_h = 20;
   let margin_v = 20;
@@ -119,6 +116,7 @@ fun main() {
     }
 
     let mouse = event_pump.mouse_position();
+    prev_ball_position = Vec2 { x: ball_position.x, y: ball_position.y };
     paddle_rect.x = mouse.x - 50;
     if (eq_str(gamestate, "start")) {
       ball_position.x = mouse.x;
@@ -146,7 +144,8 @@ fun main() {
     canvas.fill_rect(paddle_rect.x, paddle_rect.y, paddle_rect.width, paddle_rect.height);
 
     canvas.set_draw_color(255, 255, 0);
-    canvas.fill_rect(ball_position.x, ball_position.y, 10, 10);
+    let ball_size = 10;
+    canvas.fill_rect(ball_position.x - ball_size / 2, ball_position.y - ball_size / 2, ball_size, ball_size);
 
     for block in blocks {
       if (block.is_visible) {
@@ -160,8 +159,25 @@ fun main() {
       }
     }
 
-    if (paddle_rect.contains(ball_position)) {
+    let paddle_line = Line {
+      start: Vec2 { x: paddle_rect.x, y: paddle_rect.y },
+      end: Vec2 { x: paddle_rect.x + paddle_rect.width, y: paddle_rect.y },
+    };
+    let ball_line = Line {
+      start: Vec2 { x: prev_ball_position.x, y: prev_ball_position.y },
+      end: Vec2 { x: ball_position.x, y: ball_position.y },
+    };
+    if (paddle_line.intersects(ball_line)) {
       ball_velocity.y = -ball_velocity.y;
+      ball_position.y = paddle_rect.y * 2 - ball_position.y;
+    }
+
+    if (debug) {
+      canvas.set_draw_color(255, 0, 0);
+      paddle_line.render(canvas);
+
+      canvas.set_draw_color(0, 255, 0);
+      ball_line.render(canvas);
     }
 
     if (count % 5 == 0) {
