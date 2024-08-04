@@ -8,6 +8,7 @@ use std::{
 use rust_fontconfig::{FcFontCache, FcPattern};
 use thiserror::Error;
 
+#[cfg(feature = "gui")]
 use crate::utils::sdl2wrapper;
 
 use super::{ast::Span, ir::Value, vm::Instruction};
