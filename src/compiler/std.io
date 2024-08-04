@@ -38,6 +38,8 @@ declare fun extcall_sdl_font_render_solid(font: rawptr, text_ptr: rawptr, text_l
 declare fun extcall_sdl_font_render_blended(font: rawptr, text_ptr: rawptr, text_len: int, r: int, g: int, b: int): rawptr;
 declare fun extcall_fc_font_cache_build(): rawptr;
 declare fun extcall_fc_font_cache_load_font(cache: rawptr, name_ptr: rawptr, name_len: int, size: int): rawptr;
+declare fun extcall_fc_font_cache_list_count(cache: rawptr): int;
+declare fun extcall_fc_font_cache_list_index(cache: rawptr, index: int, name_cstr: rawptr, family_cstr: rawptr, italic: rawptr, oblique: rawptr, bold: rawptr, monospace: rawptr, condensed: rawptr, weight: rawptr, unicode_range: rawptr);
 
 struct Duration(rawptr);
 
@@ -125,6 +127,22 @@ fun to_cstr(text: array[byte]): ptr[byte] {
   cstr.(text.length) = 0 as byte;
 
   return cstr;
+}
+
+fun from_cstr(text: array[byte]): array[byte] {
+  let i = 0;
+  while (text.(i) as int != 0) {
+    i = i + 1;
+  }
+
+  let result = new[array[byte]](i);
+  let j = 0;
+  while (j < i) {
+    result.(j) = text.(j);
+    j = j + 1;
+  }
+
+  return result;
 }
 
 fun panic(text: array[byte]) {
@@ -412,6 +430,18 @@ fun sleep(sec: float) {
 
 struct Font(rawptr);
 
+struct FontMetadata {
+  name: array[byte],
+  family: array[byte],
+  italic: int,
+  oblique: int,
+  bold: int,
+  monospace: int,
+  condensed: int,
+  weight: int,
+  unicode_range: array[int],
+}
+
 struct FcFontCache(rawptr);
 
 module FcFontCache {
@@ -422,6 +452,38 @@ module FcFontCache {
   // When cstr is supported, change this to extcall_fc_font_cache_query(cstr): cstr
   fun load_font(self, name: array[byte], size: int): Font {
     return Font(extcall_fc_font_cache_load_font(self.!, name.ptr as rawptr, name.length, size));
+  }
+
+  fun list(self): array[FontMetadata] {
+    let count = extcall_fc_font_cache_list_count(self.!);
+    let result = new[array[FontMetadata]](count);
+    for i in 0..count {
+      let name = new[array[byte]](256);
+      let family = new[array[byte]](256);
+      let italic = new[array[int]](1);
+      let oblique = new[array[int]](1);
+      let bold = new[array[int]](1);
+      let monospace = new[array[int]](1);
+      let condensed = new[array[int]](1);
+      let weight = new[array[int]](1);
+      let unicode_range = new[array[int]](4);
+
+      extcall_fc_font_cache_list_index(self.!, i, name.ptr as rawptr, family.ptr as rawptr, italic.ptr as rawptr, oblique.ptr as rawptr, bold.ptr as rawptr, monospace.ptr as rawptr, condensed.ptr as rawptr, weight.ptr as rawptr, unicode_range.ptr as rawptr);
+
+      result.(i) = FontMetadata {
+        name: from_cstr(name),
+        family: from_cstr(family),
+        italic: italic.(0),
+        oblique: oblique.(0),
+        bold: bold.(0),
+        monospace: monospace.(0),
+        condensed: condensed.(0),
+        weight: weight.(0),
+        unicode_range: unicode_range,
+      };
+    }
+
+    return result;
   }
 }
 

@@ -5,9 +5,16 @@ fun main() {
   let window = video.window("SDL Text", 500, 500);
 
   let cache = FcFontCache::build();
+  let count = extcall_fc_font_cache_list_count(cache.!);
+  print_str("Installed fonts:\n");
+  let list = cache.list();
+  for i in 0..list.length {
+    print_str(list.(i).name);
+    print_str("\n");
+  }
 
-  let font = cache.load_font("Noto Sans Regular", 24);
-  let surface = ttf_context.render(font, "Hello, World!", 255, 255, 255);
+  let font = cache.load_font("Noto Sans CJK JP Regular", 24);
+  let surface = ttf_context.render(font, "Hello, World! / こんにちは、世界！", 255, 255, 255);
 
   let canvas = window.get_canvas();
 

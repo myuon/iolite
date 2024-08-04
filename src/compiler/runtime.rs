@@ -1065,6 +1065,71 @@ impl Runtime {
                         let font_id = register_gui_data(font);
 
                         self.push(Value::Int(font_id as i32).as_u64() as i64);
+                    } else if label as usize
+                        == self.extcall_table["extcall_fc_font_cache_list_count"]
+                    {
+                        let cache_id = self.pop_i64() as i32;
+                        let count = GUI_DATA.with(|data_ref| {
+                            let data = data_ref.borrow();
+                            let cache = data[cache_id as usize]
+                                .downcast_ref::<FcFontCache>()
+                                .unwrap();
+
+                            cache.list().len()
+                        });
+
+                        self.push(Value::Int(count as i32).as_u64() as i64);
+                    } else if label as usize
+                        == self.extcall_table["extcall_fc_font_cache_list_index"]
+                    {
+                        let cache_id = self.pop_i64() as i32;
+                        let index = self.pop_i64() as i32;
+                        let name_cstr = self.pop_i64() as u64;
+                        let family_cstr = self.pop_i64() as u64;
+                        let italic = self.pop_i64() as u64;
+                        let oblique = self.pop_i64() as u64;
+                        let bold = self.pop_i64() as u64;
+                        let monospace = self.pop_i64() as u64;
+                        let condensed = self.pop_i64() as u64;
+                        let weight = self.pop_i64() as u64;
+                        let unicode_range = self.pop_i64() as u64;
+
+                        GUI_DATA.with(|data_ref| {
+                            let data = data_ref.borrow();
+                            let cache = data[cache_id as usize]
+                                .downcast_ref::<FcFontCache>()
+                                .unwrap();
+
+                            let (font, _) = cache.list().iter().nth(index as usize).unwrap();
+                            let name = std::ffi::CString::new(
+                                font.name.clone().unwrap_or(String::new()).as_str(),
+                            )
+                            .unwrap();
+                            self.memory
+                                [name_cstr as usize..(name_cstr as usize + name.as_bytes().len())]
+                                .copy_from_slice(name.as_bytes());
+
+                            let family = std::ffi::CString::new(
+                                font.family.clone().unwrap_or(String::new()).as_str(),
+                            )
+                            .unwrap();
+                            self.memory[family_cstr as usize
+                                ..(family_cstr as usize + family.as_bytes().len())]
+                                .copy_from_slice(family.as_bytes());
+
+                            self.memory[italic as usize] = font.italic.clone() as u8;
+                            self.memory[oblique as usize] = font.oblique.clone() as u8;
+                            self.memory[bold as usize] = font.bold.clone() as u8;
+                            self.memory[monospace as usize] = font.monospace.clone() as u8;
+                            self.memory[condensed as usize] = font.condensed.clone() as u8;
+                            self.memory[weight as usize] = font.weight.clone() as u8;
+                            self.memory[unicode_range as usize..unicode_range as usize + 8]
+                                .copy_from_slice(&font.unicode_range[0].to_le_bytes());
+                            self.memory[unicode_range as usize + 8..unicode_range as usize + 16]
+                                .copy_from_slice(&font.unicode_range[1].to_le_bytes());
+                        });
+
+                        self.push(Value::Nil.as_u64() as i64);
                     } else {
                         todo!()
                     }
