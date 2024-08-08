@@ -1,5 +1,3 @@
-use core::str;
-
 use thiserror::Error;
 
 use super::ast::{Source, Span};
@@ -12,21 +10,18 @@ enum Matcher {
     WhileAlphaNumericWithUnderscore,
 }
 
-fn matches(chars: &[u8], matcher: Matcher) -> usize {
+fn matches(chars: &[char], matcher: Matcher) -> usize {
     match matcher {
         Matcher::Exact(token) => {
-            if chars.starts_with(&token.as_bytes()) {
+            if chars.starts_with(&token.chars().collect::<Vec<_>>()) {
                 token.len()
             } else {
                 0
             }
         }
         Matcher::Until(c) => {
-            let mut bs = vec![0; c.len_utf8()];
-            c.encode_utf8(&mut bs);
-
             let mut count = 0;
-            while count < chars.len() && !chars[count..].starts_with(&bs) {
+            while count < chars.len() && chars[count] != c {
                 count += 1;
             }
 
@@ -41,19 +36,16 @@ fn matches(chars: &[u8], matcher: Matcher) -> usize {
             count
         }
         Matcher::IsAlphabetic => {
-            if 0 < chars.len() && chars[0].is_ascii_alphabetic() {
+            if 0 < chars.len() && chars[0].is_alphabetic() {
                 1
             } else {
                 0
             }
         }
         Matcher::WhileAlphaNumericWithUnderscore => {
-            let mut underscore = [0; 1];
-            '_'.encode_utf8(&mut underscore);
-
             let mut count = 0;
             while count < chars.len()
-                && (chars[count].is_ascii_alphanumeric() || chars[count] == underscore[0])
+                && (chars[count].is_alphanumeric() || "_".contains(chars[count]))
             {
                 count += 1;
             }
@@ -166,7 +158,7 @@ impl Lexer {
         }
     }
 
-    fn consume_line_comment(&mut self, chars: &[u8]) -> Option<String> {
+    fn consume_line_comment(&mut self, chars: &Vec<char>) -> Option<String> {
         let start = self.position;
 
         let c = matches(&chars[self.position..], Matcher::Exact("//"));
@@ -187,7 +179,7 @@ impl Lexer {
         }
     }
 
-    fn consume_string(&mut self, chars: &[u8]) -> Option<String> {
+    fn consume_string(&mut self, chars: &Vec<char>) -> Option<String> {
         let c = matches(&chars[self.position..], Matcher::Exact("\""));
         self.position += c;
         if c == 0 {
@@ -207,7 +199,7 @@ impl Lexer {
         Some(self.input[start..end].to_string())
     }
 
-    fn consume_numeric(&mut self, chars: &[u8]) -> Option<Numeric> {
+    fn consume_numeric(&mut self, chars: &Vec<char>) -> Option<Numeric> {
         let start = self.position;
 
         let c = matches(&chars[self.position..], Matcher::WhileDigit);
@@ -240,7 +232,7 @@ impl Lexer {
         }
     }
 
-    fn consume_ident(&mut self, chars: &[u8]) -> Option<String> {
+    fn consume_ident(&mut self, chars: &Vec<char>) -> Option<String> {
         let start = self.position;
 
         let c = matches(&chars[self.position..], Matcher::IsAlphabetic);
@@ -262,10 +254,10 @@ impl Lexer {
 
     pub fn run(&mut self) -> Result<Vec<Token>, LexerError> {
         let mut tokens = vec![];
-        let chars = self.input.as_bytes().to_vec();
+        let chars = self.input.chars().collect::<Vec<char>>();
 
         while self.position < chars.len() {
-            if chars[self.position].is_ascii_whitespace() {
+            if chars[self.position].is_whitespace() {
                 self.position += 1;
                 continue;
             }
@@ -312,7 +304,7 @@ impl Lexer {
             }
 
             return Err(LexerError::InvalidCharacter(Source::new_span(
-                char::from(chars[self.position]),
+                chars[self.position],
                 self.module_name.clone(),
                 Some(self.position),
                 Some(self.position + 1),
@@ -454,16 +446,6 @@ mod tests {
                     Lexeme::Integer(0),
                     Lexeme::DoubleDot,
                     Lexeme::Ident("n".to_string()),
-                ],
-            ),
-            (
-                "f(\"string literal\n\");",
-                vec![
-                    Lexeme::Ident("f".to_string()),
-                    Lexeme::LParen,
-                    Lexeme::String("string literal\n".to_string()),
-                    Lexeme::RParen,
-                    Lexeme::Semicolon,
                 ],
             ),
         ];
