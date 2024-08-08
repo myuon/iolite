@@ -158,7 +158,7 @@ impl Lexer {
         }
     }
 
-    fn consume_line_comment(&mut self, chars: &Vec<char>) -> Option<String> {
+    fn consume_line_comment(&mut self, chars: &[char]) -> Option<String> {
         let start = self.position;
 
         let c = matches(&chars[self.position..], Matcher::Exact("//"));
@@ -173,13 +173,13 @@ impl Lexer {
         let end = self.position;
 
         if end > start {
-            Some(self.input[start..end].to_string())
+            Some(String::from_iter(&chars[start..end]))
         } else {
             None
         }
     }
 
-    fn consume_string(&mut self, chars: &Vec<char>) -> Option<String> {
+    fn consume_string(&mut self, chars: &[char]) -> Option<String> {
         let c = matches(&chars[self.position..], Matcher::Exact("\""));
         self.position += c;
         if c == 0 {
@@ -196,7 +196,7 @@ impl Lexer {
 
         let end = self.position;
 
-        Some(self.input[start..end].to_string())
+        Some(String::from_iter(&chars[start..end]))
     }
 
     fn consume_numeric(&mut self, chars: &Vec<char>) -> Option<Numeric> {
@@ -212,7 +212,9 @@ impl Lexer {
         self.position += dot;
         if dot == 0 {
             Some(Numeric::Integer(
-                self.input[start..self.position].parse().unwrap(),
+                String::from_iter(&chars[start..self.position])
+                    .parse()
+                    .unwrap(),
             ))
         } else {
             let c = matches(&chars[self.position..], Matcher::WhileDigit);
@@ -223,12 +225,16 @@ impl Lexer {
                 self.position -= 1;
 
                 return Some(Numeric::Integer(
-                    self.input[start..self.position].parse().unwrap(),
+                    String::from_iter(&chars[start..self.position])
+                        .parse()
+                        .unwrap(),
                 ));
             }
 
             let end = self.position;
-            Some(Numeric::Float(self.input[start..end].parse().unwrap()))
+            Some(Numeric::Float(
+                String::from_iter(&chars[start..end]).parse().unwrap(),
+            ))
         }
     }
 
@@ -249,7 +255,7 @@ impl Lexer {
 
         let end = self.position;
 
-        Some(self.input[start..end].to_string())
+        Some(String::from_iter(&chars[start..end]))
     }
 
     pub fn run(&mut self) -> Result<Vec<Token>, LexerError> {
@@ -267,7 +273,7 @@ impl Lexer {
                 continue;
             }
 
-            if let Some((lexeme, length)) = self.consume_keywords() {
+            if let Some((lexeme, length)) = self.consume_keywords(&chars) {
                 tokens.push(self.new_token(lexeme, length));
                 continue;
             }
@@ -314,7 +320,7 @@ impl Lexer {
         Ok(tokens)
     }
 
-    fn consume_keywords(&mut self) -> Option<(Lexeme, usize)> {
+    fn consume_keywords(&mut self, chars: &[char]) -> Option<(Lexeme, usize)> {
         let keywords = vec![
             ("let", Lexeme::Let),
             ("fun", Lexeme::Fun),
@@ -337,9 +343,9 @@ impl Lexer {
         ];
 
         for (keyword, lexeme) in keywords.iter() {
-            if self.input[self.position..].starts_with(keyword) {
-                if let Some(c) = self.input[self.position + keyword.len()..].chars().nth(0) {
-                    if !c.is_alphanumeric() && c != '_' {
+            if chars[self.position..].starts_with(&keyword.chars().collect::<Vec<_>>()) {
+                if let Some(c) = chars.get(self.position + keyword.len()) {
+                    if !c.is_alphanumeric() && *c != '_' {
                         let position = self.position;
                         self.position += keyword.len();
                         return Some((lexeme.clone(), position));
@@ -381,7 +387,7 @@ impl Lexer {
         ];
 
         for (keyword, lexeme) in keywords.iter() {
-            if self.input[self.position..].starts_with(keyword) {
+            if chars[self.position..].starts_with(&keyword.chars().collect::<Vec<_>>()) {
                 let position = self.position;
                 self.position += keyword.len();
                 return Some((lexeme.clone(), position));
