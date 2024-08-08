@@ -13,7 +13,7 @@ fun main() {
     print_str("\n");
   }
 
-  let font = cache.load_font("Noto Sans CJK JP Regular", 24);
+  let font = cache.load_font("Hiragino Sans W4", 24);
   let surface = ttf_context.render(font, "Hello, World! / こんにちは、世界！", 255, 255, 255);
 
   let canvas = window.get_canvas();
