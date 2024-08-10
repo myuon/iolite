@@ -29,8 +29,12 @@ fun main() {
 
   let selected = 0;
 
-  let prev_pressed_down = false;
-  let prev_pressed_up = false;
+  let pressing_down = 0;
+  let pressing_up = 0;
+
+  let container_width = 350;
+  let container_height = list.length * 20;
+  let scroll_position_y = 0;
 
   while (true) {
     let event  = event_pump.poll();
@@ -38,32 +42,53 @@ fun main() {
       return nil;
     }
 
-    if !prev_pressed_down && event_pump.is_scancode_pressed(Scancode::DOWN()) {
+    if event_pump.is_scancode_pressed(Scancode::DOWN()) {
+      pressing_down = pressing_down + 1;
+    } else {
+      pressing_down = 0;
+    }
+    if event_pump.is_scancode_pressed(Scancode::UP()) {
+      pressing_up = pressing_up + 1;
+    } else {
+      pressing_up = 0;
+    }
+    
+    if pressing_down == 1 || pressing_down == 5 || (pressing_down > 10 && pressing_down % 2 == 0) {
       selected = (selected + 1) % list.length;
-    } else if !prev_pressed_up && event_pump.is_scancode_pressed(Scancode::UP()) {
-      selected = (selected + list.length - 1) % list.length;
+    }
+    if pressing_up == 1 || pressing_up == 5 || (pressing_up > 10 && pressing_up % 2 == 0) {
+      if (selected > 0) {
+        selected = selected - 1;
+      }
     }
 
-    prev_pressed_down = event_pump.is_scancode_pressed(Scancode::DOWN());
-    prev_pressed_up = event_pump.is_scancode_pressed(Scancode::UP());
+    if (selected - scroll_position_y + 1) * 20 > 600 {
+      scroll_position_y = scroll_position_y + 1;
+    }
+    if (selected - scroll_position_y) * 20 < 0 {
+      scroll_position_y = scroll_position_y - 1;
+    }
 
     canvas.set_draw_color(0, 0, 0);
     canvas.clear();
 
-    for i in 0..menu_surfaces.length {
-      if i == selected {
+    for i in 0..(600 / 20) {
+      if (scroll_position_y + i) == selected {
         canvas.set_draw_color(255, 255, 255);
-        canvas.fill_rect(0, i * 20, 350, 20);
+        canvas.fill_rect(0, i * 20, container_width, 20);
 
-        let surface = ttf_context.render(font, list.(i).name, 0, 0, 0);
+        let surface = ttf_context.render(font, list.(scroll_position_y + i).name, 0, 0, 0);
         let texture = surface.as_texture(texture_creator);
         canvas.copy_texture_at(texture_creator, texture, 0, i * 20, surface.width(), surface.height());
       } else {
-        let surface = menu_surfaces.(i);
+        let surface = menu_surfaces.(scroll_position_y + i);
         let texture = surface.as_texture(texture_creator);
         canvas.copy_texture_at(texture_creator, texture, 0, i * 20, surface.width(), surface.height());
       }
     }
+
+    canvas.set_draw_color(255, 255, 255);
+    canvas.fill_rect(container_width, 600 * scroll_position_y / list.length, 10, 600 * 600 / container_height);
 
     canvas.present();
   }
