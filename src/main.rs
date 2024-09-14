@@ -53,6 +53,7 @@ enum CliCommands {
     },
     Lsp {},
     Dap {},
+    Version {},
 }
 
 #[tokio::main]
@@ -270,6 +271,9 @@ async fn main() -> Result<()> {
                     3031,
                 )
                 .await?;
+        }
+        CliCommands::Version {} => {
+            println!("0.1.0");
         }
     }
 
