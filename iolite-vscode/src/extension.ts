@@ -52,6 +52,10 @@ class IoliteDebugAdapterDescriptorFactory
     );
     if (session.configuration["noDebug"]) {
       console.debug("noDebug mode");
+      return new vscode.DebugAdapterExecutable("iolite", [
+        "run",
+        session.configuration["sourceFile"],
+      ]);
     }
 
     console.debug("Starting dap");
@@ -87,16 +91,15 @@ export async function activate(context: ExtensionContext) {
         targetResource = vscode.window.activeTextEditor.document.uri;
       }
       if (targetResource) {
-        const runProcess = spawn("iolite", ["run", targetResource.fsPath]);
-        runProcess.stdout.on("data", (data) => {
-          console.debug("stdout", data.toString());
-        });
-        runProcess.stderr.on("data", (data) => {
-          console.debug("stderr", data.toString());
-        });
-        runProcess.on("close", (code) => {
-          console.debug(`child process exited with code ${code}`);
-        });
+        return vscode.debug.startDebugging(
+          undefined,
+          {
+            ...debuggerDefaultConfig,
+            sourceFile: targetResource.fsPath,
+            cwd: targetResource.fsPath,
+          },
+          { noDebug: true }
+        );
       }
     })
   );
@@ -178,8 +181,4 @@ export function deactivate(): Thenable<void> | undefined {
   }
 
   return client.stop();
-}
-
-export function helloWorld() {
-  vscode.window.showInformationMessage("Hello, World!");
 }
