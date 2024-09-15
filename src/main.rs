@@ -51,7 +51,10 @@ enum CliCommands {
     Test {
         file: Option<String>,
     },
-    Lsp {},
+    Lsp {
+        #[clap(long)]
+        port: Option<usize>,
+    },
     Dap {},
     Version {},
 }
@@ -261,8 +264,8 @@ async fn main() -> Result<()> {
             let result = compiler.result_runtime.as_mut().unwrap().pop_i64();
             println!("result: {:?}", Value::from_u64(result as u64));
         }
-        CliCommands::Lsp {} => {
-            Lsp::new(LspImpl).start((), 3030).await?;
+        CliCommands::Lsp { port } => {
+            Lsp::new(LspImpl).start((), port.unwrap_or(3030)).await?;
         }
         CliCommands::Dap {} => {
             Dap::new(DapImpl)

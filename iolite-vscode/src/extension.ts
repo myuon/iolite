@@ -1,3 +1,4 @@
+import { ChildProcessWithoutNullStreams, exec, spawn } from "child_process";
 import * as net from "net";
 import { type ExtensionContext } from "vscode";
 import * as vscode from "vscode";
@@ -13,6 +14,7 @@ const debuggerDefaultConfig: vscode.DebugConfiguration = {
 };
 
 let client: LanguageClient;
+let lspProcess: ChildProcessWithoutNullStreams;
 
 class IoliteDebugConfigurationProvider
   implements vscode.DebugConfigurationProvider
@@ -43,11 +45,37 @@ class IoliteDebugAdapterDescriptorFactory
     session: vscode.DebugSession,
     executable: vscode.DebugAdapterExecutable | undefined
   ): vscode.ProviderResult<vscode.DebugAdapterDescriptor> {
-    console.debug("createDebugAdapterDescriptor", session, executable);
+    console.debug(
+      "createDebugAdapterDescriptor",
+      JSON.stringify(session),
+      JSON.stringify(executable)
+    );
+    if (session.configuration["noDebug"]) {
+      console.debug("noDebug mode");
+    }
 
-    return new vscode.DebugAdapterServer(3031);
+    console.debug("Starting dap");
+    exec("iolite dap", (err, stdout, stderr) => {
+      if (err) {
+        console.debug("err", err);
+      }
+      if (stdout) {
+        console.debug("stdout", stdout);
+      }
+      if (stderr) {
+        console.debug("stderr", stderr);
+      }
+    });
+    console.debug("Started dap");
+
+    return new vscode.DebugAdapterNamedPipeServer("3031");
   }
 }
+
+const getRandomPort = (min = 1024, max = 65535) => {
+  return Math.floor(Math.random() * (max - min + 1)) + min;
+};
+const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
 
 export async function activate(context: ExtensionContext) {
   console.debug("Iolite extesion activated");
@@ -68,12 +96,46 @@ export async function activate(context: ExtensionContext) {
     )
   );
 
-  const serverOptions = (): Promise<StreamInfo> => {
-    let socket = net.connect(3030, "127.0.0.1");
+  const serverOptions = async (): Promise<StreamInfo> => {
+    const port = getRandomPort();
+
+    if (!lspProcess) {
+      console.debug("Starting LSP");
+      const iolite_lsp = spawn("iolite", ["lsp", "--port", port.toString()]);
+      iolite_lsp.stdout.on("data", (data) => {
+        console.debug("stdout", data.toString());
+      });
+      iolite_lsp.stderr.on("data", (data) => {
+        console.debug("stderr", data.toString());
+      });
+      iolite_lsp.on("close", (code) => {
+        console.debug(`child process exited with code ${code}`);
+      });
+
+      lspProcess = iolite_lsp;
+      console.debug("Started LSP");
+    }
+
+    let socket: net.Socket;
+    let connected = false;
+    while (!connected) {
+      console.debug("Trying to connect to LSP...");
+      socket = net.connect(port, "127.0.0.1");
+      socket.on("connect", () => {
+        connected = true;
+      });
+      socket.on("error", (err) => {
+        console.error("Error:", err);
+      });
+
+      await sleep(250);
+    }
+
+    console.debug("Connected to LSP");
 
     return Promise.resolve({
-      writer: socket,
-      reader: socket,
+      writer: socket!,
+      reader: socket!,
     });
   };
 
@@ -93,6 +155,11 @@ export function deactivate(): Thenable<void> | undefined {
   if (!client) {
     return undefined;
   }
+
+  if (lspProcess) {
+    lspProcess.kill();
+  }
+
   return client.stop();
 }
 
