@@ -81,7 +81,24 @@ export async function activate(context: ExtensionContext) {
   console.debug("Iolite extesion activated");
 
   context.subscriptions.push(
-    vscode.commands.registerCommand("iolite.helloworld", helloWorld)
+    vscode.commands.registerCommand("iolite.run", (resource: vscode.Uri) => {
+      let targetResource = resource;
+      if (!targetResource && vscode.window.activeTextEditor) {
+        targetResource = vscode.window.activeTextEditor.document.uri;
+      }
+      if (targetResource) {
+        const runProcess = spawn("iolite", ["run", targetResource.fsPath]);
+        runProcess.stdout.on("data", (data) => {
+          console.debug("stdout", data.toString());
+        });
+        runProcess.stderr.on("data", (data) => {
+          console.debug("stderr", data.toString());
+        });
+        runProcess.on("close", (code) => {
+          console.debug(`child process exited with code ${code}`);
+        });
+      }
+    })
   );
   context.subscriptions.push(
     vscode.debug.registerDebugConfigurationProvider(
