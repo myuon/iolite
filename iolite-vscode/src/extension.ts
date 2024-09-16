@@ -15,6 +15,7 @@ const debuggerDefaultConfig: vscode.DebugConfiguration = {
 
 let client: LanguageClient;
 let lspProcess: ChildProcessWithoutNullStreams;
+let dapProcess: ChildProcessWithoutNullStreams;
 
 class IoliteDebugConfigurationProvider
   implements vscode.DebugConfigurationProvider
@@ -58,21 +59,22 @@ class IoliteDebugAdapterDescriptorFactory
       ]);
     }
 
-    console.debug("Starting dap");
-    exec("iolite dap", (err, stdout, stderr) => {
-      if (err) {
-        console.debug("err", err);
-      }
-      if (stdout) {
-        console.debug("stdout", stdout);
-      }
-      if (stderr) {
-        console.debug("stderr", stderr);
-      }
-    });
-    console.debug("Started dap");
+    if (!dapProcess) {
+      console.debug("Starting dap");
+      dapProcess = spawn("iolite", ["dap"]);
+      dapProcess.on("close", (code) => {
+        console.debug(`(dap)child process exited with code ${code}`);
+      });
+      dapProcess.stdout.on("data", (data) => {
+        console.debug("(dap)stdout", data.toString());
+      });
+      dapProcess.stderr.on("data", (data) => {
+        console.debug("(dap)stderr", data.toString());
+      });
+      console.debug("Started dap");
+    }
 
-    return new vscode.DebugAdapterNamedPipeServer("3031");
+    return new vscode.DebugAdapterServer(3031);
   }
 }
 
@@ -123,13 +125,13 @@ export async function activate(context: ExtensionContext) {
       console.debug("Starting LSP");
       const iolite_lsp = spawn("iolite", ["lsp", "--port", port.toString()]);
       iolite_lsp.stdout.on("data", (data) => {
-        console.debug("stdout", data.toString());
+        console.debug("(lsp)stdout", data.toString());
       });
       iolite_lsp.stderr.on("data", (data) => {
-        console.debug("stderr", data.toString());
+        console.debug("(lsp)stderr", data.toString());
       });
       iolite_lsp.on("close", (code) => {
-        console.debug(`child process exited with code ${code}`);
+        console.debug(`(lsp)child process exited with code ${code}`);
       });
 
       lspProcess = iolite_lsp;
