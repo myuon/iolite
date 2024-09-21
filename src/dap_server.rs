@@ -366,21 +366,20 @@ async fn dap_handler(
             }))
         }
         Command::SetBreakpoints(arg) => {
-            let std_content = format!("{}\n{}", include_str!("./compiler/std.io"), String::new());
-            let std_content_len = std_content.len();
-
             let mut runtime = ctx.0.lock().unwrap();
 
             let mut breakpoints = vec![];
             if let Some(bps) = &arg.breakpoints {
-                for bp in bps {
-                    let position = compiler::reporter::find_line_and_column_with_input(
-                        &runtime.source_code,
-                        bp.line as usize,
-                        bp.column.unwrap_or(0) as usize,
-                    );
+                if Some(&runtime.source_file) == arg.source.path.as_ref() {
+                    for bp in bps {
+                        let position = compiler::reporter::find_line_and_column_with_input(
+                            &runtime.source_code,
+                            bp.line as usize,
+                            bp.column.unwrap_or(0) as usize,
+                        );
 
-                    breakpoints.push(position + std_content_len);
+                        breakpoints.push(position);
+                    }
                 }
             }
 

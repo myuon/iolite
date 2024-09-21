@@ -62,7 +62,7 @@ impl<C: Sync + Send + Clone + 'static, I: DapServer<C> + Sync + Send + Clone + '
                         serde_json::to_string(&event)
                             .unwrap()
                             .chars()
-                            .take(80)
+                            .take(200)
                             .collect::<String>()
                     );
 
@@ -89,7 +89,7 @@ impl<C: Sync + Send + Clone + 'static, I: DapServer<C> + Sync + Send + Clone + '
                     let req = serde_json::from_str::<Request>(&content_part)?;
                     println!(
                         "> req: {}..",
-                        content_part.chars().take(80).collect::<String>()
+                        content_part.chars().take(200).collect::<String>()
                     );
 
                     let resp_result =
@@ -106,7 +106,7 @@ impl<C: Sync + Send + Clone + 'static, I: DapServer<C> + Sync + Send + Clone + '
                         "< resp: {}..",
                         serde_json::to_string(&resp)?
                             .chars()
-                            .take(80)
+                            .take(200)
                             .collect::<String>()
                     );
 
