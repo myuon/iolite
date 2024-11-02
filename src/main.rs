@@ -8,6 +8,7 @@ use clap::{Parser, Subcommand};
 use compiler::{runtime::Runtime, CompileOptions};
 use dap_server::{DapContext, DapImpl};
 use lsp_server::LspImpl;
+use tui_debbuger::start_tui_debugger;
 use utils::{dap::server::Dap, lsp::server::Lsp, server_process::ServerProcess};
 
 use crate::compiler::ir::Value;
@@ -15,6 +16,7 @@ use crate::compiler::ir::Value;
 mod compiler;
 mod dap_server;
 mod lsp_server;
+mod tui_debbuger;
 mod utils;
 
 #[derive(Parser, Debug)]
@@ -56,6 +58,7 @@ enum CliCommands {
         port: Option<usize>,
     },
     Dap {},
+    Debugger {},
     Version {},
 }
 
@@ -277,6 +280,9 @@ async fn main() -> Result<()> {
         }
         CliCommands::Version {} => {
             println!("0.1.0");
+        }
+        CliCommands::Debugger {} => {
+            start_tui_debugger()?;
         }
     }
 

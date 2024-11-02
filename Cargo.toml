@@ -9,11 +9,13 @@ edition = "2021"
 anyhow = "1.0.82"
 base64 = "0.22.0"
 clap = { version = "4.5.4", features = ["derive"] }
+crossterm = "0.28.1"
 dap = "0.4.1-alpha1"
 lsp-types = "0.95.1"
 nanoid = "0.4.0"
 once_cell = "1.19.0"
 proptest = "1.4.0"
+ratatui = "0.29.0"
 rayon = "1.10.0"
 rust-fontconfig = "0.1.7"
 sdl2 = { version = "0.37.0", features = ["image", "ttf"], optional = true }
