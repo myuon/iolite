@@ -254,7 +254,7 @@ impl Widget for &Debugger {
         {
             let mut block = Block::bordered()
                 .title(" Source Code ")
-                .padding(Padding::left(4));
+                .padding(Padding::left(1));
             if self.focus == DebuggerView::SourceCode {
                 block = block.yellow().border_set(border::DOUBLE);
             }
@@ -359,7 +359,8 @@ impl Widget for &Debugger {
 
             let stack_trace = frames
                 .iter()
-                .map(|frame| format!("0x{:x}", frame))
+                .enumerate()
+                .map(|(i, frame)| format!("[{}] 0x{:x}", i, frame))
                 .collect::<Vec<_>>();
 
             Paragraph::new(
@@ -392,7 +393,10 @@ impl Widget for &Debugger {
             Paragraph::new(
                 values
                     .iter()
-                    .map(|(addr, value)| Line::raw(format!("0x{:x} | {:?}", addr, value)))
+                    .enumerate()
+                    .map(|(i, (addr, value))| {
+                        Line::raw(format!("[{}] 0x{:x} | {:?}", i, addr, value))
+                    })
                     .collect::<Vec<_>>(),
             )
             .block(block)

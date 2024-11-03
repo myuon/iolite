@@ -57,7 +57,7 @@ pub struct Runtime {
     pub(crate) source_code: String,
     pub(crate) breakpoints: Vec<usize>,
     pub(crate) trap_stdout: Option<Arc<Mutex<BufWriter<Vec<u8>>>>>,
-    prev_source_map: (usize, usize),
+    pub(crate) prev_source_map: (usize, usize),
     protected_section: usize,
     closure_tasks: HashMap<String, (u64, u64)>,
     channel: (
