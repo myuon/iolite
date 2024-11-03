@@ -161,7 +161,7 @@ impl TypeTag {
     }
 }
 
-#[derive(PartialEq, Clone)]
+#[derive(PartialEq, Clone, PartialOrd)]
 pub enum Value {
     Nil,
     Int(i32),

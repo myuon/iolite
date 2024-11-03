@@ -169,6 +169,7 @@ impl Debugger {
             KeyCode::Char('q') => self.exit(),
             KeyCode::Char('r') => self.resume(),
             KeyCode::Char('n') => self.next(),
+            KeyCode::Char(' ') => self.next(),
             KeyCode::Tab => self.focus = (self.focus + 1) % 2,
             _ => {}
         }
@@ -198,7 +199,7 @@ impl Widget for &Debugger {
             " Resume ".into(),
             "<R>".blue().into(),
             " Next ".into(),
-            "<N>".blue().into(),
+            "<N/SPACE>".blue().into(),
             " Quit ".into(),
             "<Q> ".blue().into(),
         ]);
@@ -280,7 +281,8 @@ impl Widget for &Debugger {
         {
             let block = Block::bordered().title(" Stack Frames ");
 
-            let frames = runtime.get_stack_frames();
+            let mut frames = runtime.get_stack_frames();
+            frames.reverse();
 
             let stack_trace = frames
                 .iter()
@@ -300,7 +302,9 @@ impl Widget for &Debugger {
         // stack block
         {
             let block = Block::bordered().title(" Stack ");
-            let values = runtime.get_stack_values_from_top();
+
+            let mut values = runtime.get_stack_values_from_top();
+            values.reverse();
 
             Paragraph::new(
                 values
