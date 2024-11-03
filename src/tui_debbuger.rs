@@ -422,8 +422,7 @@ impl Widget for &Debugger {
             ])
             .split(vertical_layout[1]);
 
-        let mut frames = runtime.get_stack_frames();
-        frames.reverse();
+        let frames = runtime.get_stack_frames();
 
         // stack frame block
         {
@@ -435,7 +434,16 @@ impl Widget for &Debugger {
             let stack_trace = frames
                 .iter()
                 .enumerate()
-                .map(|(i, frame)| format!("[{}] 0x{:x}", i, frame))
+                .map(|(i, frame)| {
+                    format!("[{}] 0x{:x} {}", i, frame, {
+                        let ip = runtime.called_ips.get(frames.len() - 1 - i);
+                        if let Some(ip) = ip {
+                            format!("#{}", self.labels.get(ip).unwrap_or(&"main".to_string()))
+                        } else {
+                            "<prepare>".to_string()
+                        }
+                    })
+                })
                 .collect::<Vec<_>>();
 
             Paragraph::new(

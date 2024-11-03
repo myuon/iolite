@@ -66,6 +66,7 @@ pub struct Runtime {
     ),
     interrupted: Vec<(String, usize, usize)>,
     extcall_table: HashMap<String, usize>,
+    pub(crate) called_ips: Vec<usize>,
 }
 
 impl Runtime {
@@ -90,6 +91,7 @@ impl Runtime {
             channel: std::sync::mpsc::channel(),
             interrupted: vec![],
             extcall_table,
+            called_ips: vec![sp],
         }
     }
 
@@ -442,6 +444,7 @@ impl Runtime {
             let pc = callback_ptr & 0xffffffff; // remove type tag
             self.push(self.pc as i64);
             self.pc = pc as usize;
+            self.called_ips.push(self.pc);
 
             self.interrupted.push((task_id.clone(), self.sp, args_len));
 
@@ -464,6 +467,7 @@ impl Runtime {
                 let pc = self.pop_i64();
                 self.push(self.pc as i64);
                 self.pc = pc as usize;
+                self.called_ips.push(self.pc);
             }
             // extcall
             0x03 => {
@@ -1170,6 +1174,7 @@ impl Runtime {
                             value
                         );
                         self.pc = value.as_u64() as usize;
+                        self.called_ips.pop();
 
                         // pops arguments
                         for _ in 0..args {
@@ -1192,6 +1197,7 @@ impl Runtime {
                         value
                     );
                     self.pc = value.as_u64() as usize;
+                    self.called_ips.pop();
                 }
             }
             // jump
