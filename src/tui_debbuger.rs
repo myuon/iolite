@@ -17,7 +17,18 @@ use ratatui::{
     DefaultTerminal, Frame,
 };
 
-use crate::compiler::{self, byte_code_emitter::emit_disassemble, runtime::Runtime};
+use crate::compiler::{
+    self,
+    byte_code_emitter::emit_disassemble,
+    runtime::{ControlFlow, Runtime},
+};
+
+struct Debugger {
+    runtime: Arc<Mutex<Runtime>>,
+    exit: bool,
+    mode: String,
+    next_instruction: Option<String>,
+}
 
 pub fn start_tui_debugger(filepath: String) -> Result<()> {
     let mut terminal = ratatui::init();
@@ -26,6 +37,8 @@ pub fn start_tui_debugger(filepath: String) -> Result<()> {
     let mut debugger = Debugger {
         runtime: Arc::new(Mutex::new(Runtime::new(1024, vec![], HashMap::new()))),
         exit: false,
+        mode: "launched".to_string(),
+        next_instruction: None,
     };
 
     let path = Path::new(&filepath);
@@ -38,11 +51,6 @@ pub fn start_tui_debugger(filepath: String) -> Result<()> {
     ratatui::restore();
 
     app_result
-}
-
-struct Debugger {
-    runtime: Arc<Mutex<Runtime>>,
-    exit: bool,
 }
 
 impl Debugger {
@@ -83,6 +91,49 @@ impl Debugger {
         Ok(())
     }
 
+    fn next(&mut self) {
+        let mut runtime = self.runtime.lock().unwrap();
+        let flow = runtime.step(false, false).unwrap();
+
+        match flow {
+            ControlFlow::HitBreakpoint => {
+                self.mode = "breakpoint".to_string();
+            }
+            ControlFlow::Finish => {
+                self.mode = "finished".to_string();
+            }
+            ControlFlow::Continue => {}
+        }
+
+        self.next_instruction = Some(format!("{:?}", runtime.show_next_instruction()));
+    }
+
+    fn resume(&mut self) {
+        self.mode = "running".to_string();
+        let mut runtime = self.runtime.lock().unwrap();
+
+        let flow = {
+            let mut flow = ControlFlow::Continue;
+            while matches!(flow, ControlFlow::Continue) {
+                flow = runtime.step(false, false).unwrap();
+            }
+
+            flow
+        };
+
+        match flow {
+            ControlFlow::HitBreakpoint => {
+                self.mode = "breakpoint".to_string();
+            }
+            ControlFlow::Finish => {
+                self.mode = "finished".to_string();
+            }
+            _ => (),
+        }
+
+        self.next_instruction = Some(format!("{:?}", runtime.show_next_instruction()));
+    }
+
     fn run(&mut self, terminal: &mut DefaultTerminal) -> Result<()> {
         while !self.exit {
             terminal.draw(|frame| self.draw(frame))?;
@@ -114,6 +165,8 @@ impl Debugger {
     fn handle_key_event(&mut self, key_event: KeyEvent) {
         match key_event.code {
             KeyCode::Char('q') => self.exit(),
+            KeyCode::Char('r') => self.resume(),
+            KeyCode::Char('n') => self.next(),
             _ => {}
         }
     }
@@ -136,8 +189,8 @@ impl Widget for &Debugger {
         let instructions = Line::from(vec![
             " Resume ".into(),
             "<R>".blue().into(),
-            " Step ".into(),
-            "<S>".blue().into(),
+            " Next ".into(),
+            "<N>".blue().into(),
             " Quit ".into(),
             "<Q> ".blue().into(),
         ]);
@@ -149,8 +202,15 @@ impl Widget for &Debugger {
         let runtime = self.runtime.lock().unwrap();
 
         Paragraph::new(format!(
-            "pc:{}, bp:{}, sp:{}",
-            runtime.pc, runtime.bp, runtime.sp
+            "[mode:{}] pc:0x{:x}, bp:0x{:x}, sp:0x{:x}{}",
+            self.mode,
+            runtime.pc,
+            runtime.bp,
+            runtime.sp,
+            self.next_instruction
+                .clone()
+                .map(|t| format!(", next:{}", t))
+                .unwrap_or(String::new())
         ))
         .block(block)
         .render(outer_layout[0], buf);
