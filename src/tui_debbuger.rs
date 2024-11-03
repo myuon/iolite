@@ -12,7 +12,7 @@ use ratatui::{
     layout::{Constraint, Direction, Layout, Rect},
     style::Stylize,
     symbols::border,
-    text::Line,
+    text::{Line, Span, Text},
     widgets::{Block, Padding, Paragraph, Widget, Wrap},
     DefaultTerminal, Frame,
 };
@@ -20,6 +20,7 @@ use ratatui::{
 use crate::compiler::{
     self,
     byte_code_emitter::emit_disassemble,
+    lexer::{Lexeme, Lexer, Token},
     runtime::{ControlFlow, Runtime},
 };
 
@@ -258,29 +259,53 @@ impl Widget for &Debugger {
                 block = block.yellow().border_set(border::DOUBLE);
             }
 
-            let source_code_lines = runtime
-                .source_code
-                .lines()
-                .enumerate()
-                .map(|(i, t)| format!("{:>4} | {}", i, t))
-                .collect::<Vec<_>>();
+            let mut lexer = Lexer::new("main".to_string(), runtime.source_code.clone());
+            let tokens = lexer.run().unwrap();
+            let keywords = get_token_type_and_positions(tokens);
 
-            Paragraph::new(
-                source_code_lines
-                    .iter()
-                    .map(|s| Line::raw(s.as_str()))
-                    .collect::<Vec<_>>(),
-            )
-            .wrap(Wrap { trim: true })
-            .block(block)
-            .scroll((
-                self.scrolls
-                    .get(&DebuggerView::SourceCode)
-                    .copied()
-                    .unwrap_or(0),
-                0,
-            ))
-            .render(horizontal_layout[0], buf);
+            let chars = runtime.source_code.chars().collect::<Vec<_>>();
+            let mut lines = vec![];
+            let mut text = Line::raw("|");
+
+            let mut current = 0;
+            for (token_type, start, end) in keywords {
+                if let Some(at) = chars[current..start].iter().position(|c| *c == '\n') {
+                    text.push_span(Span::from(
+                        chars[current..current + at].iter().collect::<String>(),
+                    ));
+                    current += at + 1;
+
+                    lines.push(text);
+                    text = Line::raw("|");
+                }
+
+                text.push_span(Span::from(chars[current..start].iter().collect::<String>()));
+                text.push_span(Span::from(chars[start..end].iter().collect::<String>()).fg(
+                    match token_type.as_str() {
+                        "ident" => crossterm::style::Color::White,
+                        "string" => crossterm::style::Color::Green,
+                        "numeric" => crossterm::style::Color::Blue,
+                        "comment" => crossterm::style::Color::DarkGrey,
+                        _ => crossterm::style::Color::Magenta,
+                    },
+                ));
+
+                current = end;
+            }
+            text.push_span(Span::from(chars[current..].iter().collect::<String>()));
+            lines.push(text);
+
+            Paragraph::new(lines)
+                .wrap(Wrap { trim: true })
+                .block(block)
+                .scroll((
+                    self.scrolls
+                        .get(&DebuggerView::SourceCode)
+                        .copied()
+                        .unwrap_or(0),
+                    0,
+                ))
+                .render(horizontal_layout[0], buf);
         }
 
         // disassemble block
@@ -372,4 +397,25 @@ impl Widget for &Debugger {
             .render(bottom_layout[1], buf);
         }
     }
+}
+
+fn get_token_type_and_positions(tokens: Vec<Token>) -> Vec<(String, usize, usize)> {
+    let mut result = vec![];
+    for token in tokens {
+        let token_type = match token.lexeme {
+            Lexeme::Ident(_) => "ident",
+            Lexeme::String(_) => "string",
+            Lexeme::Integer(_) => "numeric",
+            Lexeme::Float(_) => "numeric",
+            Lexeme::Comment(_) => "comment",
+            _ => "keyword",
+        };
+        result.push((
+            token_type.to_string(),
+            token.span.start.unwrap(),
+            token.span.end.unwrap(),
+        ));
+    }
+
+    result
 }
