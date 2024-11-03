@@ -182,11 +182,16 @@ impl Widget for &Debugger {
             .constraints(vec![Constraint::Percentage(100)])
             .split(area);
 
-        let layout = Layout::default()
+        let vertical_layout = Layout::default()
             .direction(Direction::Vertical)
             .constraints(vec![Constraint::Percentage(50), Constraint::Percentage(50)])
             .margin(2)
             .split(outer_layout[0]);
+
+        let horizontal_layout = Layout::default()
+            .direction(Direction::Horizontal)
+            .constraints(vec![Constraint::Percentage(50), Constraint::Percentage(50)])
+            .split(vertical_layout[0]);
 
         let title = Line::from(" TUI Debugger ").bold();
         let instructions = Line::from(vec![
@@ -242,7 +247,7 @@ impl Widget for &Debugger {
             )
             .wrap(Wrap { trim: true })
             .block(block)
-            .render(layout[0], buf);
+            .render(horizontal_layout[0], buf);
         }
 
         // disassemble block
@@ -263,7 +268,48 @@ impl Widget for &Debugger {
                     .collect::<Vec<_>>(),
             )
             .block(block)
-            .render(layout[1], buf);
+            .render(horizontal_layout[1], buf);
+        }
+
+        let bottom_layout = Layout::default()
+            .direction(Direction::Horizontal)
+            .constraints(vec![Constraint::Fill(1), Constraint::Fill(1)])
+            .split(vertical_layout[1]);
+
+        // stack frame block
+        {
+            let block = Block::bordered().title(" Stack Frames ");
+
+            let frames = runtime.get_stack_frames();
+
+            let stack_trace = frames
+                .iter()
+                .map(|frame| format!("0x{:x}", frame))
+                .collect::<Vec<_>>();
+
+            Paragraph::new(
+                stack_trace
+                    .iter()
+                    .map(|s| Line::raw(s.as_str()))
+                    .collect::<Vec<_>>(),
+            )
+            .block(block)
+            .render(bottom_layout[0], buf);
+        }
+
+        // stack block
+        {
+            let block = Block::bordered().title(" Stack ");
+            let values = runtime.get_stack_values_from_top();
+
+            Paragraph::new(
+                values
+                    .iter()
+                    .map(|(addr, value)| Line::raw(format!("0x{:x} | {:?}", addr, value)))
+                    .collect::<Vec<_>>(),
+            )
+            .block(block)
+            .render(bottom_layout[1], buf);
         }
     }
 }

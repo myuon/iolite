@@ -356,6 +356,20 @@ impl Runtime {
         result
     }
 
+    pub fn get_stack_values_from_top(&self) -> Vec<(usize, Value)> {
+        let mut values = vec![];
+        let mut p = self.memory.len() - 8;
+
+        while p >= self.sp {
+            let val = Value::from_u64(self.load_i64(p as u64) as u64);
+            values.push((p, val));
+
+            p -= 8;
+        }
+
+        values
+    }
+
     fn print_stack(&self) {
         let mut p = self.memory.len() - 8;
         print!("[{}:{:x}] |", self.pc, self.pc);
