@@ -208,8 +208,8 @@ impl std::fmt::Debug for Value {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
             Value::Nil => write!(f, "<nil>"),
-            Value::Int(val) => write!(f, "{}", val),
-            Value::Float(val) => write!(f, "Float({})", val),
+            Value::Int(val) => write!(f, "{} (0x{:x})", val, val),
+            Value::Float(val) => write!(f, "{}", val),
             Value::Bool(val) => write!(f, "{}", val),
             Value::Pointer(val) => {
                 if *val == 0 {

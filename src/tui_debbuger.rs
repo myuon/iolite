@@ -37,6 +37,7 @@ struct Debugger {
     next_instruction: Option<String>,
     focus: DebuggerView,
     scrolls: HashMap<DebuggerView, u16>,
+    labels: HashMap<usize, String>,
 }
 
 pub fn start_tui_debugger(filepath: String) -> Result<()> {
@@ -51,6 +52,7 @@ pub fn start_tui_debugger(filepath: String) -> Result<()> {
         next_instruction: None,
         focus: DebuggerView::SourceCode,
         scrolls: HashMap::new(),
+        labels: HashMap::new(),
     };
 
     let path = Path::new(&filepath);
@@ -86,7 +88,8 @@ impl Debugger {
         compiler.link()?;
         compiler.byte_code_gen()?;
 
-        let program = compiler.result_codegen.as_ref().unwrap().buffer.clone();
+        let emitter = compiler.result_codegen.as_ref().unwrap();
+        let program = emitter.buffer.clone();
 
         let mut buffer = vec![];
         {
@@ -96,6 +99,12 @@ impl Debugger {
         }
 
         self.disassembled = String::from_utf8(buffer)?;
+        self.labels = emitter
+            .labels
+            .clone()
+            .into_iter()
+            .map(|(k, v)| (v, k))
+            .collect::<HashMap<_, _>>();
 
         self.runtime.lock().unwrap().init(
             1024,
@@ -406,7 +415,11 @@ impl Widget for &Debugger {
 
         let bottom_layout = Layout::default()
             .direction(Direction::Horizontal)
-            .constraints(vec![Constraint::Fill(1), Constraint::Fill(1)])
+            .constraints(vec![
+                Constraint::Fill(1),
+                Constraint::Fill(1),
+                Constraint::Fill(1),
+            ])
             .split(vertical_layout[1]);
 
         let mut frames = runtime.get_stack_frames();
@@ -474,6 +487,30 @@ impl Widget for &Debugger {
                 0,
             ))
             .render(bottom_layout[1], buf);
+        }
+
+        // labels
+        {
+            let mut block = Block::bordered().title(" Labels ");
+            if self.focus == DebuggerView::Stack {
+                block = block.yellow().border_set(border::DOUBLE);
+            }
+
+            let mut labels_iter = self.labels.iter().collect::<Vec<_>>();
+            labels_iter.sort();
+
+            let labels = labels_iter
+                .into_iter()
+                .map(|(addr, label)| Line::raw(format!("0x{:x} -> {}", addr, label)))
+                .collect::<Vec<_>>();
+
+            Paragraph::new(labels)
+                .block(block)
+                .scroll((
+                    self.scrolls.get(&DebuggerView::Stack).copied().unwrap_or(0),
+                    0,
+                ))
+                .render(bottom_layout[2], buf);
         }
     }
 }
