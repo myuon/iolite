@@ -105,6 +105,10 @@ impl Debugger {
     }
 
     fn next(&mut self) {
+        if self.mode == "finished" {
+            return;
+        }
+
         let mut runtime = self.runtime.lock().unwrap();
         let flow = runtime.step(false, false).unwrap();
 
@@ -122,6 +126,10 @@ impl Debugger {
     }
 
     fn resume(&mut self) {
+        if self.mode == "finished" {
+            return;
+        }
+
         self.mode = "running".to_string();
         let mut runtime = self.runtime.lock().unwrap();
 
@@ -278,7 +286,12 @@ impl Widget for &Debugger {
                         current += at + 1;
                         line += 1;
 
-                        lines.push(text);
+                        let source_map = runtime.prev_source_map;
+                        lines.push(if start == source_map.0 && end <= source_map.1 {
+                            text.black().on_blue()
+                        } else {
+                            text
+                        });
                         text = Line::raw(format!("|{:>3}| ", line));
                     } else {
                         break;
