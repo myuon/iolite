@@ -58,7 +58,9 @@ enum CliCommands {
         port: Option<usize>,
     },
     Dap {},
-    Debugger {},
+    Debugger {
+        file: String,
+    },
     Version {},
 }
 
@@ -281,8 +283,8 @@ async fn main() -> Result<()> {
         CliCommands::Version {} => {
             println!("0.1.0");
         }
-        CliCommands::Debugger {} => {
-            start_tui_debugger()?;
+        CliCommands::Debugger { file } => {
+            start_tui_debugger(file)?;
         }
     }
 

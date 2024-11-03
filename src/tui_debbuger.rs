@@ -1,5 +1,6 @@
 use std::{
     collections::HashMap,
+    path::Path,
     sync::{Arc, Mutex},
 };
 
@@ -15,9 +16,9 @@ use ratatui::{
     DefaultTerminal, Frame,
 };
 
-use crate::compiler::runtime::Runtime;
+use crate::compiler::{self, runtime::Runtime};
 
-pub fn start_tui_debugger() -> Result<()> {
+pub fn start_tui_debugger(filepath: String) -> Result<()> {
     let mut terminal = ratatui::init();
     terminal.clear()?;
 
@@ -25,6 +26,13 @@ pub fn start_tui_debugger() -> Result<()> {
         runtime: Arc::new(Mutex::new(Runtime::new(1024, vec![], HashMap::new()))),
         exit: false,
     };
+
+    let path = Path::new(&filepath);
+    let cwd = path.parent().unwrap().to_str().unwrap().to_string();
+    let filename = path.file_name().unwrap().to_str().unwrap().to_string();
+
+    debugger.launch(cwd, filename)?;
+
     let app_result = debugger.run(&mut terminal);
     ratatui::restore();
 
@@ -37,10 +45,47 @@ struct Debugger {
 }
 
 impl Debugger {
+    fn launch(&mut self, cwd: String, source_file: String) -> Result<()> {
+        let source_file = Path::new(&cwd)
+            .join(Path::new(&source_file))
+            .to_str()
+            .unwrap()
+            .to_string();
+
+        let mut compiler = compiler::Compiler::new();
+        compiler.set_cwd(cwd);
+
+        let main = "main".to_string();
+        let source_code = std::fs::read_to_string(&source_file)?;
+
+        compiler.parse_with_code(main.clone(), source_code.clone(), false)?;
+        compiler.typecheck(main.clone())?;
+        compiler.ir_code_gen(main.clone(), false)?;
+        compiler.vm_code_gen()?;
+        compiler.link()?;
+        compiler.byte_code_gen()?;
+
+        let program = compiler.result_codegen.as_ref().unwrap().buffer.clone();
+
+        self.runtime.lock().unwrap().init(
+            1024,
+            program,
+            std::path::Path::new(&source_file)
+                .file_name()
+                .unwrap()
+                .to_str()
+                .unwrap()
+                .to_string(),
+            source_code,
+        );
+
+        Ok(())
+    }
+
     fn run(&mut self, terminal: &mut DefaultTerminal) -> Result<()> {
         while !self.exit {
             terminal.draw(|frame| self.draw(frame))?;
-            self.handle_event();
+            self.handle_event()?;
         }
 
         Ok(())
@@ -67,7 +112,7 @@ impl Debugger {
 
     fn handle_key_event(&mut self, key_event: KeyEvent) {
         match key_event.code {
-            KeyCode::Char('q') => self.exit = true,
+            KeyCode::Char('q') => self.exit(),
             _ => {}
         }
     }
@@ -89,6 +134,10 @@ impl Widget for &Debugger {
             .title_bottom(instructions)
             .border_set(border::THICK);
 
-        Paragraph::new("foobar").block(block).render(area, buf);
+        let runtime = self.runtime.lock().unwrap();
+
+        Paragraph::new(runtime.source_code.clone())
+            .block(block)
+            .render(area, buf);
     }
 }
