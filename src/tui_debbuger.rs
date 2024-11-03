@@ -28,6 +28,7 @@ struct Debugger {
     exit: bool,
     mode: String,
     next_instruction: Option<String>,
+    focus: usize,
 }
 
 pub fn start_tui_debugger(filepath: String) -> Result<()> {
@@ -39,6 +40,7 @@ pub fn start_tui_debugger(filepath: String) -> Result<()> {
         exit: false,
         mode: "launched".to_string(),
         next_instruction: None,
+        focus: 0,
     };
 
     let path = Path::new(&filepath);
@@ -167,6 +169,7 @@ impl Debugger {
             KeyCode::Char('q') => self.exit(),
             KeyCode::Char('r') => self.resume(),
             KeyCode::Char('n') => self.next(),
+            KeyCode::Tab => self.focus = (self.focus + 1) % 2,
             _ => {}
         }
     }
@@ -217,6 +220,13 @@ impl Widget for &Debugger {
 
         // source_code block
         {
+            let mut block = Block::bordered()
+                .title(" Source Code ")
+                .padding(Padding::left(4));
+            if self.focus == 0 {
+                block = block.yellow().border_set(border::DOUBLE);
+            }
+
             let source_code_lines = runtime
                 .source_code
                 .lines()
@@ -231,16 +241,17 @@ impl Widget for &Debugger {
                     .collect::<Vec<_>>(),
             )
             .wrap(Wrap { trim: true })
-            .block(
-                Block::bordered()
-                    .title(" Source Code ")
-                    .padding(Padding::left(4)),
-            )
+            .block(block)
             .render(layout[0], buf);
         }
 
         // disassemble block
         {
+            let mut block = Block::bordered().title(" Disassemble ");
+            if self.focus == 1 {
+                block = block.yellow().border_set(border::DOUBLE);
+            }
+
             let mut writer = BufWriter::new(Vec::new());
             emit_disassemble(&mut writer, runtime.program.clone()).unwrap();
 
@@ -251,7 +262,7 @@ impl Widget for &Debugger {
                     .map(|s| Line::raw(s))
                     .collect::<Vec<_>>(),
             )
-            .block(Block::bordered().title(" Disassemble "))
+            .block(block)
             .render(layout[1], buf);
         }
     }
