@@ -264,19 +264,25 @@ impl Widget for &Debugger {
             let keywords = get_token_type_and_positions(tokens);
 
             let chars = runtime.source_code.chars().collect::<Vec<_>>();
+            let mut line = 0;
             let mut lines = vec![];
-            let mut text = Line::raw("|");
+            let mut text = Line::raw(format!("|{:>3}| ", line));
 
             let mut current = 0;
             for (token_type, start, end) in keywords {
-                if let Some(at) = chars[current..start].iter().position(|c| *c == '\n') {
-                    text.push_span(Span::from(
-                        chars[current..current + at].iter().collect::<String>(),
-                    ));
-                    current += at + 1;
+                while current < start {
+                    if let Some(at) = chars[current..start].iter().position(|c| *c == '\n') {
+                        text.push_span(Span::from(
+                            chars[current..current + at].iter().collect::<String>(),
+                        ));
+                        current += at + 1;
+                        line += 1;
 
-                    lines.push(text);
-                    text = Line::raw("|");
+                        lines.push(text);
+                        text = Line::raw(format!("|{:>3}| ", line));
+                    } else {
+                        break;
+                    }
                 }
 
                 text.push_span(Span::from(chars[current..start].iter().collect::<String>()));
