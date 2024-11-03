@@ -1,6 +1,6 @@
 use std::{
     collections::HashMap,
-    io::BufWriter,
+    io::{BufWriter, Write},
     path::Path,
     sync::{Arc, Mutex},
 };
@@ -8,14 +8,11 @@ use std::{
 use anyhow::Result;
 use crossterm::event::{self, Event, KeyCode, KeyEvent, KeyEventKind};
 use ratatui::{
-    buffer::Buffer,
-    layout::{Constraint, Direction, Layout, Rect},
-    style::Stylize,
-    symbols::border,
-    text::{Line, Span},
-    widgets::{Block, Padding, Paragraph, Widget, Wrap},
-    DefaultTerminal, Frame,
+    prelude::*,
+    widgets::{Block, Padding, Paragraph, Wrap},
+    DefaultTerminal,
 };
+use symbols::border;
 
 use crate::compiler::{
     self,
@@ -34,6 +31,7 @@ enum DebuggerView {
 
 struct Debugger {
     runtime: Arc<Mutex<Runtime>>,
+    disassembled: String,
     exit: bool,
     mode: String,
     next_instruction: Option<String>,
@@ -47,6 +45,7 @@ pub fn start_tui_debugger(filepath: String) -> Result<()> {
 
     let mut debugger = Debugger {
         runtime: Arc::new(Mutex::new(Runtime::new(1024, vec![], HashMap::new()))),
+        disassembled: String::new(),
         exit: false,
         mode: "launched".to_string(),
         next_instruction: None,
@@ -88,6 +87,15 @@ impl Debugger {
         compiler.byte_code_gen()?;
 
         let program = compiler.result_codegen.as_ref().unwrap().buffer.clone();
+
+        let mut buffer = vec![];
+        {
+            let mut writer = BufWriter::new(&mut buffer);
+            emit_disassemble(&mut writer, program.clone())?;
+            writer.flush()?;
+        }
+
+        self.disassembled = String::from_utf8(buffer)?;
 
         self.runtime.lock().unwrap().init(
             1024,
@@ -261,7 +269,10 @@ impl Widget for &Debugger {
         // source_code block
         {
             let mut block = Block::bordered()
-                .title(format!(" Source Code [{:?}] ", runtime.prev_source_map))
+                .title(format!(
+                    " Source Code [{},{}] ",
+                    runtime.prev_source_map.0, runtime.prev_source_map.1
+                ))
                 .padding(Padding::left(1));
             if self.focus == DebuggerView::SourceCode {
                 block = block.yellow().border_set(border::DOUBLE);
@@ -329,30 +340,29 @@ impl Widget for &Debugger {
 
         // disassemble block
         {
-            let mut block = Block::bordered().title(" Disassemble ");
+            let mut block = Block::bordered()
+                .title(format!(" Disassemble [0x{:x}] ", runtime.pc))
+                .padding(Padding::left(2));
             if self.focus == DebuggerView::Disassemble {
                 block = block.yellow().border_set(border::DOUBLE);
             }
 
-            let mut writer = BufWriter::new(Vec::new());
-            emit_disassemble(&mut writer, runtime.program.clone()).unwrap();
+            let lines = self
+                .disassembled
+                .lines()
+                .map(|t| Line::raw(t.to_string()))
+                .collect::<Vec<_>>();
 
-            Paragraph::new(
-                String::from_utf8(writer.buffer().to_vec())
-                    .unwrap()
-                    .lines()
-                    .map(|s| Line::raw(s))
-                    .collect::<Vec<_>>(),
-            )
-            .block(block)
-            .scroll((
-                self.scrolls
-                    .get(&DebuggerView::Disassemble)
-                    .copied()
-                    .unwrap_or(0),
-                0,
-            ))
-            .render(horizontal_layout[1], buf);
+            Paragraph::new(lines)
+                .block(block)
+                .scroll((
+                    self.scrolls
+                        .get(&DebuggerView::Disassemble)
+                        .copied()
+                        .unwrap_or(0),
+                    0,
+                ))
+                .render(horizontal_layout[1], buf);
         }
 
         let bottom_layout = Layout::default()

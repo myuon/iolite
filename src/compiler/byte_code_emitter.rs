@@ -191,7 +191,7 @@ pub fn emit_disassemble(writer: &mut impl std::io::Write, binary: Vec<u8>) -> Re
     };
 
     while position < binary.len() {
-        write!(writer, "{:x}: {:02x} ", position, binary[position])?;
+        write!(writer, "0x{:x}: {:02x} ", position, binary[position])?;
 
         match consume(&mut position) {
             0x01 => {
