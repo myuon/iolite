@@ -23,12 +23,21 @@ use crate::compiler::{
     runtime::{ControlFlow, Runtime},
 };
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
+enum DebuggerView {
+    SourceCode,
+    Disassemble,
+    StackFrames,
+    Stack,
+}
+
 struct Debugger {
     runtime: Arc<Mutex<Runtime>>,
     exit: bool,
     mode: String,
     next_instruction: Option<String>,
-    focus: usize,
+    focus: DebuggerView,
+    scrolls: HashMap<DebuggerView, u16>,
 }
 
 pub fn start_tui_debugger(filepath: String) -> Result<()> {
@@ -40,7 +49,8 @@ pub fn start_tui_debugger(filepath: String) -> Result<()> {
         exit: false,
         mode: "launched".to_string(),
         next_instruction: None,
-        focus: 0,
+        focus: DebuggerView::SourceCode,
+        scrolls: HashMap::new(),
     };
 
     let path = Path::new(&filepath);
@@ -170,7 +180,22 @@ impl Debugger {
             KeyCode::Char('r') => self.resume(),
             KeyCode::Char('n') => self.next(),
             KeyCode::Char(' ') => self.next(),
-            KeyCode::Tab => self.focus = (self.focus + 1) % 2,
+            KeyCode::Tab => {
+                self.focus = match self.focus {
+                    DebuggerView::SourceCode => DebuggerView::Disassemble,
+                    DebuggerView::Disassemble => DebuggerView::StackFrames,
+                    DebuggerView::StackFrames => DebuggerView::Stack,
+                    DebuggerView::Stack => DebuggerView::SourceCode,
+                }
+            }
+            KeyCode::Up => {
+                let scroll = self.scrolls.entry(self.focus).or_insert(0);
+                *scroll = scroll.saturating_sub(1);
+            }
+            KeyCode::Down => {
+                let scroll = self.scrolls.entry(self.focus).or_insert(0);
+                *scroll += 1;
+            }
             _ => {}
         }
     }
@@ -219,7 +244,7 @@ impl Widget for &Debugger {
             self.next_instruction
                 .clone()
                 .map(|t| format!(", next:{}", t))
-                .unwrap_or(String::new())
+                .unwrap_or(String::new()),
         ))
         .block(block)
         .render(outer_layout[0], buf);
@@ -229,7 +254,7 @@ impl Widget for &Debugger {
             let mut block = Block::bordered()
                 .title(" Source Code ")
                 .padding(Padding::left(4));
-            if self.focus == 0 {
+            if self.focus == DebuggerView::SourceCode {
                 block = block.yellow().border_set(border::DOUBLE);
             }
 
@@ -248,13 +273,20 @@ impl Widget for &Debugger {
             )
             .wrap(Wrap { trim: true })
             .block(block)
+            .scroll((
+                self.scrolls
+                    .get(&DebuggerView::SourceCode)
+                    .copied()
+                    .unwrap_or(0),
+                0,
+            ))
             .render(horizontal_layout[0], buf);
         }
 
         // disassemble block
         {
             let mut block = Block::bordered().title(" Disassemble ");
-            if self.focus == 1 {
+            if self.focus == DebuggerView::Disassemble {
                 block = block.yellow().border_set(border::DOUBLE);
             }
 
@@ -269,6 +301,13 @@ impl Widget for &Debugger {
                     .collect::<Vec<_>>(),
             )
             .block(block)
+            .scroll((
+                self.scrolls
+                    .get(&DebuggerView::Disassemble)
+                    .copied()
+                    .unwrap_or(0),
+                0,
+            ))
             .render(horizontal_layout[1], buf);
         }
 
@@ -279,7 +318,10 @@ impl Widget for &Debugger {
 
         // stack frame block
         {
-            let block = Block::bordered().title(" Stack Frames ");
+            let mut block = Block::bordered().title(" Stack Frames ");
+            if self.focus == DebuggerView::StackFrames {
+                block = block.yellow().border_set(border::DOUBLE);
+            }
 
             let mut frames = runtime.get_stack_frames();
             frames.reverse();
@@ -296,12 +338,22 @@ impl Widget for &Debugger {
                     .collect::<Vec<_>>(),
             )
             .block(block)
+            .scroll((
+                self.scrolls
+                    .get(&DebuggerView::StackFrames)
+                    .copied()
+                    .unwrap_or(0),
+                0,
+            ))
             .render(bottom_layout[0], buf);
         }
 
         // stack block
         {
-            let block = Block::bordered().title(" Stack ");
+            let mut block = Block::bordered().title(" Stack ");
+            if self.focus == DebuggerView::Stack {
+                block = block.yellow().border_set(border::DOUBLE);
+            }
 
             let mut values = runtime.get_stack_values_from_top();
             values.reverse();
@@ -313,6 +365,10 @@ impl Widget for &Debugger {
                     .collect::<Vec<_>>(),
             )
             .block(block)
+            .scroll((
+                self.scrolls.get(&DebuggerView::Stack).copied().unwrap_or(0),
+                0,
+            ))
             .render(bottom_layout[1], buf);
         }
     }
