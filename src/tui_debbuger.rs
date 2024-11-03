@@ -1,5 +1,6 @@
 use std::{
     collections::HashMap,
+    io::BufWriter,
     path::Path,
     sync::{Arc, Mutex},
 };
@@ -16,7 +17,7 @@ use ratatui::{
     DefaultTerminal, Frame,
 };
 
-use crate::compiler::{self, runtime::Runtime};
+use crate::compiler::{self, byte_code_emitter::emit_disassemble, runtime::Runtime};
 
 pub fn start_tui_debugger(filepath: String) -> Result<()> {
     let mut terminal = ratatui::init();
@@ -180,9 +181,18 @@ impl Widget for &Debugger {
 
         // disassemble block
         {
-            Paragraph::new(" hogehoge piyopiyo")
-                .block(Block::bordered().title(" Disassemble "))
-                .render(layout[1], buf);
+            let mut writer = BufWriter::new(Vec::new());
+            emit_disassemble(&mut writer, runtime.program.clone()).unwrap();
+
+            Paragraph::new(
+                String::from_utf8(writer.buffer().to_vec())
+                    .unwrap()
+                    .lines()
+                    .map(|s| Line::raw(s))
+                    .collect::<Vec<_>>(),
+            )
+            .block(Block::bordered().title(" Disassemble "))
+            .render(layout[1], buf);
         }
     }
 }
