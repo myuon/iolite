@@ -12,7 +12,7 @@ use ratatui::{
     layout::{Constraint, Direction, Layout, Rect},
     style::Stylize,
     symbols::border,
-    text::{Line, Span, Text},
+    text::{Line, Span},
     widgets::{Block, Padding, Paragraph, Widget, Wrap},
     DefaultTerminal, Frame,
 };
@@ -253,7 +253,7 @@ impl Widget for &Debugger {
         // source_code block
         {
             let mut block = Block::bordered()
-                .title(" Source Code ")
+                .title(format!(" Source Code [{:?}] ", runtime.prev_source_map))
                 .padding(Padding::left(1));
             if self.focus == DebuggerView::SourceCode {
                 block = block.yellow().border_set(border::DOUBLE);
@@ -347,15 +347,15 @@ impl Widget for &Debugger {
             .constraints(vec![Constraint::Fill(1), Constraint::Fill(1)])
             .split(vertical_layout[1]);
 
+        let mut frames = runtime.get_stack_frames();
+        frames.reverse();
+
         // stack frame block
         {
             let mut block = Block::bordered().title(" Stack Frames ");
             if self.focus == DebuggerView::StackFrames {
                 block = block.yellow().border_set(border::DOUBLE);
             }
-
-            let mut frames = runtime.get_stack_frames();
-            frames.reverse();
 
             let stack_trace = frames
                 .iter()
@@ -395,7 +395,14 @@ impl Widget for &Debugger {
                     .iter()
                     .enumerate()
                     .map(|(i, (addr, value))| {
-                        Line::raw(format!("[{}] 0x{:x} | {:?}", i, addr, value))
+                        let mut line = Line::raw(format!("[{}] 0x{:x} | {:?}", i, addr, value));
+                        if let Some(k) = frames.iter().position(|frame| frame == addr) {
+                            line.push_span(Span::from(format!(" | #frame:[{}]", k)));
+
+                            line.on_blue().black()
+                        } else {
+                            line
+                        }
                     })
                     .collect::<Vec<_>>(),
             )
