@@ -131,6 +131,22 @@ impl Debugger {
         }
 
         self.next_instruction = Some(format!("{:?}", runtime.show_next_instruction()));
+
+        let disassemble_scroll = self.scrolls.entry(DebuggerView::Disassemble).or_insert(0);
+        if !self
+            .disassembled
+            .lines()
+            .nth(*disassemble_scroll as usize)
+            .unwrap()
+            .starts_with(&format!("0x{:x}", runtime.pc))
+        {
+            for (i, line) in self.disassembled.lines().enumerate() {
+                if line.starts_with(&format!("0x{:x}", runtime.pc)) {
+                    *disassemble_scroll = i as u16;
+                    break;
+                }
+            }
+        }
     }
 
     fn resume(&mut self) {
@@ -161,6 +177,22 @@ impl Debugger {
         }
 
         self.next_instruction = Some(format!("{:?}", runtime.show_next_instruction()));
+
+        let disassemble_scroll = self.scrolls.entry(DebuggerView::Disassemble).or_insert(0);
+        if !self
+            .disassembled
+            .lines()
+            .nth(*disassemble_scroll as usize)
+            .unwrap()
+            .starts_with(&format!("0x{:x}", runtime.pc))
+        {
+            for (i, line) in self.disassembled.lines().enumerate() {
+                if line.starts_with(&format!("0x{:x}", runtime.pc)) {
+                    *disassemble_scroll = i as u16;
+                    break;
+                }
+            }
+        }
     }
 
     fn run(&mut self, terminal: &mut DefaultTerminal) -> Result<()> {
@@ -350,7 +382,14 @@ impl Widget for &Debugger {
             let lines = self
                 .disassembled
                 .lines()
-                .map(|t| Line::raw(t.to_string()))
+                .map(|t| {
+                    let line = Line::raw(t.to_string());
+                    if t.starts_with(&format!("0x{:x}:", runtime.pc)) {
+                        line.on_blue().black()
+                    } else {
+                        line
+                    }
+                })
                 .collect::<Vec<_>>();
 
             Paragraph::new(lines)
