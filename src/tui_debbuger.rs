@@ -8,11 +8,11 @@ use anyhow::Result;
 use crossterm::event::{self, Event, KeyCode, KeyEvent, KeyEventKind};
 use ratatui::{
     buffer::Buffer,
-    layout::Rect,
+    layout::{Constraint, Direction, Layout, Rect},
     style::Stylize,
     symbols::border,
     text::Line,
-    widgets::{Block, Paragraph, Widget},
+    widgets::{Block, Padding, Paragraph, Widget, Wrap},
     DefaultTerminal, Frame,
 };
 
@@ -120,6 +120,17 @@ impl Debugger {
 
 impl Widget for &Debugger {
     fn render(self, area: Rect, buf: &mut Buffer) {
+        let outer_layout = Layout::default()
+            .direction(Direction::Vertical)
+            .constraints(vec![Constraint::Percentage(100)])
+            .split(area);
+
+        let layout = Layout::default()
+            .direction(Direction::Vertical)
+            .constraints(vec![Constraint::Percentage(50), Constraint::Percentage(50)])
+            .margin(2)
+            .split(outer_layout[0]);
+
         let title = Line::from(" TUI Debugger ").bold();
         let instructions = Line::from(vec![
             " Resume ".into(),
@@ -136,8 +147,42 @@ impl Widget for &Debugger {
 
         let runtime = self.runtime.lock().unwrap();
 
-        Paragraph::new(runtime.source_code.clone())
-            .block(block)
-            .render(area, buf);
+        Paragraph::new(format!(
+            "pc:{}, bp:{}, sp:{}",
+            runtime.pc, runtime.bp, runtime.sp
+        ))
+        .block(block)
+        .render(outer_layout[0], buf);
+
+        // source_code block
+        {
+            let source_code_lines = runtime
+                .source_code
+                .lines()
+                .enumerate()
+                .map(|(i, t)| format!("{:>4} | {}", i, t))
+                .collect::<Vec<_>>();
+
+            Paragraph::new(
+                source_code_lines
+                    .iter()
+                    .map(|s| Line::raw(s.as_str()))
+                    .collect::<Vec<_>>(),
+            )
+            .wrap(Wrap { trim: true })
+            .block(
+                Block::bordered()
+                    .title(" Source Code ")
+                    .padding(Padding::left(4)),
+            )
+            .render(layout[0], buf);
+        }
+
+        // disassemble block
+        {
+            Paragraph::new(" hogehoge piyopiyo")
+                .block(Block::bordered().title(" Disassemble "))
+                .render(layout[1], buf);
+        }
     }
 }
