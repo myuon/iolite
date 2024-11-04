@@ -481,6 +481,51 @@ impl Debugger {
             .scroll((self.scrolls.get(&view).copied().unwrap_or(0), 0))
             .render(area, buf);
     }
+
+    fn render_view(&self, view: DebuggerView, runtime: &Runtime, area: Rect, buf: &mut Buffer) {
+        match view {
+            DebuggerView::SourceCode => self.render_source_code_block(&runtime, area, buf),
+            DebuggerView::Disassemble => self.render_disassemble_block(&runtime, area, buf),
+            DebuggerView::StackFrames => self.render_stack_frame_block(&runtime, area, buf),
+            DebuggerView::Stack => self.render_stack_block(&runtime, area, buf),
+            DebuggerView::Labels => self.render_labels(&runtime, area, buf),
+        }
+    }
+
+    fn render_views(
+        &self,
+        layout: Vec<(DebuggerView, usize)>,
+        runtime: &Runtime,
+        area: Rect,
+        buf: &mut Buffer,
+    ) {
+        let (views, fills): (Vec<_>, Vec<_>) = layout.into_iter().unzip();
+
+        let areas = Layout::default()
+            .direction(Direction::Horizontal)
+            .constraints(
+                fills
+                    .into_iter()
+                    .map(|f| Constraint::Fill(f as u16))
+                    .collect::<Vec<_>>(),
+            )
+            .split(area);
+
+        for i in 0..views.len() {
+            self.render_view(views[i], &runtime, areas[i], buf);
+        }
+    }
+
+    fn layout() -> [Vec<(DebuggerView, usize)>; 2] {
+        [
+            vec![
+                (DebuggerView::SourceCode, 2),
+                (DebuggerView::StackFrames, 2),
+                (DebuggerView::Labels, 1),
+            ],
+            vec![(DebuggerView::Disassemble, 1), (DebuggerView::Stack, 1)],
+        ]
+    }
 }
 
 impl Widget for &Debugger {
@@ -495,11 +540,6 @@ impl Widget for &Debugger {
             .constraints(vec![Constraint::Percentage(50), Constraint::Percentage(50)])
             .margin(2)
             .split(outer_layout[0]);
-
-        let horizontal_layout = Layout::default()
-            .direction(Direction::Horizontal)
-            .constraints(vec![Constraint::Percentage(50), Constraint::Percentage(50)])
-            .split(vertical_layout[0]);
 
         let title = Line::from(" TUI Debugger ").bold();
         let instructions = Line::from(vec![
@@ -533,24 +573,9 @@ impl Widget for &Debugger {
         .block(block)
         .render(outer_layout[0], buf);
 
-        self.render_source_code_block(&runtime, horizontal_layout[0], buf);
-
-        self.render_stack_frame_block(&runtime, horizontal_layout[1], buf);
-
-        let bottom_layout = Layout::default()
-            .direction(Direction::Horizontal)
-            .constraints(vec![
-                Constraint::Fill(1),
-                Constraint::Fill(1),
-                Constraint::Fill(1),
-            ])
-            .split(vertical_layout[1]);
-
-        self.render_disassemble_block(&runtime, bottom_layout[0], buf);
-
-        self.render_stack_block(&runtime, bottom_layout[1], buf);
-
-        self.render_labels(&runtime, bottom_layout[2], buf);
+        let [views_0, views_1] = Debugger::layout();
+        self.render_views(views_0, &runtime, vertical_layout[0], buf);
+        self.render_views(views_1, &runtime, vertical_layout[1], buf);
     }
 }
 
