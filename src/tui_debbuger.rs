@@ -362,13 +362,9 @@ impl Debugger {
         );
     }
 
-    fn render_stack_frame_block(
-        &self,
-        runtime: &Runtime,
-        frames: &Vec<usize>,
-        area: Rect,
-        buf: &mut Buffer,
-    ) {
+    fn render_stack_frame_block(&self, runtime: &Runtime, area: Rect, buf: &mut Buffer) {
+        let frames = runtime.get_stack_frames();
+
         let stack_trace = frames
             .iter()
             .enumerate()
@@ -427,13 +423,9 @@ impl Debugger {
         );
     }
 
-    fn render_stack_block(
-        &self,
-        runtime: &Runtime,
-        frames: &Vec<usize>,
-        area: Rect,
-        buf: &mut Buffer,
-    ) {
+    fn render_stack_block(&self, runtime: &Runtime, area: Rect, buf: &mut Buffer) {
+        let frames = runtime.get_stack_frames();
+
         let mut values = runtime.get_stack_values_from_top();
         values.reverse();
 
@@ -543,9 +535,7 @@ impl Widget for &Debugger {
 
         self.render_source_code_block(&runtime, horizontal_layout[0], buf);
 
-        let frames = runtime.get_stack_frames();
-
-        self.render_stack_frame_block(&runtime, &frames, horizontal_layout[1], buf);
+        self.render_stack_frame_block(&runtime, horizontal_layout[1], buf);
 
         let bottom_layout = Layout::default()
             .direction(Direction::Horizontal)
@@ -558,7 +548,7 @@ impl Widget for &Debugger {
 
         self.render_disassemble_block(&runtime, bottom_layout[0], buf);
 
-        self.render_stack_block(&runtime, &frames, bottom_layout[1], buf);
+        self.render_stack_block(&runtime, bottom_layout[1], buf);
 
         self.render_labels(&runtime, bottom_layout[2], buf);
     }
