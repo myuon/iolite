@@ -258,6 +258,224 @@ impl Debugger {
             _ => {}
         }
     }
+
+    fn render_source_code_block(&self, runtime: &Runtime, area: Rect, buf: &mut Buffer) {
+        let mut block = Block::bordered()
+            .title(format!(
+                " Source Code [{},{}] ",
+                runtime.prev_source_map.0, runtime.prev_source_map.1
+            ))
+            .padding(Padding::left(1));
+        if self.focus == DebuggerView::SourceCode {
+            block = block.yellow().border_set(border::DOUBLE);
+        }
+
+        let mut lexer = Lexer::new("main".to_string(), runtime.source_code.clone());
+        let tokens = lexer.run().unwrap();
+        let keywords = get_token_type_and_positions(tokens);
+
+        let chars = runtime.source_code.chars().collect::<Vec<_>>();
+        let mut line = 0;
+        let mut lines = vec![];
+        let mut text = Line::raw(format!("|{:>3}| ", line));
+
+        let mut current = 0;
+        for (token_type, start, end) in keywords {
+            while current < start {
+                if let Some(at) = chars[current..start].iter().position(|c| *c == '\n') {
+                    text.push_span(Span::from(
+                        chars[current..current + at].iter().collect::<String>(),
+                    ));
+                    current += at + 1;
+                    line += 1;
+
+                    let source_map = runtime.prev_source_map;
+                    lines.push(if start == source_map.0 && end <= source_map.1 {
+                        text.black().on_blue()
+                    } else {
+                        text
+                    });
+                    text = Line::raw(format!("|{:>3}| ", line));
+                } else {
+                    break;
+                }
+            }
+
+            text.push_span(Span::from(chars[current..start].iter().collect::<String>()));
+            text.push_span(Span::from(chars[start..end].iter().collect::<String>()).fg(
+                match token_type.as_str() {
+                    "ident" => crossterm::style::Color::White,
+                    "string" => crossterm::style::Color::Green,
+                    "numeric" => crossterm::style::Color::Blue,
+                    "comment" => crossterm::style::Color::DarkGrey,
+                    _ => crossterm::style::Color::Magenta,
+                },
+            ));
+
+            current = end;
+        }
+        text.push_span(Span::from(chars[current..].iter().collect::<String>()));
+        lines.push(text);
+
+        Paragraph::new(lines)
+            .wrap(Wrap { trim: true })
+            .block(block)
+            .scroll((
+                self.scrolls
+                    .get(&DebuggerView::SourceCode)
+                    .copied()
+                    .unwrap_or(0),
+                0,
+            ))
+            .render(area, buf);
+    }
+
+    fn render_stack_frame_block(
+        &self,
+        runtime: &Runtime,
+        frames: &Vec<usize>,
+        area: Rect,
+        buf: &mut Buffer,
+    ) {
+        let mut block = Block::bordered().title(" Stack Frames ");
+        if self.focus == DebuggerView::StackFrames {
+            block = block.yellow().border_set(border::DOUBLE);
+        }
+
+        let stack_trace = frames
+            .iter()
+            .enumerate()
+            .map(|(i, frame)| {
+                format!("[{}] 0x{:x} {}", i, frame, {
+                    let ip = runtime.called_ips.get(frames.len() - 1 - i);
+                    if let Some(ip) = ip {
+                        format!("#{}", self.labels.get(ip).unwrap_or(&"main".to_string()))
+                    } else {
+                        "<prepare>".to_string()
+                    }
+                })
+            })
+            .collect::<Vec<_>>();
+
+        Paragraph::new(
+            stack_trace
+                .iter()
+                .map(|s| Line::raw(s.as_str()))
+                .collect::<Vec<_>>(),
+        )
+        .block(block)
+        .scroll((
+            self.scrolls
+                .get(&DebuggerView::StackFrames)
+                .copied()
+                .unwrap_or(0),
+            0,
+        ))
+        .render(area, buf);
+    }
+
+    fn render_disassemble_block(&self, runtime: &Runtime, area: Rect, buf: &mut Buffer) {
+        let mut block = Block::bordered()
+            .title(format!(" Disassemble [0x{:x}] ", runtime.pc))
+            .padding(Padding::left(2));
+        if self.focus == DebuggerView::Disassemble {
+            block = block.yellow().border_set(border::DOUBLE);
+        }
+
+        let lines = self
+            .disassembled
+            .iter()
+            .map(|(i, bs, t)| {
+                let line = Line::raw(format!(
+                    "0x{:x} | {} ;; {:?}",
+                    i,
+                    bs.iter()
+                        .map(|t| format!("{:02x}", t))
+                        .collect::<Vec<_>>()
+                        .join(" "),
+                    t
+                ));
+                if *i == runtime.pc {
+                    line.on_blue().black()
+                } else {
+                    line
+                }
+            })
+            .collect::<Vec<_>>();
+
+        Paragraph::new(lines)
+            .block(block)
+            .scroll((
+                self.scrolls
+                    .get(&DebuggerView::Disassemble)
+                    .copied()
+                    .unwrap_or(0),
+                0,
+            ))
+            .render(area, buf);
+    }
+
+    fn render_stack_block(
+        &self,
+        runtime: &Runtime,
+        frames: &Vec<usize>,
+        area: Rect,
+        buf: &mut Buffer,
+    ) {
+        let mut block = Block::bordered().title(" Stack ");
+        if self.focus == DebuggerView::Stack {
+            block = block.yellow().border_set(border::DOUBLE);
+        }
+
+        let mut values = runtime.get_stack_values_from_top();
+        values.reverse();
+
+        Paragraph::new(
+            values
+                .iter()
+                .enumerate()
+                .map(|(i, (addr, value))| {
+                    let mut line = Line::raw(format!("[{}] 0x{:x} | {:?}", i, addr, value));
+                    if let Some(k) = frames.iter().position(|frame| frame == addr) {
+                        line.push_span(Span::from(format!(" | #frame:[{}]", k)));
+
+                        line.on_blue().black()
+                    } else {
+                        line
+                    }
+                })
+                .collect::<Vec<_>>(),
+        )
+        .block(block)
+        .scroll((
+            self.scrolls.get(&DebuggerView::Stack).copied().unwrap_or(0),
+            0,
+        ))
+        .render(area, buf);
+    }
+
+    fn render_labels(&self, runtime: &Runtime, area: Rect, buf: &mut Buffer) {
+        let mut block = Block::bordered().title(" Labels ");
+        if self.focus == DebuggerView::Stack {
+            block = block.yellow().border_set(border::DOUBLE);
+        }
+
+        let mut labels_iter = self.labels.iter().collect::<Vec<_>>();
+        labels_iter.sort();
+
+        let labels = labels_iter
+            .into_iter()
+            .map(|(addr, label)| Line::raw(format!("0x{:x} -> {}", addr, label)))
+            .collect::<Vec<_>>();
+
+        Paragraph::new(labels)
+            .block(block)
+            .scroll((
+                self.scrolls.get(&DebuggerView::Stack).copied().unwrap_or(0),
+                0,
+            ))
+            .render(area, buf);
+    }
 }
 
 impl Widget for &Debugger {
@@ -308,118 +526,11 @@ impl Widget for &Debugger {
         .block(block)
         .render(outer_layout[0], buf);
 
-        // source_code block
-        {
-            let mut block = Block::bordered()
-                .title(format!(
-                    " Source Code [{},{}] ",
-                    runtime.prev_source_map.0, runtime.prev_source_map.1
-                ))
-                .padding(Padding::left(1));
-            if self.focus == DebuggerView::SourceCode {
-                block = block.yellow().border_set(border::DOUBLE);
-            }
-
-            let mut lexer = Lexer::new("main".to_string(), runtime.source_code.clone());
-            let tokens = lexer.run().unwrap();
-            let keywords = get_token_type_and_positions(tokens);
-
-            let chars = runtime.source_code.chars().collect::<Vec<_>>();
-            let mut line = 0;
-            let mut lines = vec![];
-            let mut text = Line::raw(format!("|{:>3}| ", line));
-
-            let mut current = 0;
-            for (token_type, start, end) in keywords {
-                while current < start {
-                    if let Some(at) = chars[current..start].iter().position(|c| *c == '\n') {
-                        text.push_span(Span::from(
-                            chars[current..current + at].iter().collect::<String>(),
-                        ));
-                        current += at + 1;
-                        line += 1;
-
-                        let source_map = runtime.prev_source_map;
-                        lines.push(if start == source_map.0 && end <= source_map.1 {
-                            text.black().on_blue()
-                        } else {
-                            text
-                        });
-                        text = Line::raw(format!("|{:>3}| ", line));
-                    } else {
-                        break;
-                    }
-                }
-
-                text.push_span(Span::from(chars[current..start].iter().collect::<String>()));
-                text.push_span(Span::from(chars[start..end].iter().collect::<String>()).fg(
-                    match token_type.as_str() {
-                        "ident" => crossterm::style::Color::White,
-                        "string" => crossterm::style::Color::Green,
-                        "numeric" => crossterm::style::Color::Blue,
-                        "comment" => crossterm::style::Color::DarkGrey,
-                        _ => crossterm::style::Color::Magenta,
-                    },
-                ));
-
-                current = end;
-            }
-            text.push_span(Span::from(chars[current..].iter().collect::<String>()));
-            lines.push(text);
-
-            Paragraph::new(lines)
-                .wrap(Wrap { trim: true })
-                .block(block)
-                .scroll((
-                    self.scrolls
-                        .get(&DebuggerView::SourceCode)
-                        .copied()
-                        .unwrap_or(0),
-                    0,
-                ))
-                .render(horizontal_layout[0], buf);
-        }
+        self.render_source_code_block(&runtime, horizontal_layout[0], buf);
 
         let frames = runtime.get_stack_frames();
 
-        // stack frame block
-        {
-            let mut block = Block::bordered().title(" Stack Frames ");
-            if self.focus == DebuggerView::StackFrames {
-                block = block.yellow().border_set(border::DOUBLE);
-            }
-
-            let stack_trace = frames
-                .iter()
-                .enumerate()
-                .map(|(i, frame)| {
-                    format!("[{}] 0x{:x} {}", i, frame, {
-                        let ip = runtime.called_ips.get(frames.len() - 1 - i);
-                        if let Some(ip) = ip {
-                            format!("#{}", self.labels.get(ip).unwrap_or(&"main".to_string()))
-                        } else {
-                            "<prepare>".to_string()
-                        }
-                    })
-                })
-                .collect::<Vec<_>>();
-
-            Paragraph::new(
-                stack_trace
-                    .iter()
-                    .map(|s| Line::raw(s.as_str()))
-                    .collect::<Vec<_>>(),
-            )
-            .block(block)
-            .scroll((
-                self.scrolls
-                    .get(&DebuggerView::StackFrames)
-                    .copied()
-                    .unwrap_or(0),
-                0,
-            ))
-            .render(horizontal_layout[1], buf);
-        }
+        self.render_stack_frame_block(&runtime, &frames, horizontal_layout[1], buf);
 
         let bottom_layout = Layout::default()
             .direction(Direction::Horizontal)
@@ -430,105 +541,11 @@ impl Widget for &Debugger {
             ])
             .split(vertical_layout[1]);
 
-        // disassemble block
-        {
-            let mut block = Block::bordered()
-                .title(format!(" Disassemble [0x{:x}] ", runtime.pc))
-                .padding(Padding::left(2));
-            if self.focus == DebuggerView::Disassemble {
-                block = block.yellow().border_set(border::DOUBLE);
-            }
+        self.render_disassemble_block(&runtime, bottom_layout[0], buf);
 
-            let lines = self
-                .disassembled
-                .iter()
-                .map(|(i, bs, t)| {
-                    let line = Line::raw(format!(
-                        "0x{:x} | {} ;; {:?}",
-                        i,
-                        bs.iter()
-                            .map(|t| format!("{:02x}", t))
-                            .collect::<Vec<_>>()
-                            .join(" "),
-                        t
-                    ));
-                    if *i == runtime.pc {
-                        line.on_blue().black()
-                    } else {
-                        line
-                    }
-                })
-                .collect::<Vec<_>>();
+        self.render_stack_block(&runtime, &frames, bottom_layout[1], buf);
 
-            Paragraph::new(lines)
-                .block(block)
-                .scroll((
-                    self.scrolls
-                        .get(&DebuggerView::Disassemble)
-                        .copied()
-                        .unwrap_or(0),
-                    0,
-                ))
-                .render(bottom_layout[0], buf);
-        }
-
-        // stack block
-        {
-            let mut block = Block::bordered().title(" Stack ");
-            if self.focus == DebuggerView::Stack {
-                block = block.yellow().border_set(border::DOUBLE);
-            }
-
-            let mut values = runtime.get_stack_values_from_top();
-            values.reverse();
-
-            Paragraph::new(
-                values
-                    .iter()
-                    .enumerate()
-                    .map(|(i, (addr, value))| {
-                        let mut line = Line::raw(format!("[{}] 0x{:x} | {:?}", i, addr, value));
-                        if let Some(k) = frames.iter().position(|frame| frame == addr) {
-                            line.push_span(Span::from(format!(" | #frame:[{}]", k)));
-
-                            line.on_blue().black()
-                        } else {
-                            line
-                        }
-                    })
-                    .collect::<Vec<_>>(),
-            )
-            .block(block)
-            .scroll((
-                self.scrolls.get(&DebuggerView::Stack).copied().unwrap_or(0),
-                0,
-            ))
-            .render(bottom_layout[1], buf);
-        }
-
-        // labels
-        {
-            let mut block = Block::bordered().title(" Labels ");
-            if self.focus == DebuggerView::Stack {
-                block = block.yellow().border_set(border::DOUBLE);
-            }
-
-            let mut labels_iter = self.labels.iter().collect::<Vec<_>>();
-            labels_iter.sort();
-
-            let labels = labels_iter
-                .into_iter()
-                .map(|(addr, label)| Line::raw(format!("0x{:x} -> {}", addr, label)))
-                .collect::<Vec<_>>();
-
-            Paragraph::new(labels)
-                .block(block)
-                .scroll((
-                    self.scrolls.get(&DebuggerView::Stack).copied().unwrap_or(0),
-                    0,
-                ))
-                .render(bottom_layout[2], buf);
-        }
+        self.render_labels(&runtime, bottom_layout[2], buf);
     }
 }
 
