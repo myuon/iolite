@@ -380,6 +380,56 @@ impl Widget for &Debugger {
                 .render(horizontal_layout[0], buf);
         }
 
+        let frames = runtime.get_stack_frames();
+
+        // stack frame block
+        {
+            let mut block = Block::bordered().title(" Stack Frames ");
+            if self.focus == DebuggerView::StackFrames {
+                block = block.yellow().border_set(border::DOUBLE);
+            }
+
+            let stack_trace = frames
+                .iter()
+                .enumerate()
+                .map(|(i, frame)| {
+                    format!("[{}] 0x{:x} {}", i, frame, {
+                        let ip = runtime.called_ips.get(frames.len() - 1 - i);
+                        if let Some(ip) = ip {
+                            format!("#{}", self.labels.get(ip).unwrap_or(&"main".to_string()))
+                        } else {
+                            "<prepare>".to_string()
+                        }
+                    })
+                })
+                .collect::<Vec<_>>();
+
+            Paragraph::new(
+                stack_trace
+                    .iter()
+                    .map(|s| Line::raw(s.as_str()))
+                    .collect::<Vec<_>>(),
+            )
+            .block(block)
+            .scroll((
+                self.scrolls
+                    .get(&DebuggerView::StackFrames)
+                    .copied()
+                    .unwrap_or(0),
+                0,
+            ))
+            .render(horizontal_layout[1], buf);
+        }
+
+        let bottom_layout = Layout::default()
+            .direction(Direction::Horizontal)
+            .constraints(vec![
+                Constraint::Fill(1),
+                Constraint::Fill(1),
+                Constraint::Fill(1),
+            ])
+            .split(vertical_layout[1]);
+
         // disassemble block
         {
             let mut block = Block::bordered()
@@ -419,57 +469,7 @@ impl Widget for &Debugger {
                         .unwrap_or(0),
                     0,
                 ))
-                .render(horizontal_layout[1], buf);
-        }
-
-        let bottom_layout = Layout::default()
-            .direction(Direction::Horizontal)
-            .constraints(vec![
-                Constraint::Fill(1),
-                Constraint::Fill(1),
-                Constraint::Fill(1),
-            ])
-            .split(vertical_layout[1]);
-
-        let frames = runtime.get_stack_frames();
-
-        // stack frame block
-        {
-            let mut block = Block::bordered().title(" Stack Frames ");
-            if self.focus == DebuggerView::StackFrames {
-                block = block.yellow().border_set(border::DOUBLE);
-            }
-
-            let stack_trace = frames
-                .iter()
-                .enumerate()
-                .map(|(i, frame)| {
-                    format!("[{}] 0x{:x} {}", i, frame, {
-                        let ip = runtime.called_ips.get(frames.len() - 1 - i);
-                        if let Some(ip) = ip {
-                            format!("#{}", self.labels.get(ip).unwrap_or(&"main".to_string()))
-                        } else {
-                            "<prepare>".to_string()
-                        }
-                    })
-                })
-                .collect::<Vec<_>>();
-
-            Paragraph::new(
-                stack_trace
-                    .iter()
-                    .map(|s| Line::raw(s.as_str()))
-                    .collect::<Vec<_>>(),
-            )
-            .block(block)
-            .scroll((
-                self.scrolls
-                    .get(&DebuggerView::StackFrames)
-                    .copied()
-                    .unwrap_or(0),
-                0,
-            ))
-            .render(bottom_layout[0], buf);
+                .render(bottom_layout[0], buf);
         }
 
         // stack block
