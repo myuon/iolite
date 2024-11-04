@@ -8,7 +8,7 @@ use anyhow::Result;
 use crossterm::event::{self, Event, KeyCode, KeyEvent, KeyEventKind};
 use ratatui::{
     prelude::*,
-    widgets::{Block, Padding, Paragraph, Wrap},
+    widgets::{Block, Paragraph},
     DefaultTerminal,
 };
 use symbols::border;
@@ -27,6 +27,7 @@ enum DebuggerView {
     Disassemble,
     StackFrames,
     Stack,
+    Labels,
 }
 
 struct Debugger {
@@ -244,7 +245,8 @@ impl Debugger {
                     DebuggerView::SourceCode => DebuggerView::Disassemble,
                     DebuggerView::Disassemble => DebuggerView::StackFrames,
                     DebuggerView::StackFrames => DebuggerView::Stack,
-                    DebuggerView::Stack => DebuggerView::SourceCode,
+                    DebuggerView::Stack => DebuggerView::Labels,
+                    DebuggerView::Labels => DebuggerView::SourceCode,
                 }
             }
             KeyCode::Up => {
@@ -260,16 +262,6 @@ impl Debugger {
     }
 
     fn render_source_code_block(&self, runtime: &Runtime, area: Rect, buf: &mut Buffer) {
-        let mut block = Block::bordered()
-            .title(format!(
-                " Source Code [{},{}] ",
-                runtime.prev_source_map.0, runtime.prev_source_map.1
-            ))
-            .padding(Padding::left(1));
-        if self.focus == DebuggerView::SourceCode {
-            block = block.yellow().border_set(border::DOUBLE);
-        }
-
         let mut lexer = Lexer::new("main".to_string(), runtime.source_code.clone());
         let tokens = lexer.run().unwrap();
         let keywords = get_token_type_and_positions(tokens);
@@ -317,17 +309,16 @@ impl Debugger {
         text.push_span(Span::from(chars[current..].iter().collect::<String>()));
         lines.push(text);
 
-        Paragraph::new(lines)
-            .wrap(Wrap { trim: true })
-            .block(block)
-            .scroll((
-                self.scrolls
-                    .get(&DebuggerView::SourceCode)
-                    .copied()
-                    .unwrap_or(0),
-                0,
-            ))
-            .render(area, buf);
+        self.render_block(
+            DebuggerView::SourceCode,
+            &format!(
+                "Source Code [{},{}]",
+                runtime.prev_source_map.0, runtime.prev_source_map.1
+            ),
+            lines,
+            area,
+            buf,
+        );
     }
 
     fn render_stack_frame_block(
@@ -337,11 +328,6 @@ impl Debugger {
         area: Rect,
         buf: &mut Buffer,
     ) {
-        let mut block = Block::bordered().title(" Stack Frames ");
-        if self.focus == DebuggerView::StackFrames {
-            block = block.yellow().border_set(border::DOUBLE);
-        }
-
         let stack_trace = frames
             .iter()
             .enumerate()
@@ -357,31 +343,19 @@ impl Debugger {
             })
             .collect::<Vec<_>>();
 
-        Paragraph::new(
+        self.render_block(
+            DebuggerView::StackFrames,
+            "Stack Frames",
             stack_trace
                 .iter()
                 .map(|s| Line::raw(s.as_str()))
                 .collect::<Vec<_>>(),
-        )
-        .block(block)
-        .scroll((
-            self.scrolls
-                .get(&DebuggerView::StackFrames)
-                .copied()
-                .unwrap_or(0),
-            0,
-        ))
-        .render(area, buf);
+            area,
+            buf,
+        );
     }
 
     fn render_disassemble_block(&self, runtime: &Runtime, area: Rect, buf: &mut Buffer) {
-        let mut block = Block::bordered()
-            .title(format!(" Disassemble [0x{:x}] ", runtime.pc))
-            .padding(Padding::left(2));
-        if self.focus == DebuggerView::Disassemble {
-            block = block.yellow().border_set(border::DOUBLE);
-        }
-
         let lines = self
             .disassembled
             .iter()
@@ -403,16 +377,13 @@ impl Debugger {
             })
             .collect::<Vec<_>>();
 
-        Paragraph::new(lines)
-            .block(block)
-            .scroll((
-                self.scrolls
-                    .get(&DebuggerView::Disassemble)
-                    .copied()
-                    .unwrap_or(0),
-                0,
-            ))
-            .render(area, buf);
+        self.render_block(
+            DebuggerView::Disassemble,
+            &format!("Disassemble [0x{:x}]", runtime.pc),
+            lines,
+            area,
+            buf,
+        );
     }
 
     fn render_stack_block(
@@ -422,15 +393,12 @@ impl Debugger {
         area: Rect,
         buf: &mut Buffer,
     ) {
-        let mut block = Block::bordered().title(" Stack ");
-        if self.focus == DebuggerView::Stack {
-            block = block.yellow().border_set(border::DOUBLE);
-        }
-
         let mut values = runtime.get_stack_values_from_top();
         values.reverse();
 
-        Paragraph::new(
+        self.render_block(
+            DebuggerView::Stack,
+            "Stack",
             values
                 .iter()
                 .enumerate()
@@ -445,21 +413,12 @@ impl Debugger {
                     }
                 })
                 .collect::<Vec<_>>(),
-        )
-        .block(block)
-        .scroll((
-            self.scrolls.get(&DebuggerView::Stack).copied().unwrap_or(0),
-            0,
-        ))
-        .render(area, buf);
+            area,
+            buf,
+        );
     }
 
-    fn render_labels(&self, runtime: &Runtime, area: Rect, buf: &mut Buffer) {
-        let mut block = Block::bordered().title(" Labels ");
-        if self.focus == DebuggerView::Stack {
-            block = block.yellow().border_set(border::DOUBLE);
-        }
-
+    fn render_labels(&self, _runtime: &Runtime, area: Rect, buf: &mut Buffer) {
         let mut labels_iter = self.labels.iter().collect::<Vec<_>>();
         labels_iter.sort();
 
@@ -468,12 +427,25 @@ impl Debugger {
             .map(|(addr, label)| Line::raw(format!("0x{:x} -> {}", addr, label)))
             .collect::<Vec<_>>();
 
-        Paragraph::new(labels)
+        self.render_block(DebuggerView::Labels, "Labels", labels, area, buf);
+    }
+
+    fn render_block<'a>(
+        &self,
+        view: DebuggerView,
+        title: &str,
+        widget: impl Into<Text<'a>>,
+        area: Rect,
+        buf: &mut Buffer,
+    ) {
+        let mut block = Block::bordered().title(format!(" {} ", title));
+        if self.focus == view {
+            block = block.yellow().border_set(border::DOUBLE);
+        }
+
+        Paragraph::new(widget)
             .block(block)
-            .scroll((
-                self.scrolls.get(&DebuggerView::Stack).copied().unwrap_or(0),
-                0,
-            ))
+            .scroll((self.scrolls.get(&view).copied().unwrap_or(0), 0))
             .render(area, buf);
     }
 }
