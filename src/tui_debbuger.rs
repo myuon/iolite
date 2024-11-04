@@ -115,55 +115,61 @@ impl Debugger {
         Ok(())
     }
 
+    fn calculate_disassemble_scroll(&self, pc: usize, disassemble_scroll: u16) -> u16 {
+        if !(self.disassembled[disassemble_scroll as usize].0 == pc) {
+            let mut current = disassemble_scroll as usize;
+            while current < self.disassembled.len() {
+                if self.disassembled[current].0 == pc {
+                    return current as u16;
+                }
+                current += 1;
+            }
+
+            current = 0;
+            while current < disassemble_scroll as usize {
+                if self.disassembled[current].0 == pc {
+                    return current as u16;
+                }
+                current += 1;
+            }
+
+            return 0;
+        }
+
+        return disassemble_scroll;
+    }
+
+    fn set_disassemble_scroll(&mut self, pc: usize) {
+        let current_scroll = *self.scrolls.get(&DebuggerView::Disassemble).unwrap_or(&0);
+        *self.scrolls.entry(DebuggerView::Disassemble).or_insert(0) =
+            self.calculate_disassemble_scroll(pc, current_scroll);
+    }
+
     fn next(&mut self) {
         if self.mode == "finished" {
             return;
         }
 
-        let mut runtime = self.runtime.lock().unwrap();
-        let flow = runtime.step(false, false).unwrap();
+        let pc = {
+            let mut runtime = self.runtime.lock().unwrap();
+            let flow = runtime.step(false, false).unwrap();
 
-        match flow {
-            ControlFlow::HitBreakpoint => {
-                self.mode = "breakpoint".to_string();
-            }
-            ControlFlow::Finish => {
-                self.mode = "finished".to_string();
-            }
-            ControlFlow::Continue => {}
-        }
-
-        self.next_instruction = Some(format!("{:?}", runtime.show_next_instruction()));
-
-        let disassemble_scroll = self.scrolls.entry(DebuggerView::Disassemble).or_insert(0);
-        if !(self.disassembled[*disassemble_scroll as usize].0 == runtime.pc) {
-            let mut found = false;
-            let mut current = *disassemble_scroll as usize;
-            while current < self.disassembled.len() {
-                if self.disassembled[current].0 == runtime.pc {
-                    *disassemble_scroll = current as u16;
-                    found = true;
-                    break;
+            match flow {
+                ControlFlow::HitBreakpoint => {
+                    self.mode = "breakpoint".to_string();
                 }
-                current += 1;
-            }
-
-            if !found {
-                current = 0;
-                while current < *disassemble_scroll as usize {
-                    if self.disassembled[current].0 == runtime.pc {
-                        *disassemble_scroll = current as u16;
-                        found = true;
-                        break;
-                    }
-                    current += 1;
+                ControlFlow::Finish => {
+                    self.mode = "finished".to_string();
                 }
+                ControlFlow::Continue => {}
             }
 
-            if !found {
-                *disassemble_scroll = 0;
-            }
-        }
+            self.next_instruction = Some(format!("{:?}", runtime.show_next_instruction()));
+
+            runtime.pc
+        };
+
+        self.set_disassemble_scroll(pc);
     }
 
     fn resume(&mut self) {
@@ -171,39 +177,35 @@ impl Debugger {
             return;
         }
 
-        self.mode = "running".to_string();
-        let mut runtime = self.runtime.lock().unwrap();
+        let pc = {
+            self.mode = "running".to_string();
+            let mut runtime = self.runtime.lock().unwrap();
 
-        let flow = {
-            let mut flow = ControlFlow::Continue;
-            while matches!(flow, ControlFlow::Continue) {
-                flow = runtime.step(false, false).unwrap();
+            let flow = {
+                let mut flow = ControlFlow::Continue;
+                while matches!(flow, ControlFlow::Continue) {
+                    flow = runtime.step(false, false).unwrap();
+                }
+
+                flow
+            };
+
+            match flow {
+                ControlFlow::HitBreakpoint => {
+                    self.mode = "breakpoint".to_string();
+                }
+                ControlFlow::Finish => {
+                    self.mode = "finished".to_string();
+                }
+                _ => (),
             }
 
-            flow
+            self.next_instruction = Some(format!("{:?}", runtime.show_next_instruction()));
+
+            runtime.pc
         };
 
-        match flow {
-            ControlFlow::HitBreakpoint => {
-                self.mode = "breakpoint".to_string();
-            }
-            ControlFlow::Finish => {
-                self.mode = "finished".to_string();
-            }
-            _ => (),
-        }
-
-        self.next_instruction = Some(format!("{:?}", runtime.show_next_instruction()));
-
-        let disassemble_scroll = self.scrolls.entry(DebuggerView::Disassemble).or_insert(0);
-        if !(self.disassembled[*disassemble_scroll as usize].0 == runtime.pc) {
-            for (i, _, _) in &self.disassembled {
-                if *i == runtime.pc {
-                    *disassemble_scroll = *i as u16;
-                    break;
-                }
-            }
-        }
+        self.set_disassemble_scroll(pc);
     }
 
     fn run(&mut self, terminal: &mut DefaultTerminal) -> Result<()> {
