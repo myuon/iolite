@@ -559,17 +559,30 @@ impl Widget for &Debugger {
 
         let runtime = self.runtime.lock().unwrap();
 
-        Paragraph::new(format!(
-            "[mode:{}] pc:0x{:x}, bp:0x{:x}, sp:0x{:x}{}",
-            self.mode,
-            runtime.pc,
-            runtime.bp,
-            runtime.sp,
-            self.next_instruction
-                .clone()
-                .map(|t| format!(", next:{}", t))
-                .unwrap_or(String::new()),
-        ))
+        Paragraph::new(Line::from(vec![
+            "[mode:".into(),
+            self.mode.clone().bold().bg(if self.mode == "finished" {
+                crossterm::style::Color::Red
+            } else if self.mode == "running" {
+                crossterm::style::Color::Green
+            } else if self.mode == "stopped" {
+                crossterm::style::Color::Yellow
+            } else {
+                crossterm::style::Color::Blue
+            }),
+            "] ".into(),
+            format!(
+                "pc:0x{:x}, bp:0x{:x}, sp:0x{:x}{}",
+                runtime.pc,
+                runtime.bp,
+                runtime.sp,
+                self.next_instruction
+                    .clone()
+                    .map(|t| format!(", next:{}", t))
+                    .unwrap_or(String::new()),
+            )
+            .into(),
+        ]))
         .block(block)
         .render(outer_layout[0], buf);
 
