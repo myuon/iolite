@@ -26,6 +26,8 @@ pub enum ControlFlow {
     Continue,
     Finish,
     HitBreakpoint,
+    Call,
+    Return,
 }
 
 #[cfg(feature = "gui")]
@@ -415,6 +417,7 @@ impl Runtime {
         &mut self,
         print_stacks: bool,
         print_memory_store: bool,
+        control_call_ret: bool,
     ) -> Result<ControlFlow, RuntimeError> {
         if print_stacks {
             self.print_stack();
@@ -452,7 +455,11 @@ impl Runtime {
                 println!("Task {} started: pc={}, args={}", task_id, pc, args_len);
             }
 
-            return Ok(ControlFlow::Continue);
+            return Ok(if control_call_ret {
+                ControlFlow::Call
+            } else {
+                ControlFlow::Continue
+            });
         }
 
         let inst = self.consume();
@@ -468,6 +475,10 @@ impl Runtime {
                 self.push(self.pc as i64);
                 self.pc = pc as usize;
                 self.called_ips.push(self.pc);
+
+                if control_call_ret {
+                    return Ok(ControlFlow::Call);
+                }
             }
             // extcall
             0x03 => {
@@ -1186,6 +1197,10 @@ impl Runtime {
                         self.interrupted.pop();
 
                         returned = true;
+
+                        if control_call_ret {
+                            return Ok(ControlFlow::Return);
+                        }
                     }
                 }
 
@@ -1198,6 +1213,10 @@ impl Runtime {
                     );
                     self.pc = value.as_u64() as usize;
                     self.called_ips.pop();
+
+                    if control_call_ret {
+                        return Ok(ControlFlow::Return);
+                    }
                 }
             }
             // jump
@@ -1490,7 +1509,7 @@ impl Runtime {
         print_memory_store: bool,
     ) -> Result<(), RuntimeError> {
         while !matches!(
-            self.step(print_stacks, print_memory_store)?,
+            self.step(print_stacks, print_memory_store, false)?,
             ControlFlow::Finish
         ) {}
 

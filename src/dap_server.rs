@@ -62,7 +62,7 @@ async fn dap_handler(
 
                 let mut flow = ControlFlow::Continue;
                 while matches!(flow, ControlFlow::Continue) {
-                    flow = runtime.step(false, false).unwrap();
+                    flow = runtime.step(false, false, false).unwrap();
                 }
 
                 (flow, runtime.pc, runtime.show_next_instruction())
@@ -223,7 +223,7 @@ async fn dap_handler(
         Command::Next(_) => {
             let control = {
                 let mut runtime = ctx.0.lock().unwrap();
-                let control = runtime.step(true, false)?;
+                let control = runtime.step(true, false, false)?;
 
                 control
             };
@@ -312,6 +312,7 @@ async fn dap_handler(
 
                     Ok(ResponseBody::Next)
                 }
+                _ => todo!(),
             }
         }
         Command::Pause(_) => todo!(),

@@ -152,7 +152,7 @@ impl Debugger {
 
         let pc = {
             let mut runtime = self.runtime.lock().unwrap();
-            let flow = runtime.step(false, false).unwrap();
+            let flow = runtime.step(false, false, false).unwrap();
 
             match flow {
                 ControlFlow::HitBreakpoint => {
@@ -161,7 +161,45 @@ impl Debugger {
                 ControlFlow::Finish => {
                     self.mode = "finished".to_string();
                 }
-                ControlFlow::Continue => {}
+                _ => {}
+            }
+
+            self.next_instruction = Some(format!("{:?}", runtime.show_next_instruction()));
+
+            runtime.pc
+        };
+
+        self.set_disassemble_scroll(pc);
+    }
+
+    fn next_call_ret(&mut self) {
+        if self.mode == "finished" {
+            return;
+        }
+
+        let pc = {
+            let mut runtime = self.runtime.lock().unwrap();
+
+            let flow = {
+                let mut flow = ControlFlow::Continue;
+                while matches!(flow, ControlFlow::Continue) {
+                    flow = runtime.step(false, false, true).unwrap();
+                }
+
+                flow
+            };
+
+            match flow {
+                ControlFlow::HitBreakpoint => {
+                    self.mode = "breakpoint".to_string();
+                }
+                ControlFlow::Finish => {
+                    self.mode = "finished".to_string();
+                }
+                ControlFlow::Call | ControlFlow::Return => {
+                    self.mode = "stopped".to_string();
+                }
+                ControlFlow::Continue => (),
             }
 
             self.next_instruction = Some(format!("{:?}", runtime.show_next_instruction()));
@@ -184,7 +222,7 @@ impl Debugger {
             let flow = {
                 let mut flow = ControlFlow::Continue;
                 while matches!(flow, ControlFlow::Continue) {
-                    flow = runtime.step(false, false).unwrap();
+                    flow = runtime.step(false, false, false).unwrap();
                 }
 
                 flow
@@ -242,6 +280,7 @@ impl Debugger {
             KeyCode::Char('r') => self.resume(),
             KeyCode::Char('n') => self.next(),
             KeyCode::Char(' ') => self.next(),
+            KeyCode::Char('o') => self.next_call_ret(),
             KeyCode::Tab => {
                 self.focus = match self.focus {
                     DebuggerView::SourceCode => DebuggerView::Disassemble,
@@ -476,6 +515,8 @@ impl Widget for &Debugger {
             "<R>".blue().into(),
             " Next ".into(),
             "<N/SPACE>".blue().into(),
+            " Next CALL/RET ".into(),
+            "<O>".blue().into(),
             " Quit ".into(),
             "<Q> ".blue().into(),
         ]);
