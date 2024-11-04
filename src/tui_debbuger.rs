@@ -141,19 +141,35 @@ impl Debugger {
 
         self.next_instruction = Some(format!("{:?}", runtime.show_next_instruction()));
 
+        let lines = self.disassembled.lines().collect::<Vec<_>>();
+
         let disassemble_scroll = self.scrolls.entry(DebuggerView::Disassemble).or_insert(0);
-        if !self
-            .disassembled
-            .lines()
-            .nth(*disassemble_scroll as usize)
-            .unwrap()
-            .starts_with(&format!("0x{:x}", runtime.pc))
-        {
-            for (i, line) in self.disassembled.lines().enumerate() {
-                if line.starts_with(&format!("0x{:x}", runtime.pc)) {
-                    *disassemble_scroll = i as u16;
+        if !lines[*disassemble_scroll as usize].starts_with(&format!("0x{:x}", runtime.pc)) {
+            let mut found = false;
+            let mut current = *disassemble_scroll as usize;
+            while current < lines.len() {
+                if lines[current].starts_with(&format!("0x{:x}", runtime.pc)) {
+                    *disassemble_scroll = current as u16;
+                    found = true;
                     break;
                 }
+                current += 1;
+            }
+
+            if !found {
+                current = 0;
+                while current < *disassemble_scroll as usize {
+                    if lines[current].starts_with(&format!("0x{:x}", runtime.pc)) {
+                        *disassemble_scroll = current as u16;
+                        found = true;
+                        break;
+                    }
+                    current += 1;
+                }
+            }
+
+            if !found {
+                *disassemble_scroll = 0;
             }
         }
     }
