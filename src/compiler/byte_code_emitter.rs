@@ -169,6 +169,193 @@ mod tests {
     }
 }
 
+pub fn disassemble(binary: &Vec<u8>) -> Result<Vec<(usize, Vec<u8>, Instruction)>> {
+    let mut prev_position = 0;
+    let mut position = 0;
+    let consume = |position: &mut usize| -> u8 {
+        let byte = binary[*position];
+        *position += 1;
+
+        byte
+    };
+    let consume_u64 = |position: &mut usize| -> u64 {
+        u64::from_le_bytes([
+            consume(position),
+            consume(position),
+            consume(position),
+            consume(position),
+            consume(position),
+            consume(position),
+            consume(position),
+            consume(position),
+        ])
+    };
+
+    let mut result = vec![];
+    macro_rules! push {
+        ($inst:expr) => {
+            result.push((position, binary[prev_position..position].to_vec(), $inst));
+        };
+    }
+
+    while position < binary.len() {
+        match consume(&mut position) {
+            0x01 => {
+                let value = consume_u64(&mut position);
+
+                push!(Instruction::Push(value));
+            }
+            0x02 => {
+                push!(Instruction::Call);
+            }
+            0x03 => {
+                let value = consume_u64(&mut position);
+                push!(Instruction::ExtCall(value as usize));
+            }
+            0x04 => {
+                push!(Instruction::Return);
+            }
+            0x05 => {
+                push!(Instruction::Jump);
+            }
+            0x06 => {
+                push!(Instruction::JumpIf);
+            }
+            0x07 => {
+                push!(Instruction::Nop);
+            }
+            0x08 => {
+                let offset = consume_u64(&mut position);
+                let length = consume_u64(&mut position);
+                let data = &binary[position..(position + length as usize)];
+                position += length as usize;
+                push!(Instruction::Data {
+                    offset: offset as u64,
+                    length: length as u64,
+                    data: data.to_vec(),
+                });
+            }
+            0x09 => {
+                push!(Instruction::Abort);
+            }
+            0x10 => {
+                push!(Instruction::AddInt);
+            }
+            0x11 => {
+                push!(Instruction::SubInt);
+            }
+            0x12 => {
+                push!(Instruction::MulInt);
+            }
+            0x13 => {
+                push!(Instruction::DivInt);
+            }
+            0x14 => {
+                push!(Instruction::AddFloat);
+            }
+            0x15 => {
+                push!(Instruction::SubFloat);
+            }
+            0x16 => {
+                push!(Instruction::MulFloat);
+            }
+            0x17 => {
+                push!(Instruction::DivFloat);
+            }
+            0x18 => {
+                push!(Instruction::ModInt);
+            }
+            0x20 => {
+                push!(Instruction::Xor);
+            }
+            0x21 => {
+                push!(Instruction::And);
+            }
+            0x22 => {
+                push!(Instruction::Or);
+            }
+            0x23 => {
+                push!(Instruction::Not);
+            }
+            0x30 => {
+                push!(Instruction::Eq);
+            }
+            0x31 => {
+                push!(Instruction::NotEq);
+            }
+            0x32 => {
+                push!(Instruction::Lt);
+            }
+            0x33 => {
+                push!(Instruction::Gt);
+            }
+            0x34 => {
+                push!(Instruction::Le);
+            }
+            0x35 => {
+                push!(Instruction::Ge);
+            }
+            0x40 => {
+                push!(Instruction::Load);
+            }
+            0x41 => match consume(&mut position) {
+                0x01 => {
+                    push!(Instruction::LoadBp);
+                }
+                0x02 => {
+                    push!(Instruction::LoadSp);
+                }
+                _ => bail!("Invalid LOAD instruction"),
+            },
+            0x42 => {
+                push!(Instruction::Store);
+            }
+            0x43 => match consume(&mut position) {
+                0x01 => {
+                    push!(Instruction::StoreBp);
+                }
+                0x02 => {
+                    push!(Instruction::StoreSp);
+                }
+                _ => bail!("Invalid STORE instruction"),
+            },
+            0x44 => {
+                push!(Instruction::Load8);
+            }
+            0x45 => {
+                push!(Instruction::Store8);
+            }
+            0x46 => {
+                push!(Instruction::Load32);
+            }
+            0x47 => {
+                push!(Instruction::Store32);
+            }
+            0x50 => {
+                push!(Instruction::IntToFloat);
+            }
+            0x51 => {
+                push!(Instruction::FloatToInt);
+            }
+            0x61 => {
+                let start = consume_u64(&mut position);
+                let end = consume_u64(&mut position);
+
+                push!(Instruction::SourceMap(Span::span(
+                    "unknown".to_string(),
+                    start as usize,
+                    end as usize,
+                )));
+            }
+            p => todo!("Unknown instruction: {:02x} at 0x{:x}", p, position),
+        }
+
+        prev_position = position;
+    }
+
+    Ok(result)
+}
+
 pub fn emit_disassemble(writer: &mut impl std::io::Write, binary: Vec<u8>) -> Result<()> {
     let mut position = 0;
     let consume = |position: &mut usize| -> u8 {

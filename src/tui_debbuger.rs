@@ -1,6 +1,5 @@
 use std::{
     collections::HashMap,
-    io::{BufWriter, Write},
     path::Path,
     sync::{Arc, Mutex},
 };
@@ -16,9 +15,10 @@ use symbols::border;
 
 use crate::compiler::{
     self,
-    byte_code_emitter::emit_disassemble,
+    byte_code_emitter::disassemble,
     lexer::{Lexeme, Lexer, Token},
     runtime::{ControlFlow, Runtime},
+    vm::Instruction,
 };
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
@@ -31,7 +31,7 @@ enum DebuggerView {
 
 struct Debugger {
     runtime: Arc<Mutex<Runtime>>,
-    disassembled: String,
+    disassembled: Vec<(usize, Vec<u8>, Instruction)>,
     exit: bool,
     mode: String,
     next_instruction: Option<String>,
@@ -46,7 +46,7 @@ pub fn start_tui_debugger(filepath: String) -> Result<()> {
 
     let mut debugger = Debugger {
         runtime: Arc::new(Mutex::new(Runtime::new(1024, vec![], HashMap::new()))),
-        disassembled: String::new(),
+        disassembled: vec![],
         exit: false,
         mode: "launched".to_string(),
         next_instruction: None,
@@ -91,14 +91,7 @@ impl Debugger {
         let emitter = compiler.result_codegen.as_ref().unwrap();
         let program = emitter.buffer.clone();
 
-        let mut buffer = vec![];
-        {
-            let mut writer = BufWriter::new(&mut buffer);
-            emit_disassemble(&mut writer, program.clone())?;
-            writer.flush()?;
-        }
-
-        self.disassembled = String::from_utf8(buffer)?;
+        self.disassembled = disassemble(&program)?;
         self.labels = emitter
             .labels
             .clone()
@@ -141,14 +134,12 @@ impl Debugger {
 
         self.next_instruction = Some(format!("{:?}", runtime.show_next_instruction()));
 
-        let lines = self.disassembled.lines().collect::<Vec<_>>();
-
         let disassemble_scroll = self.scrolls.entry(DebuggerView::Disassemble).or_insert(0);
-        if !lines[*disassemble_scroll as usize].starts_with(&format!("0x{:x}", runtime.pc)) {
+        if !(self.disassembled[*disassemble_scroll as usize].0 == runtime.pc) {
             let mut found = false;
             let mut current = *disassemble_scroll as usize;
-            while current < lines.len() {
-                if lines[current].starts_with(&format!("0x{:x}", runtime.pc)) {
+            while current < self.disassembled.len() {
+                if self.disassembled[current].0 == runtime.pc {
                     *disassemble_scroll = current as u16;
                     found = true;
                     break;
@@ -159,7 +150,7 @@ impl Debugger {
             if !found {
                 current = 0;
                 while current < *disassemble_scroll as usize {
-                    if lines[current].starts_with(&format!("0x{:x}", runtime.pc)) {
+                    if self.disassembled[current].0 == runtime.pc {
                         *disassemble_scroll = current as u16;
                         found = true;
                         break;
@@ -204,16 +195,10 @@ impl Debugger {
         self.next_instruction = Some(format!("{:?}", runtime.show_next_instruction()));
 
         let disassemble_scroll = self.scrolls.entry(DebuggerView::Disassemble).or_insert(0);
-        if !self
-            .disassembled
-            .lines()
-            .nth(*disassemble_scroll as usize)
-            .unwrap()
-            .starts_with(&format!("0x{:x}", runtime.pc))
-        {
-            for (i, line) in self.disassembled.lines().enumerate() {
-                if line.starts_with(&format!("0x{:x}", runtime.pc)) {
-                    *disassemble_scroll = i as u16;
+        if !(self.disassembled[*disassemble_scroll as usize].0 == runtime.pc) {
+            for (i, _, _) in &self.disassembled {
+                if *i == runtime.pc {
+                    *disassemble_scroll = *i as u16;
                     break;
                 }
             }
@@ -406,10 +391,18 @@ impl Widget for &Debugger {
 
             let lines = self
                 .disassembled
-                .lines()
-                .map(|t| {
-                    let line = Line::raw(t.to_string());
-                    if t.starts_with(&format!("0x{:x}:", runtime.pc)) {
+                .iter()
+                .map(|(i, bs, t)| {
+                    let line = Line::raw(format!(
+                        "0x{:x} | {} ;; {:?}",
+                        i,
+                        bs.iter()
+                            .map(|t| format!("{:02x}", t))
+                            .collect::<Vec<_>>()
+                            .join(" "),
+                        t
+                    ));
+                    if *i == runtime.pc {
                         line.on_blue().black()
                     } else {
                         line
